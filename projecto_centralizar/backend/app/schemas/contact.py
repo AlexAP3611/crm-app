@@ -23,6 +23,8 @@ class ContactCreate(BaseModel):
     notes: dict[str, Any] | None = None
     campaign_ids: list[int] = []
 
+    model_config = {"extra": "allow"}
+
 
 class ContactUpdate(BaseModel):
     company: str | None = None
@@ -44,6 +46,8 @@ class ContactUpdate(BaseModel):
     merge_lists: bool = True
     remove_lists: bool = False
     campaign_ids: list[int] | None = None
+
+    model_config = {"extra": "allow"}
 
 
 class ContactBulkDelete(BaseModel):

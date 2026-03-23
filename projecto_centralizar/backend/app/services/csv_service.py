@@ -8,16 +8,16 @@ from app.models.contact import Contact
 from app.schemas.contact import ContactCreate, ContactFilterParams
 from app.services import contact_service
 
+from app.core.field_mapping import CORE_COLUMNS, M2M_FIELD_MAP
 
-CSV_FIELDS = [
-    "id", "company", "first_name", "last_name", "job_title",
-    "cif", "dominio", "email_generic", "email_contact", "phone",
-    "product", "sector_id", "vertical_id",
-]
-
+CSV_FIELDS = ["id"] + CORE_COLUMNS + list(M2M_FIELD_MAP.keys())
 
 def _contact_to_row(contact: Contact) -> dict[str, Any]:
-    return {field: getattr(contact, field, None) for field in CSV_FIELDS}
+    row = {field: getattr(contact, field, None) for field in ["id"] + CORE_COLUMNS}
+    for m2m_key, config in M2M_FIELD_MAP.items():
+        rel_list = getattr(contact, config["relation_name"], [])
+        row[m2m_key] = ",".join(str(item.id) for item in rel_list)
+    return row
 
 
 async def export_csv(session: AsyncSession, filters: ContactFilterParams) -> str:
@@ -48,18 +48,21 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
 
         existing_count_before = None
 
-        data = ContactCreate(
-            company=company,
-            first_name=row.get("first_name") or None,
-            last_name=row.get("last_name") or None,
-            job_title=row.get("job_title") or None,
-            cif=row.get("cif") or None,
-            dominio=row.get("dominio") or None,
-            email_generic=row.get("email_generic") or None,
-            email_contact=row.get("email_contact") or None,
-            phone=row.get("phone") or None,
-            product=row.get("product") or None,
-        )
+        payload = {}
+        for col in CORE_COLUMNS:
+            val = row.get(col)
+            if val:
+                payload[col] = val
+                
+        for m2m_key in M2M_FIELD_MAP.keys():
+            val = row.get(m2m_key)
+            if val:
+                try:
+                    payload[m2m_key] = [int(x.strip()) for x in str(val).split(",") if x.strip()]
+                except Exception:
+                    pass
+
+        data = ContactCreate(**payload)
 
         # Track whether upsert created or updated
         cif = data.cif

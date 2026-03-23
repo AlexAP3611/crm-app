@@ -14,7 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
 from app.models.vertical import Vertical
+from app.models.sector import Sector
+from app.models.cargo import Cargo
+from app.models.campaign import Campaign
+from app.models.product import Product
 from app.services.merge import deep_merge
+from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP
 
 
 # Fields that should never be written from enrichment data
@@ -27,18 +32,8 @@ RELATION_FIELDS = {"vertical"}
 SYSTEM_FIELDS = {"id_contacto"}
 
 
-def _get_contact_columns() -> set[str]:
-    """Return all editable column names from the Contact model."""
-    mapper = sa_inspect(Contact)
-    return {
-        col.key
-        for col in mapper.column_attrs
-        if col.key not in NON_EDITABLE_FIELDS
-    }
-
-
-# Resolved once at import time for performance
-_CONTACT_COLUMNS = _get_contact_columns()
+# System fields that identify the contact, not enrichment data
+SYSTEM_FIELDS = {"id_contacto"}
 
 
 async def enrich_contact(
@@ -68,15 +63,9 @@ async def enrich_contact_smart(
 ) -> Contact | None:
     """
     Smart enrichment:
-    - Dynamically inspects Contact columns — any matching field is written
-      directly to the column (e.g. linkedin, website, company, phone…).
-    - Handles 'vertical' via M2M relationship.
+    - Dynamically inspects payload against CONTACT_FIELD_MAP
+    - Handles M2M relationships dynamically via M2M_FIELD_MAP
     - ALL other fields are stored as strings inside notes[source].
-
-    Field name mapping from enrichment payload:
-      nombre_empresa → company
-      dominio        → website
-      (all other Contact column names used as-is)
     """
     result = await session.execute(select(Contact).where(Contact.id == contact_id))
     contact = result.scalar_one_or_none()
@@ -89,19 +78,24 @@ async def enrich_contact_smart(
         if key in SYSTEM_FIELDS:
             continue
 
-        if key in RELATION_FIELDS:
-            # Handle vertical via M2M
-            if key == "vertical" and value:
-                vertical_result = await session.execute(
-                    select(Vertical).where(Vertical.name == str(value))
-                )
-                vertical = vertical_result.scalar_one_or_none()
-                if vertical and vertical not in contact.verticals:
-                    contact.verticals.append(vertical)
+        if key in M2M_FIELD_MAP:
+            config = M2M_FIELD_MAP[key]
+            model_class = globals()[config["model"]]
+            relation_name = config["relation_name"]
+            
+            # Assuming payload value is a strictly matching string (like old 'vertical')
+            if value:
+                res = await session.execute(select(model_class).where(model_class.name == str(value)))
+                entity = res.scalar_one_or_none()
+                
+                if entity:
+                    relation_list = getattr(contact, relation_name)
+                    if entity not in relation_list:
+                        relation_list.append(entity)
 
-        elif key in _CONTACT_COLUMNS:
-            # Write directly to the matching column
-            setattr(contact, key, value)
+        elif key in CONTACT_FIELD_MAP:
+            # Write directly to mapped db column
+            setattr(contact, CONTACT_FIELD_MAP[key], value)
 
         else:
             # Unknown field → goes into notes[source] as string

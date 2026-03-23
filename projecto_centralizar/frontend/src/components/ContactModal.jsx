@@ -1,11 +1,16 @@
 import { useState } from 'react'
 import { api } from '../api/client'
 
-const EMPTY = {
-    company: '', first_name: '', last_name: '', job_title: '',
-    cif: '', dominio: '', linkedin: '', email_generic: '', email_contact: '',
-    phone: '', notes: '',
-}
+import { CONTACT_COLUMNS } from '../config/fields'
+
+const EMPTY = { notes: '' }
+CONTACT_COLUMNS.forEach(col => {
+    if (col.type === 'm2m') {
+        EMPTY[col.id_key] = []
+    } else {
+        EMPTY[col.key] = ''
+    }
+})
 
 export default function ContactModal({ contact, sectors, verticals, campaigns, products, cargos, onClose, onSaved }) {
     const isEdit = !!contact
@@ -46,9 +51,11 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
         try {
             const payload = { ...form }
             // Convert empty strings to null for optional string fields
-            const stringFields = ['first_name', 'last_name', 'job_title', 'cif', 'dominio',
-                'linkedin', 'email_generic', 'email_contact', 'phone']
-            stringFields.forEach((k) => { if (payload[k] === '') payload[k] = null })
+            CONTACT_COLUMNS.forEach((col) => {
+                if ((col.type === 'string' || col.type === 'link') && payload[col.key] === '') {
+                    payload[col.key] = null
+                }
+            })
 
             // legacy properties have been removed, DB only expects array properties
 
@@ -87,94 +94,50 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                 {error && <div className="alert alert-error">{error}</div>}
 
                 <div className="modal-grid">
-                    <div className="form-group full">
-                        <label className="form-label">Empresa *</label>
-                        <input id="field-company" className="form-control" value={form.company} onChange={(e) => set('company', e.target.value)} required placeholder="Acme Corp" />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Nombre</label>
-                        <input id="field-first-name" className="form-control" value={form.first_name} onChange={(e) => set('first_name', e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Apellido</label>
-                        <input id="field-last-name" className="form-control" value={form.last_name} onChange={(e) => set('last_name', e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">CIF</label>
-                        <input id="field-cif" className="form-control" value={form.cif} onChange={(e) => set('cif', e.target.value)} placeholder="B12345678" />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Dominio</label>
-                        <input id="field-dominio" className="form-control" value={form.dominio} onChange={(e) => set('dominio', e.target.value)} placeholder="https://acme.com" />
-                    </div>
-                    <div className="form-group full">
-                        <label className="form-label">LinkedIn</label>
-                        <input id="field-linkedin" className="form-control" value={form.linkedin} onChange={(e) => set('linkedin', e.target.value)} placeholder="https://linkedin.com/in/nombre" />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Email (genérico)</label>
-                        <input id="field-email-generic" className="form-control" type="email" value={form.email_generic} onChange={(e) => set('email_generic', e.target.value)} placeholder="info@acme.com" />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Email (contacto)</label>
-                        <input id="field-email-contact" className="form-control" type="email" value={form.email_contact} onChange={(e) => set('email_contact', e.target.value)} placeholder="jane@acme.com" />
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Teléfono</label>
-                        <input id="field-phone" className="form-control" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
-                    </div>
-                    {sectors.length > 0 && (
-                        <div className="form-group full">
-                            <label className="form-label">Sectores</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                {sectors.map((s) => (
-                                    <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                        <input type="checkbox" checked={form.sector_ids.includes(s.id)} onChange={() => toggleArray('sector_ids', s.id)} />
-                                        {s.name}
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {verticals.length > 0 && (
-                        <div className="form-group full">
-                            <label className="form-label">Verticales</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                {verticals.map((v) => (
-                                    <label key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                        <input type="checkbox" checked={form.vertical_ids.includes(v.id)} onChange={() => toggleArray('vertical_ids', v.id)} />
-                                        {v.name}
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {(products || []).length > 0 && (
-                        <div className="form-group full">
-                            <label className="form-label">Productos</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                {products.map((p) => (
-                                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                        <input type="checkbox" checked={form.product_ids.includes(p.id)} onChange={() => toggleArray('product_ids', p.id)} />
-                                        {p.name}
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {(cargos || []).length > 0 && (
-                        <div className="form-group full">
-                            <label className="form-label">Cargos</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                {cargos.map((c) => (
-                                    <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                        <input type="checkbox" checked={form.cargo_ids.includes(c.id)} onChange={() => toggleArray('cargo_ids', c.id)} />
-                                        {c.name}
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    {CONTACT_COLUMNS.map((col) => {
+                        if (col.type === 'string' || col.type === 'link') {
+                            return (
+                                <div key={col.key} className={`form-group ${col.key === 'company' || col.key === 'linkedin' ? 'full' : ''}`}>
+                                    <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
+                                    <input 
+                                        id={`field-${col.key}`} 
+                                        className="form-control" 
+                                        type={col.key.includes('email') ? 'email' : 'text'} 
+                                        value={form[col.key] || ''} 
+                                        onChange={(e) => set(col.key, e.target.value)} 
+                                        required={col.required} 
+                                    />
+                                </div>
+                            )
+                        } else if (col.type === 'm2m') {
+                            const listData = col.key === 'sectors' ? sectors 
+                                           : col.key === 'verticals' ? verticals 
+                                           : col.key === 'products_rel' ? products 
+                                           : col.key === 'cargos' ? cargos 
+                                           : col.key === 'campaigns' ? campaigns : []
+                            
+                            if (!listData || listData.length === 0) return null;
+                            
+                            return (
+                                <div key={col.key} className="form-group full">
+                                    <label className="form-label">{col.label}</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                        {listData.map((item) => (
+                                            <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={form[col.id_key]?.includes(item.id)} 
+                                                    onChange={() => toggleArray(col.id_key, item.id)} 
+                                                />
+                                                {item.name || item.nombre}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+                        }
+                        return null;
+                    })}
                     <div className="form-group full">
                         <label className="form-label">Notas</label>
                         <div className="form-helper-text">Información en formato JSON que será enviada al sistema de IA para enriquecer el contacto.</div>

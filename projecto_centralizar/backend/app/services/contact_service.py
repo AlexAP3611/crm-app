@@ -13,32 +13,14 @@ from app.models.product import Product
 from app.schemas.contact import ContactCreate, ContactFilterParams, ContactUpdate
 from app.services.merge import deep_merge
 
-CONTACT_FIELDS = {
-    "company",
-    "first_name",
-    "last_name",
-    "job_title",
-    "cif",
-    "dominio",
-    "email_generic",
-    "email_contact",
-    "phone",
-    "linkedin",
-    "products",
-    "product_ids",
-    "cargo_ids",
-    "sector_ids",
-    "vertical_ids",
-    "campaign_ids",
-}
-
+from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP
 
 def split_enrichment_data(data: dict):
     structured = {}
     extra = {}
 
     for key, value in data.items():
-        if key in CONTACT_FIELDS:
+        if key in CONTACT_FIELD_MAP.values():
             structured[key] = value
         else:
             extra[key] = value
@@ -145,11 +127,15 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
             contact.notes = data.notes
 
     # Sync M2M associations
-    await _sync_m2m(session, contact, Campaign, data.campaign_ids, "campaigns", False, False)
-    await _sync_m2m(session, contact, Sector, data.sector_ids, "sectors", False, False)
-    await _sync_m2m(session, contact, Vertical, data.vertical_ids, "verticals", False, False)
-    await _sync_m2m(session, contact, Cargo, data.cargo_ids, "cargos", False, False)
-    await _sync_m2m(session, contact, Product, data.product_ids, "products_rel", False, False)
+    extra_fields = payload.keys() | data.model_extra.keys() if data.model_extra else payload.keys()
+    
+    for m2m_key, config in M2M_FIELD_MAP.items():
+        ids_list = getattr(data, m2m_key, None)
+        if ids_list is None and data.model_extra:
+            ids_list = data.model_extra.get(m2m_key, None)
+            
+        model_class = globals()[config["model"]]
+        await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], False, False)
 
     await session.commit()
     await session.refresh(contact)
@@ -168,7 +154,7 @@ async def update_contact(
         return None
 
     payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "sector_ids", "vertical_ids", "cargo_ids", "product_ids", "merge_lists", "remove_lists"}, 
+        exclude={"notes", "campaign_ids", "sector_ids", "vertical_ids", "cargo_ids", "product_ids", "merge_lists", "remove_lists", "created_at", "updated"}, 
         exclude_unset=True
     )
     for field, value in payload.items():
@@ -181,16 +167,15 @@ async def update_contact(
     # Sync M2M if provided
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
-    if data.campaign_ids is not None:
-        await _sync_m2m(session, contact, Campaign, data.campaign_ids, "campaigns", is_merge, is_remove)
-    if data.sector_ids is not None:
-        await _sync_m2m(session, contact, Sector, data.sector_ids, "sectors", is_merge, is_remove)
-    if data.vertical_ids is not None:
-        await _sync_m2m(session, contact, Vertical, data.vertical_ids, "verticals", is_merge, is_remove)
-    if data.cargo_ids is not None:
-        await _sync_m2m(session, contact, Cargo, data.cargo_ids, "cargos", is_merge, is_remove)
-    if data.product_ids is not None:
-        await _sync_m2m(session, contact, Product, data.product_ids, "products_rel", is_merge, is_remove)
+    
+    for m2m_key, config in M2M_FIELD_MAP.items():
+        ids_list = getattr(data, m2m_key, None)
+        if ids_list is None and data.model_extra:
+            ids_list = data.model_extra.get(m2m_key, None)
+            
+        if ids_list is not None:
+            model_class = globals()[config["model"]]
+            await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], is_merge, is_remove)
 
     await session.commit()
     return await _load_contact(session, contact_id)
@@ -248,16 +233,14 @@ async def bulk_update_contacts(
         if "notes" in data.model_fields_set:
             contact.notes = data.notes
 
-        if data.campaign_ids is not None:
-            await _sync_m2m(session, contact, Campaign, data.campaign_ids, "campaigns", is_merge, is_remove)
-        if data.sector_ids is not None:
-            await _sync_m2m(session, contact, Sector, data.sector_ids, "sectors", is_merge, is_remove)
-        if data.vertical_ids is not None:
-            await _sync_m2m(session, contact, Vertical, data.vertical_ids, "verticals", is_merge, is_remove)
-        if data.cargo_ids is not None:
-            await _sync_m2m(session, contact, Cargo, data.cargo_ids, "cargos", is_merge, is_remove)
-        if data.product_ids is not None:
-            await _sync_m2m(session, contact, Product, data.product_ids, "products_rel", is_merge, is_remove)
+        for m2m_key, config in M2M_FIELD_MAP.items():
+            ids_list = getattr(data, m2m_key, None)
+            if ids_list is None and data.model_extra:
+                ids_list = data.model_extra.get(m2m_key, None)
+                
+            if ids_list is not None:
+                model_class = globals()[config["model"]]
+                await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], is_merge, is_remove)
 
     await session.commit()
     return len(contacts)

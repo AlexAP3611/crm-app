@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { CONTACT_COLUMNS } from '../config/fields'
 
 function RowMenu({ onEdit, onDelete }) {
     const [open, setOpen] = useState(false)
@@ -103,17 +104,7 @@ export default function ContactsTable({
                                 onChange={(e) => onSelectAll(e.target.checked)}
                             />
                         </th>
-                        <th>Empresa</th>
-                        <th>Nombre</th>
-                        <th>Cargo</th>
-                        <th>Email</th>
-                        <th>Teléfono</th>
-                        <th>Dominio</th>
-                        <th>LinkedIn</th>
-                        <th>Sector</th>
-                        <th>Vertical</th>
-                        <th>Productos</th>
-                        <th>Campañas</th>
+                        {CONTACT_COLUMNS.map(col => <th key={col.key}>{col.label}</th>)}
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -127,66 +118,32 @@ export default function ContactsTable({
                                     onChange={(e) => onSelect(c.id, e.target.checked)}
                                 />
                             </td>
-                            <td>
-                                <strong>{c.company}</strong>
-                                <div className="td-muted">#{c.id}</div>
-                            </td>
-                            <td>{c.first_name || c.last_name ? `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() : <span className="text-muted">—</span>}</td>
-                            <td>
-                                {c.cargos?.length
-                                    ? c.cargos.map((cargo) => (
-                                        <span key={cargo.id} className="badge badge-muted" style={{ marginRight: 4 }}>{cargo.name}</span>
-                                    ))
-                                    : (c.job_title ?? <span className="td-muted">—</span>)}
-                            </td>
-                            <td>
-                                {c.email_contact && <div>{c.email_contact}</div>}
-                                {c.email_generic && <div className="td-muted">{c.email_generic}</div>}
-                                {!c.email_contact && !c.email_generic && <span className="td-muted">—</span>}
-                            </td>
-                            <td>{c.phone ?? <span className="td-muted">—</span>}</td>
-                            <td>
-                                {c.dominio
-                                    ? <a href={c.dominio} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent)', fontSize: '0.8rem' }}>{c.dominio.replace(/^https?:\/\//, '')}</a>
-                                    : <span className="td-muted">—</span>}
-                            </td>
-                            <td>
-                                {c.linkedin
-                                    ? <a href={c.linkedin} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent)', fontSize: '0.8rem' }}>LinkedIn</a>
-                                    : <span className="td-muted">—</span>}
-                            </td>
-                            <td>
-                                {c.sectors?.length
-                                    ? c.sectors.map((s) => (
-                                        <span key={s.id} className="badge badge-primary" style={{ marginRight: 4, display: 'inline-block', marginBottom: 4 }}>{s.name}</span>
-                                    ))
-                                    : <span className="td-muted">—</span>}
-                            </td>
-                            <td>
-                                {c.verticals?.length
-                                    ? c.verticals.map((v) => (
-                                        <span key={v.id} className="badge badge-accent" style={{ marginRight: 4, display: 'inline-block', marginBottom: 4 }}>{v.name}</span>
-                                    ))
-                                    : <span className="td-muted">—</span>}
-                            </td>
-                            <td>
-                                {c.products_rel?.length
-                                    ? c.products_rel.map((p) => (
-                                        <span key={p.id} className="badge badge-muted" style={{ marginRight: 4, display: 'inline-block', marginBottom: 4 }}>{p.name}</span>
-                                    ))
-                                    : c.products?.length
-                                        ? c.products.map((p, i) => (
-                                            <span key={i} className="badge badge-muted" style={{ marginRight: 4, display: 'inline-block', marginBottom: 4 }}>{p}</span>
-                                        ))
-                                        : <span className="td-muted">—</span>}
-                            </td>
-                            <td>
-                                {c.campaigns?.length
-                                    ? c.campaigns.map((camp) => (
-                                        <span key={camp.id} className="badge badge-muted" style={{ marginRight: 4 }}>{camp.nombre}</span>
-                                    ))
-                                    : <span className="td-muted">—</span>}
-                            </td>
+                            {CONTACT_COLUMNS.map(col => {
+                                if (col.type === 'string') {
+                                    return <td key={col.key}>
+                                        {col.key === 'company' ? (
+                                            <><strong>{c.company}</strong><div className="td-muted">#{c.id}</div></>
+                                        ) : col.key.includes('email') ? (
+                                            c[col.key] ? c[col.key] : <span className="td-muted">—</span>
+                                        ) : c[col.key] ? c[col.key] : <span className="td-muted">—</span>}
+                                    </td>
+                                } else if (col.type === 'link') {
+                                    return <td key={col.key}>
+                                        {c[col.key]
+                                            ? <a href={c[col.key]} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent)', fontSize: '0.8rem' }}>{col.key === 'dominio' ? c[col.key].replace(/^https?:\/\//, '') : 'Link'}</a>
+                                            : <span className="td-muted">—</span>}
+                                    </td>
+                                } else if (col.type === 'm2m') {
+                                    return <td key={col.key}>
+                                        {c[col.key]?.length
+                                            ? c[col.key].map((item, idx) => (
+                                                <span key={item.id || idx} className="badge badge-muted" style={{ marginRight: 4, display: 'inline-block', marginBottom: 4 }}>{item.name || item.nombre}</span>
+                                            ))
+                                            : <span className="td-muted">—</span>}
+                                    </td>
+                                }
+                                return <td key={col.key}>—</td>
+                            })}
                             <td>
                                 <RowMenu onEdit={() => onEdit(c)} onDelete={() => onDelete(c)} />
                             </td>

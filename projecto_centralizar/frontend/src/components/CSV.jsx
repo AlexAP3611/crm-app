@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { api } from '../api/client'
+import { CONTACT_COLUMNS } from '../config/fields'
 
 export function CSVImport({ onImported }) {
     const [dragging, setDragging] = useState(false)
@@ -42,7 +43,7 @@ export function CSVImport({ onImported }) {
             >
                 <div className="drop-zone-icon">📂</div>
                 <p style={{ fontWeight: 500 }}>{loading ? 'Importando…' : 'Arrastra un archivo CSV aquí o haz clic para seleccionarlo'}</p>
-                <p className="text-xs text-muted mt-1">Columna requerida: <code>company</code>. Opcionales: first_name, last_name, cif, dominio, email_generic, email_contact, phone, product, job_title</p>
+                <p className="text-xs text-muted mt-1">Mapeo dinámico import/export admitido: {CONTACT_COLUMNS.map(c => c.key).join(", ")}</p>
             </div>
             <input id="csv-file-input" ref={inputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
             {result && (
