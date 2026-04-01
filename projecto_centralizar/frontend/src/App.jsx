@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useNavigate, Navigate } from 'react-router-dom'
 import { useContacts, useLookups } from './hooks/useContacts'
 import FilterPanel from './components/FilterPanel'
 import ContactsTable from './components/ContactsTable'
@@ -6,6 +7,8 @@ import ContactModal from './components/ContactModal'
 import { CSVImport, CSVExport } from './components/CSV'
 import SettingsPage from './components/SettingsPage'
 import MasterDataPage from './pages/MasterDataPage'
+import RequestAccessPage from './pages/RequestAccessPage'
+import RequestsPage from './pages/RequestsPage'
 import Login from './components/Login'
 import { api } from './api/client'
 
@@ -14,6 +17,7 @@ function Sidebar({ page, setPage }) {
     const items = [
         { id: 'contacts', label: 'Contactos', icon: '👥' },
         { id: 'master-data', label: 'Datos maestros', icon: '📚' },
+        { id: 'requests', label: 'Solicitudes', icon: '📝' },
         { id: 'settings', label: 'APIs y Webhooks', icon: '⚙️' },
     ]
     return (
@@ -564,10 +568,27 @@ function ContactsPage() {
     )
 }
 
-// ---- App Shell ----
-export default function App() {
+// ---- Authenticated App Shell ----
+function AuthenticatedApp({ onLogout }) {
     const [page, setPage] = useState('contacts')
+
+    return (
+        <div className="app-shell">
+            <Sidebar page={page} setPage={setPage} />
+            <main className="main-content">
+                {page === 'contacts' && <ContactsPage />}
+                {page === 'master-data' && <MasterDataPage />}
+                {page === 'requests' && <RequestsPage />}
+                {page === 'settings' && <SettingsPage />}
+            </main>
+        </div>
+    )
+}
+
+// ---- App Root with Routing ----
+function AppRoutes() {
     const [isAuthenticated, setIsAuthenticated] = useState(null) // null = loading
+    const navigate = useNavigate()
 
     const checkAuth = async () => {
         try {
@@ -583,21 +604,61 @@ export default function App() {
     }, [])
 
     if (isAuthenticated === null) {
-        return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Cargando...</div>
-    }
-
-    if (!isAuthenticated) {
-        return <Login onLoginComplete={() => setIsAuthenticated(true)} />
+        return (
+            <div className="auth-page">
+                <div className="spinner" style={{ width: 32, height: 32 }}></div>
+            </div>
+        )
     }
 
     return (
-        <div className="app-shell">
-            <Sidebar page={page} setPage={setPage} />
-            <main className="main-content">
-                {page === 'contacts' && <ContactsPage />}
-                {page === 'master-data' && <MasterDataPage />}
-                {page === 'settings' && <SettingsPage />}
-            </main>
-        </div>
+        <Routes>
+            {/* Public routes */}
+            <Route
+                path="/login"
+                element={
+                    isAuthenticated
+                        ? <Navigate to="/" replace />
+                        : <Login
+                            onLoginComplete={() => {
+                                setIsAuthenticated(true)
+                                navigate('/')
+                            }}
+                            onNavigateRequestAccess={() => navigate('/request-access')}
+                          />
+                }
+            />
+            <Route
+                path="/request-access"
+                element={
+                    isAuthenticated
+                        ? <Navigate to="/" replace />
+                        : <RequestAccessPage
+                            onNavigateLogin={() => navigate('/login')}
+                          />
+                }
+            />
+
+            {/* Protected routes */}
+            <Route
+                path="/*"
+                element={
+                    isAuthenticated
+                        ? <AuthenticatedApp onLogout={() => {
+                            setIsAuthenticated(false)
+                            navigate('/login')
+                          }} />
+                        : <Navigate to="/login" replace />
+                }
+            />
+        </Routes>
+    )
+}
+
+export default function App() {
+    return (
+        <BrowserRouter>
+            <AppRoutes />
+        </BrowserRouter>
     )
 }

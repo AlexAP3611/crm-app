@@ -71,4 +71,11 @@ export const api = {
     // Enrichment
     enrichContact: (id, source, data) =>
         request(`/enrichment/${id}`, { method: 'POST', body: JSON.stringify({ source, data }) }),
+
+    // Access Requests
+    requestAccess: (email, password) =>
+        request('/request-access', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    listRequests: () => request('/requests'),
+    approveRequest: (id) => request(`/requests/${id}/approve`, { method: 'POST' }),
+    rejectRequest: (id) => request(`/requests/${id}/reject`, { method: 'POST' }),
 }
