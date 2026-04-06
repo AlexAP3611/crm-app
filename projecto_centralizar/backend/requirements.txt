@@ -1,6 +1,7 @@
 # IMPORTANT
 # Do NOT upgrade or modify dependency versions.
 # bcrypt must stay at 4.0.1 for passlib compatibility.
+python-jose[cryptography]==3.5.0
 alembic==1.18.4
 annotated-doc==0.0.4
 annotated-types==0.7.0

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import engine, Base
-from app.routers import auth, contacts, csv, enrichment, lookup, master_data, campaigns, system, access_requests, users
+from app.routers import auth, contacts, csv, enrichment, lookup, master_data, campaigns, system, access_requests, users, logs
 
 # Import all models so Alembic can detect them
 import app.models  # noqa: F401
@@ -49,6 +49,7 @@ app.include_router(campaigns.router)
 app.include_router(system.router)
 app.include_router(access_requests.router)
 app.include_router(users.router)
+app.include_router(logs.router)
 
 
 @app.get("/health", tags=["Health"])

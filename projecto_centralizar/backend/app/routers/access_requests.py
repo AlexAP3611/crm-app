@@ -33,8 +33,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Importación del hash de contraseñas desde el módulo de autenticación existente
-from app.auth import get_password_hash
+# Importación del hash de contraseñas y autorización desde el módulo de autenticación
+# - get_password_hash: para hashear contraseñas de nuevos solicitantes
+# - AdminUser: dependencia que requiere rol admin (require_admin -> 403 si no es admin)
+from app.auth import get_password_hash, AdminUser
 # Importación de la sesión de base de datos
 from app.database import get_db
 # Importación de los modelos de base de datos
@@ -237,44 +239,66 @@ async def request_access(
     summary="Listar todas las solicitudes de acceso",
 )
 async def list_requests(
+    admin: AdminUser,
     db: AsyncSession = Depends(get_db),
+    status: str | None = None,
 ):
     """
     Endpoint: GET /api/requests
 
+    Parámetros de query opcionales:
+    - status: Filtro por estado de la solicitud.
+        * "pending" → solo solicitudes pendientes
+        * "all" o sin param → todas las solicitudes (pending, approved, rejected)
+
+    Este filtro es útil para eficiencia futura del backend (evitar enviar
+    datos innecesarios al frontend). Actualmente, el frontend también
+    filtra localmente con un toggle visible al usuario.
+
     Flujo:
-    1. Consulta todas las solicitudes de la tabla 'user_requests'
-    2. Las ordena por fecha de creación descendente (más recientes primero)
+    1. Construye la query base (con o sin filtro de status)
+    2. Ordena por fecha de creación descendente (más recientes primero)
     3. Registra la consulta en la tabla 'logs'
     4. Serializa y retorna la lista al frontend
 
     El frontend (RequestsPage.jsx) renderiza esta lista en una tabla
     con acciones de aprobar/rechazar para solicitudes pendientes.
-
-    TODO futuro:
-    - Añadir paginación (limit/offset o cursor-based)
-    - Filtrar por estado (pending, approved, rejected)
-    - Proteger con autenticación (solo admins)
     """
 
-    # ── Paso 1: Consultar todas las solicitudes ──
+    # ── Paso 1: Construir query con filtro opcional ──
+    # Si status_filter es "pending", solo traemos solicitudes pendientes.
+    # Cualquier otro valor (incluido None o "all") trae todas.
+    # Esto permite al frontend decidir si filtra en cliente o en servidor.
+    query = select(UserRequest)
+
+    if status == "pending":
+        # Filtrar solo solicitudes en estado 'pending'
+        query = query.where(UserRequest.status == "pending")
+
     # ORDER BY created_at DESC para mostrar las más recientes primero
-    result = await db.execute(
-        select(UserRequest).order_by(UserRequest.created_at.desc())
-    )
+    query = query.order_by(UserRequest.created_at.desc())
+
+    result = await db.execute(query)
     # scalars() extrae los objetos ORM de los resultados
     # .all() los convierte en una lista Python
     all_requests = result.scalars().all()
 
-    logger.info(f"[requests] Consulta de solicitudes — {len(all_requests)} encontradas")
+    logger.info(
+        f"[requests] Consulta de solicitudes "
+        f"(filtro={status or 'all'}) — {len(all_requests)} encontradas"
+    )
 
     # ── Paso 2: Registrar la acción en logs ──
     # Registramos quién consultó y cuántas solicitudes había
     await _create_log(
         db=db,
         action="Consultó solicitudes de usuario",
-        user_id=None,  # TODO: usar CurrentUser.id cuando se integre auth
-        metadata={"total_requests": len(all_requests)},
+        user_id=admin.id,  # ID del admin autenticado para auditoría
+        metadata={
+            "total_requests": len(all_requests),
+            "admin_email": admin.email,
+            "status_filter": status or "all",
+        },
     )
     await db.commit()
 
@@ -293,6 +317,7 @@ async def list_requests(
 )
 async def approve_request(
     request_id: int,
+    admin: AdminUser,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -381,25 +406,26 @@ async def approve_request(
     # ── Paso 6: Actualizar la solicitud a 'approved' ──
     # Marcamos la solicitud como aprobada y registramos cuándo y por quién
     request_obj.status = "approved"
-    # reviewed_by queda None hasta que se integre autenticación de admin
-    # TODO: request_obj.reviewed_by = current_user.id
-    request_obj.reviewed_by = None
+    # reviewed_by registra qué admin aprobó la solicitud (para auditoría)
+    request_obj.reviewed_by = admin.id
     # Registramos el momento exacto de la aprobación (UTC)
     request_obj.reviewed_at = datetime.now(timezone.utc)
 
     logger.info(
-        f"[approve] Solicitud ID {request_id} aprobada — "
+        f"[approve] Solicitud ID {request_id} aprobada por admin {admin.email} — "
         f"usuario creado: {request_obj.email}"
     )
 
     # ── Paso 7: Registrar la acción en logs ──
+    # TODO: considerar añadir logs de acceso más detallados si se desea auditar
     await _create_log(
         db=db,
         action="Solicitud aprobada",
-        user_id=None,  # TODO: usar CurrentUser.id cuando se integre auth
+        user_id=admin.id,  # ID del admin que aprobó la solicitud
         metadata={
             "request_id": request_id,
             "email": request_obj.email,
+            "approved_by": admin.email,
             "new_user_role": "gestor",
         },
     )
@@ -419,6 +445,7 @@ async def approve_request(
 )
 async def reject_request(
     request_id: int,
+    admin: AdminUser,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -474,22 +501,23 @@ async def reject_request(
 
     # ── Paso 4: Actualizar la solicitud a 'rejected' ──
     request_obj.status = "rejected"
-    # reviewed_by queda None hasta integrar autenticación de admin
-    # TODO: request_obj.reviewed_by = current_user.id
-    request_obj.reviewed_by = None
+    # reviewed_by registra qué admin rechazó la solicitud (para auditoría)
+    request_obj.reviewed_by = admin.id
     # Registramos el momento exacto del rechazo (UTC)
     request_obj.reviewed_at = datetime.now(timezone.utc)
 
-    logger.info(f"[reject] Solicitud ID {request_id} rechazada")
+    logger.info(f"[reject] Solicitud ID {request_id} rechazada por admin {admin.email}")
 
     # ── Paso 5: Registrar la acción en logs ──
+    # TODO: considerar añadir logs de acceso más detallados si se desea auditar
     await _create_log(
         db=db,
         action="Solicitud rechazada",
-        user_id=None,  # TODO: usar CurrentUser.id cuando se integre auth
+        user_id=admin.id,  # ID del admin que rechazó la solicitud
         metadata={
             "request_id": request_id,
             "email": request_obj.email,
+            "rejected_by": admin.email,
         },
     )
 

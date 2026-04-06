@@ -834,3 +834,66 @@ tbody td {
   background: #fee2e2;
   color: #991b1b;
 }
+
+/* ---- Badge Default (Gestor) ---- */
+/* Estilo neutro para badges genéricos como el rol "Gestor" */
+.badge-default {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* ---- Filter Toggle Group ---- */
+/* Grupo de botones tipo "pill" para alternar entre filtros.
+   Usado en RequestsPage para cambiar entre "Pendientes" y "Todas".
+
+   Estructura:
+   - .filter-toggle-group: contenedor flex con borde redondeado
+   - .filter-toggle-btn: botón individual dentro del grupo
+   - .filter-toggle-btn.active: botón activo con color primario
+
+   La transición suave y el cambio de color dan feedback visual
+   inmediato al usuario al cambiar el filtro. */
+.filter-toggle-group {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.filter-toggle-btn {
+  padding: 8px 18px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+  white-space: nowrap;
+  position: relative;
+}
+
+/* Separador entre botones */
+.filter-toggle-btn + .filter-toggle-btn {
+  border-left: 1px solid var(--color-border);
+}
+
+.filter-toggle-btn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+
+/* Botón activo — color primario con fondo suave */
+.filter-toggle-btn.active {
+  color: var(--color-primary);
+  background: var(--color-primary-dim);
+  font-weight: 700;
+}
+
+.filter-toggle-btn.active:hover {
+  background: var(--color-primary-glow);
+}
+

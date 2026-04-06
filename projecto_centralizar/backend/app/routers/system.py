@@ -4,14 +4,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import require_admin
 from app.models.setting import Setting
 from app.schemas.system import ApiKeyResponse, ApiKeyResponseGenerate
 
 router = APIRouter(
     prefix="/api/system",
     tags=["System"],
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(require_admin)]
 )
 
 @router.get("/api-key", response_model=ApiKeyResponse)

@@ -13,6 +13,21 @@ Campos:
   - metadata:   Datos adicionales en formato JSONB (email, IDs, etc.)
   - created_at: Fecha/hora del registro (automática)
 
+Índices:
+  - idx_logs_user_id:    Acelera consultas de auditoría por usuario.
+                         Ejemplo: "¿Qué acciones ha realizado el usuario X?"
+  - idx_logs_created_at: Acelera consultas por rango de fechas y la limpieza
+                         periódica de logs antiguos (DELETE WHERE created_at < X).
+
+  Impacto de los índices:
+  - SELECT/DELETE: Pasan de un full table scan O(n) a búsqueda indexada O(log n).
+  - INSERT: Costo mínimo adicional (~5-10%) por mantener los índices actualizados,
+    pero es aceptable dado el mayor beneficio en lectura y borrado.
+
+  TODO: Revisar periódicamente el tamaño de los índices con:
+    SELECT pg_size_pretty(pg_relation_size('idx_logs_user_id'));
+    SELECT pg_size_pretty(pg_relation_size('idx_logs_created_at'));
+
 Uso futuro:
   - Se puede usar para auditoría, reportes de actividad, detección
     de patrones, etc.
@@ -22,7 +37,7 @@ Uso futuro:
 
 from datetime import datetime
 
-from sqlalchemy import Integer, Text, DateTime, func
+from sqlalchemy import Integer, Text, DateTime, Index, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,8 +51,22 @@ class Log(Base):
     Cada entrada representa una acción específica con su contexto.
     El campo metadata (JSONB) permite almacenar información adicional
     de forma flexible sin alterar el esquema.
+
+    Índices definidos en __table_args__:
+    - idx_logs_user_id:    Para consultas rápidas de audit trail por usuario
+    - idx_logs_created_at: Para consultas por rango de fechas y limpieza automática
     """
     __tablename__ = "logs"
+
+    # ── Índices ──
+    # Se declaran aquí para que Alembic los detecte automáticamente al generar
+    # migraciones futuras. Los índices ya existen en la DB (migración f228cf519be1).
+    __table_args__ = (
+        # Índice por usuario — acelera: SELECT ... WHERE user_id = ?
+        Index("idx_logs_user_id", "user_id"),
+        # Índice por fecha — acelera: SELECT/DELETE ... WHERE created_at < ?
+        Index("idx_logs_created_at", "created_at"),
+    )
 
     # ── Columnas ──
 

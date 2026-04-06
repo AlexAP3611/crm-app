@@ -22,7 +22,7 @@ para preparar la estructura para futuro control de acceso basado en roles.
 
 from datetime import datetime
 
-from sqlalchemy import String, Text, DateTime, CheckConstraint, func
+from sqlalchemy import String, Text, Boolean, DateTime, CheckConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -92,6 +92,26 @@ class User(Base):
         comment="Fecha y hora de creación del usuario",
     )
 
+    # ── Borrado lógico ──
+    # En lugar de eliminar físicamente un usuario (DELETE), se marca como
+    # inactivo (is_active = False). Esto preserva:
+    # - Historial de logs asociados al user_id
+    # - Datos de auditoría (quién creó, cuándo, qué acciones realizó)
+    # - Posibilidad de reactivar la cuenta en el futuro
+    #
+    # El endpoint DELETE /api/users/{id} cambia is_active a False.
+    # GET /api/users filtra solo is_active = True.
+    # get_current_user() en auth.py bloquea login si is_active = False.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="true",
+        comment="False = usuario eliminado lógicamente (soft delete)",
+    )
+
     def __repr__(self) -> str:
         """Representación legible para debugging."""
-        return f"<User(id={self.id}, email='{self.email}', role='{self.role}')>"
+        return (
+            f"<User(id={self.id}, email='{self.email}', "
+            f"role='{self.role}', is_active={self.is_active})>"
+        )

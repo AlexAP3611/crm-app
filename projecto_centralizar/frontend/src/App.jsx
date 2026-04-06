@@ -5,23 +5,57 @@ import FilterPanel from './components/FilterPanel'
 import ContactsTable from './components/ContactsTable'
 import ContactModal from './components/ContactModal'
 import { CSVImport, CSVExport } from './components/CSV'
-import SettingsPage from './components/SettingsPage'
+// SettingsPage de admin (APIs y Webhooks) — solo accesible para admins
+import AdminSettingsPage from './components/SettingsPage'
+// SettingsPage de usuario (cambio de contraseña, etc.) — accesible para todos
+import UserSettingsPage from './pages/SettingsPage'
 import MasterDataPage from './pages/MasterDataPage'
 import RequestAccessPage from './pages/RequestAccessPage'
 import RequestsPage from './pages/RequestsPage'
 import UsersPage from './pages/UsersPage'
 import Login from './components/Login'
+import ProtectedRoute from './components/ProtectedRoute'
 import { api } from './api/client'
+import { getUserFromToken } from './auth/token'
 
 // ---- Sidebar ----
-function Sidebar({ page, setPage }) {
-    const items = [
+// Recibe userRole para mostrar/ocultar opciones según el rol del usuario.
+// IMPORTANTE: Esto es solo UX — el backend SIEMPRE verifica permisos.
+// Si un gestor intenta acceder a /api/users directamente, el backend
+// responde con 403 Forbidden gracias a la dependencia AdminUser.
+function Sidebar({ page, setPage, userRole }) {
+    // Definición de items del menú
+    // El campo 'adminOnly' indica qué opciones son exclusivas para admins
+    const allItems = [
         { id: 'contacts', label: 'Contactos', icon: '👥' },
         { id: 'master-data', label: 'Datos maestros', icon: '📚' },
-        { id: 'requests', label: 'Solicitudes', icon: '📝' },
-        { id: 'users', label: 'Usuarios', icon: '👤' },
-        { id: 'settings', label: 'APIs y Webhooks', icon: '⚙️' },
+        // Solo admins pueden gestionar solicitudes de acceso.
+        // La visibilidad depende de userRole (filtrado abajo).
+        // TODO: siempre validar también en backend — la seguridad real
+        // no está solo en la UI. El backend ya lo hace via AdminUser
+        // en el router /api/requests (access_requests.py).
+        { id: 'requests', label: 'Solicitudes', icon: '📝', adminOnly: true },
+        { id: 'users', label: 'Usuarios', icon: '👤', adminOnly: true },
+        // Solo admins pueden gestionar APIs y Webhooks.
+        // La visibilidad depende de userRole (filtrado en línea 37).
+        // TODO: siempre validar también en backend — la seguridad real
+        // no está solo en la UI. El backend ya lo hace via require_admin
+        // en el router /api/system (system.py).
+        // Solo admins pueden gestionar APIs y Webhooks.
+        // La visibilidad depende de userRole (filtrado abajo).
+        { id: 'api-settings', label: 'APIs y Webhooks', icon: '⚙️', adminOnly: true },
+        // "Settings" es accesible para TODOS los usuarios (admin y gestor).
+        // Permite configuraciones personales como cambio de contraseña.
+        // No tiene adminOnly, por lo que no se filtra.
+        // TODO futuro: añadir más opciones (email, preferencias, tema, etc.)
+        { id: 'user-settings', label: 'Settings', icon: '🔧' },
     ]
+
+    // Filtrar items según el rol del usuario
+    // Los items con adminOnly: true solo se muestran si userRole === 'admin'
+    // TODO futuro: Añadir más roles ("supervisor", "viewer") con lógica similar
+    const items = allItems.filter(item => !item.adminOnly || userRole === 'admin')
+
     return (
         <aside className="sidebar">
             <div className="sidebar-logo">CRM<span>.</span></div>
@@ -571,34 +605,93 @@ function ContactsPage() {
 }
 
 // ---- Authenticated App Shell ----
-function AuthenticatedApp({ onLogout }) {
+// Recibe userRole y userEmail del JWT para controlar qué ve cada usuario.
+// - userRole: controla visibilidad del menú y rutas protegidas
+// - userEmail: se pasa a UsersPage para ocultar el botón "Eliminar"
+//   en la fila del propio admin (no puede auto-eliminarse)
+// La protección visual complementa la protección real del backend.
+function AuthenticatedApp({ onLogout, userRole, userEmail }) {
     const [page, setPage] = useState('contacts')
 
     return (
         <div className="app-shell">
-            <Sidebar page={page} setPage={setPage} />
+            <Sidebar page={page} setPage={setPage} userRole={userRole} />
             <main className="main-content">
                 {page === 'contacts' && <ContactsPage />}
                 {page === 'master-data' && <MasterDataPage />}
-                {page === 'requests' && <RequestsPage />}
-                {page === 'users' && <UsersPage />}
-                {page === 'settings' && <SettingsPage />}
+                {/* RequestsPage (Solicitudes) protegida con ProtectedRoute: requiere rol admin.
+                    Si un gestor intenta acceder (ej: manipulando el state), ve "Acceso denegado".
+                    Refuerzo de seguridad UI — el backend también verifica el rol con
+                    AdminUser en el router /api/requests. Doble protección. */}
+                {page === 'requests' && (
+                    <ProtectedRoute requiredRole="admin" userRole={userRole}>
+                        <RequestsPage />
+                    </ProtectedRoute>
+                )}
+                {/* UsersPage protegida con ProtectedRoute: requiere rol admin.
+                    Si un gestor llega aquí (ej: manipulando el state), ve "Acceso denegado".
+                    Además, las llamadas API fallarían con 403 porque el backend
+                    también verifica el rol con AdminUser. Doble protección. */}
+                {page === 'users' && (
+                    <ProtectedRoute requiredRole="admin" userRole={userRole}>
+                        {/* currentUserEmail se usa para ocultar el botón "Eliminar"
+                            en la fila del propio admin (no puede auto-eliminarse).
+                            El backend también impide la auto-eliminación (400). */}
+                        <UsersPage currentUserEmail={userEmail} />
+                    </ProtectedRoute>
+                )}
+                {/* AdminSettingsPage (APIs y Webhooks) protegida con ProtectedRoute: requiere rol admin.
+                    Si un gestor intenta acceder (ej: manipulando el state), ve "Acceso denegado".
+                    Refuerzo de seguridad UI — el backend también verifica el rol con
+                    require_admin en el router /api/system. Doble protección. */}
+                {page === 'api-settings' && (
+                    <ProtectedRoute requiredRole="admin" userRole={userRole}>
+                        <AdminSettingsPage />
+                    </ProtectedRoute>
+                )}
+                {/* UserSettingsPage (cambio de contraseña) — accesible para TODOS los usuarios.
+                    No requiere ProtectedRoute porque cualquier usuario autenticado puede
+                    cambiar su propia contraseña. El backend también lo permite para
+                    cualquier usuario con token JWT válido (CurrentUser, no AdminUser). */}
+                {page === 'user-settings' && <UserSettingsPage />}
             </main>
         </div>
     )
 }
 
 // ---- App Root with Routing ----
+// Gestiona el estado de autenticación y el rol del usuario.
+// Al arrancar, verifica si hay un token válido llamando GET /api/me.
+// Si el token es válido, se extrae el rol del JWT para control de UI.
 function AppRoutes() {
     const [isAuthenticated, setIsAuthenticated] = useState(null) // null = loading
+    const [userRole, setUserRole] = useState(null) // 'admin' | 'gestor' | null
+    // Email del usuario autenticado — se pasa a UsersPage para controlar
+    // la visibilidad del botón "Eliminar" (no puede auto-eliminarse)
+    const [userEmail, setUserEmail] = useState(null)
     const navigate = useNavigate()
 
+    /**
+     * Verifica la autenticación del usuario al cargar la app.
+     *
+     * Flujo:
+     * 1. Llama GET /api/me (envía el JWT automáticamente via client.js)
+     * 2. Si el backend responde OK → el token es válido
+     * 3. Extrae el rol del JWT almacenado en localStorage
+     * 4. Si falla (401) → no hay sesión válida
+     */
     const checkAuth = async () => {
         try {
             await api.me()
+            // Token válido → extraer info del usuario del JWT
+            const userData = getUserFromToken()
+            setUserRole(userData?.role ?? null)
+            setUserEmail(userData?.email ?? null)
             setIsAuthenticated(true)
         } catch (e) {
             setIsAuthenticated(false)
+            setUserRole(null)
+            setUserEmail(null)
         }
     }
 
@@ -616,7 +709,7 @@ function AppRoutes() {
 
     return (
         <Routes>
-            {/* Public routes */}
+            {/* Public routes — accesibles sin autenticación */}
             <Route
                 path="/login"
                 element={
@@ -624,6 +717,12 @@ function AppRoutes() {
                         ? <Navigate to="/" replace />
                         : <Login
                             onLoginComplete={() => {
+                                // Después del login, el token ya está en localStorage
+                                // (lo guardó api.login → setToken)
+                                // Extraemos el rol del JWT para uso inmediato
+                                const userData = getUserFromToken()
+                                setUserRole(userData?.role ?? null)
+                                setUserEmail(userData?.email ?? null)
                                 setIsAuthenticated(true)
                                 navigate('/')
                             }}
@@ -642,15 +741,21 @@ function AppRoutes() {
                 }
             />
 
-            {/* Protected routes */}
+            {/* Protected routes — requieren autenticación */}
             <Route
                 path="/*"
                 element={
                     isAuthenticated
-                        ? <AuthenticatedApp onLogout={() => {
-                            setIsAuthenticated(false)
-                            navigate('/login')
-                          }} />
+                        ? <AuthenticatedApp
+                            userRole={userRole}
+                            userEmail={userEmail}
+                            onLogout={() => {
+                                setIsAuthenticated(false)
+                                setUserRole(null)
+                                setUserEmail(null)
+                                navigate('/login')
+                            }}
+                          />
                         : <Navigate to="/login" replace />
                 }
             />
