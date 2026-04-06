@@ -78,4 +78,10 @@ export const api = {
     listRequests: () => request('/requests'),
     approveRequest: (id) => request(`/requests/${id}/approve`, { method: 'POST' }),
     rejectRequest: (id) => request(`/requests/${id}/reject`, { method: 'POST' }),
+
+    // Users — Gestión de usuarios y roles
+    // Consumido por UsersPage.jsx para listar usuarios y cambiar roles
+    listUsers: () => request('/users'),
+    updateUserRole: (id, role) =>
+        request(`/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
 }

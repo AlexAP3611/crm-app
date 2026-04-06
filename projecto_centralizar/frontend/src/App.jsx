@@ -9,6 +9,7 @@ import SettingsPage from './components/SettingsPage'
 import MasterDataPage from './pages/MasterDataPage'
 import RequestAccessPage from './pages/RequestAccessPage'
 import RequestsPage from './pages/RequestsPage'
+import UsersPage from './pages/UsersPage'
 import Login from './components/Login'
 import { api } from './api/client'
 
@@ -18,6 +19,7 @@ function Sidebar({ page, setPage }) {
         { id: 'contacts', label: 'Contactos', icon: '👥' },
         { id: 'master-data', label: 'Datos maestros', icon: '📚' },
         { id: 'requests', label: 'Solicitudes', icon: '📝' },
+        { id: 'users', label: 'Usuarios', icon: '👤' },
         { id: 'settings', label: 'APIs y Webhooks', icon: '⚙️' },
     ]
     return (
@@ -579,6 +581,7 @@ function AuthenticatedApp({ onLogout }) {
                 {page === 'contacts' && <ContactsPage />}
                 {page === 'master-data' && <MasterDataPage />}
                 {page === 'requests' && <RequestsPage />}
+                {page === 'users' && <UsersPage />}
                 {page === 'settings' && <SettingsPage />}
             </main>
         </div>
