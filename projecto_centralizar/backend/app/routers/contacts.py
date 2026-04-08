@@ -26,7 +26,7 @@ async def upsert_contact(
     data: ContactCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Create or update a contact. Upsert key: CIF → dominio → create new."""
+    """Create or update a contact. Upsert key: CIF → web → create new."""
     return await contact_service.upsert_contact(db, data)
 
 
@@ -38,6 +38,13 @@ async def list_contacts(
     product_id: int | None = Query(None),
     cargo_id: int | None = Query(None),
     search: str | None = Query(None),
+    contacto_nombre: str | None = Query(None),
+    email: str | None = Query(None),
+    empresa_id: int | None = Query(None),
+    empresa_nombre: str | None = Query(None),
+    cnae: str | None = Query(None),
+    empresa_numero_empleados_min: int | None = Query(None),
+    empresa_numero_empleados_max: int | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100000),
     db: AsyncSession = Depends(get_db),
@@ -49,6 +56,13 @@ async def list_contacts(
         product_id=product_id,
         cargo_id=cargo_id,
         search=search,
+        contacto_nombre=contacto_nombre,
+        email=email,
+        empresa_id=empresa_id,
+        empresa_nombre=empresa_nombre,
+        cnae=cnae,
+        empresa_numero_empleados_min=empresa_numero_empleados_min,
+        empresa_numero_empleados_max=empresa_numero_empleados_max,
         page=page,
         page_size=page_size,
     )

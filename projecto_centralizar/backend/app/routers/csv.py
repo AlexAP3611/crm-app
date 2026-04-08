@@ -51,7 +51,7 @@ async def import_csv(
     """
     Import contacts from a CSV file.
     Required column: company.
-    Upsert: CIF → dominio → create new.
+    Upsert: CIF → web → create new.
     """
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are accepted")

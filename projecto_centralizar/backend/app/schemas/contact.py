@@ -6,20 +6,15 @@ from pydantic import BaseModel
 
 class ContactCreate(BaseModel):
     company: str
+    empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
     job_title: str | None = None
-    cif: str | None = None
-    dominio: str | None = None
-    email_generic: str | None = None
     email_contact: str | None = None
     phone: str | None = None
     linkedin: str | None = None
     products: list[str] | None = None  # legacy JSONB
-    product_ids: list[int] = []
     cargo_ids: list[int] = []
-    sector_ids: list[int] = []
-    vertical_ids: list[int] = []
     notes: dict[str, Any] | None = None
     campaign_ids: list[int] = []
     # Timestamps — declared so Pydantic coerces ISO strings to datetime
@@ -31,20 +26,15 @@ class ContactCreate(BaseModel):
 
 class ContactUpdate(BaseModel):
     company: str | None = None
+    empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
     job_title: str | None = None
-    cif: str | None = None
-    dominio: str | None = None
-    email_generic: str | None = None
     email_contact: str | None = None
     phone: str | None = None
     linkedin: str | None = None
     products: list[str] | None = None  # legacy JSONB
-    product_ids: list[int] | None = None
     cargo_ids: list[int] | None = None
-    sector_ids: list[int] | None = None
-    vertical_ids: list[int] | None = None
     notes: dict[str, Any] | None = None
     merge_lists: bool = True
     remove_lists: bool = False
@@ -107,7 +97,7 @@ class ContactResponse(BaseModel):
     last_name: str | None
     job_title: str | None
     cif: str | None
-    dominio: str | None
+    web: str | None
     email_generic: str | None
     email_contact: str | None
     phone: str | None
@@ -139,5 +129,12 @@ class ContactFilterParams(BaseModel):
     product_id: int | None = None
     cargo_id: int | None = None
     search: str | None = None
+    contacto_nombre: str | None = None
+    email: str | None = None
+    empresa_id: int | None = None
+    empresa_nombre: str | None = None
+    cnae: str | None = None
+    empresa_numero_empleados_min: int | None = None
+    empresa_numero_empleados_max: int | None = None
     page: int = 1
     page_size: int = 50

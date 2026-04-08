@@ -11,4 +11,4 @@ class Vertical(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    contacts: Mapped[list["Contact"]] = relationship(secondary="contact_verticals", back_populates="verticals", lazy="selectin")  # noqa: F821
+    empresas: Mapped[list["Empresa"]] = relationship(secondary="empresa_verticals", back_populates="verticals", lazy="selectin")  # noqa: F821

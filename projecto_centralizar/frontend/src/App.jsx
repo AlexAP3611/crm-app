@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { BrowserRouter, Routes, Route, useNavigate, Navigate } from 'react-router-dom'
 import { useContacts, useLookups } from './hooks/useContacts'
 import FilterPanel from './components/FilterPanel'
@@ -13,10 +13,12 @@ import MasterDataPage from './pages/MasterDataPage'
 import RequestAccessPage from './pages/RequestAccessPage'
 import RequestsPage from './pages/RequestsPage'
 import UsersPage from './pages/UsersPage'
+import EmpresasPage from './pages/EmpresasPage'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import { api } from './api/client'
 import { getUserFromToken } from './auth/token'
+import { ActiveFilters } from './components/ActiveFilters'
 
 // ---- Sidebar ----
 // Recibe userRole para mostrar/ocultar opciones según el rol del usuario.
@@ -27,28 +29,13 @@ function Sidebar({ page, setPage, userRole }) {
     // Definición de items del menú
     // El campo 'adminOnly' indica qué opciones son exclusivas para admins
     const allItems = [
-        { id: 'contacts', label: 'Contactos', icon: '👥' },
-        { id: 'master-data', label: 'Datos maestros', icon: '📚' },
-        // Solo admins pueden gestionar solicitudes de acceso.
-        // La visibilidad depende de userRole (filtrado abajo).
-        // TODO: siempre validar también en backend — la seguridad real
-        // no está solo en la UI. El backend ya lo hace via AdminUser
-        // en el router /api/requests (access_requests.py).
-        { id: 'requests', label: 'Solicitudes', icon: '📝', adminOnly: true },
-        { id: 'users', label: 'Usuarios', icon: '👤', adminOnly: true },
-        // Solo admins pueden gestionar APIs y Webhooks.
-        // La visibilidad depende de userRole (filtrado en línea 37).
-        // TODO: siempre validar también en backend — la seguridad real
-        // no está solo en la UI. El backend ya lo hace via require_admin
-        // en el router /api/system (system.py).
-        // Solo admins pueden gestionar APIs y Webhooks.
-        // La visibilidad depende de userRole (filtrado abajo).
-        { id: 'api-settings', label: 'APIs y Webhooks', icon: '⚙️', adminOnly: true },
-        // "Settings" es accesible para TODOS los usuarios (admin y gestor).
-        // Permite configuraciones personales como cambio de contraseña.
-        // No tiene adminOnly, por lo que no se filtra.
-        // TODO futuro: añadir más opciones (email, preferencias, tema, etc.)
-        { id: 'user-settings', label: 'Settings', icon: '🔧' },
+        { id: 'contacts', label: 'Contactos', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+        { id: 'empresas', label: 'Empresas', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
+        { id: 'master-data', label: 'Datos maestros', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg> },
+        { id: 'requests', label: 'Solicitudes', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>, adminOnly: true },
+        { id: 'users', label: 'Usuarios', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>, adminOnly: true },
+        { id: 'api-settings', label: 'APIs y Webhooks', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>, adminOnly: true },
+        { id: 'user-settings', label: 'Settings', icon: <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
     ]
 
     // Filtrar items según el rol del usuario
@@ -68,7 +55,7 @@ function Sidebar({ page, setPage, userRole }) {
                         className={`nav-item${page === item.id ? ' active' : ''}`}
                         onClick={() => setPage(item.id)}
                     >
-                        <span style={{ fontSize: '1rem' }}>{item.icon}</span>
+                        <span style={{ display: 'flex', alignItems: 'center' }}>{item.icon}</span>
                         {item.label}
                     </button>
                 ))}
@@ -82,7 +69,9 @@ function Sidebar({ page, setPage, userRole }) {
                         window.location.reload()
                     }}
                 >
-                    <span style={{ fontSize: '1rem' }}>🚪</span>
+                    <span style={{ display: 'flex', alignItems: 'center' }}>
+                        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </span>
                     Cerrar sesión
                 </button>
             </div>
@@ -121,9 +110,6 @@ function BulkAssignmentModal({ type, mode = 'assign', targetCount, options = [],
 
     const titles = {
         campaña: mode === 'assign' ? 'Asignar a campaña' : 'Desasignar de campaña',
-        sector: mode === 'assign' ? 'Asignar a sector' : 'Desasignar de sector',
-        vertical: mode === 'assign' ? 'Asignar a vertical' : 'Desasignar de vertical',
-        productos: mode === 'assign' ? 'Asignar a productos' : 'Desasignar de productos',
         cargo: mode === 'assign' ? 'Asignar a cargo' : 'Desasignar de cargo'
     }
 
@@ -141,12 +127,6 @@ function BulkAssignmentModal({ type, mode = 'assign', targetCount, options = [],
 
             if (type === 'campaña') {
                 data.campaign_ids = selected
-            } else if (type === 'productos') {
-                data.product_ids = selected
-            } else if (type === 'sector') {
-                data.sector_ids = selected
-            } else if (type === 'vertical') {
-                data.vertical_ids = selected
             } else if (type === 'cargo') {
                 data.cargo_ids = selected
             }
@@ -182,7 +162,7 @@ function BulkAssignmentModal({ type, mode = 'assign', targetCount, options = [],
                         overflowY: 'auto',
                         border: '1px solid var(--color-border)',
                         borderRadius: 8,
-                        backgroundColor: 'rgba(255,255,255,0.03)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.45)',
                         display: 'flex',
                         flexDirection: 'column'
                     }}>
@@ -252,7 +232,7 @@ function BulkAssignmentModal({ type, mode = 'assign', targetCount, options = [],
 
 
 function ContactsPage() {
-    const { contacts, total, loading, error, filters, updateFilter, setPage, setPageSize, refresh } = useContacts()
+    const { contacts, total, loading, error, filters, updateFilter, removeFilter, setPage, setPageSize, refresh } = useContacts()
     const { sectors, verticals, campaigns, products, cargos } = useLookups()
     const [modal, setModal] = useState(null)   // null | 'create' | contact object
     const [showImportModal, setShowImportModal] = useState(false)
@@ -266,6 +246,18 @@ function ContactsPage() {
     const [enrichError, setEnrichError] = useState(null)
     const [enrichMessage, setEnrichMessage] = useState(null)
     const [enriching, setEnriching] = useState(null)
+
+    // Option maps for chips formatting
+    const lookupMaps = useMemo(() => {
+        const createMap = (arr) => arr.reduce((acc, curr) => { acc[curr.id] = (curr.name || curr.nombre); return acc; }, {});
+        return {
+            sector_id: createMap(sectors),
+            vertical_id: createMap(verticals),
+            product_id: createMap(products),
+            campaign_id: createMap(campaigns),
+            cargo_id: createMap(cargos),
+        }
+    }, [sectors, verticals, products, campaigns, cargos]);
 
     // Helper: get the full array of selected or filtered contacts
     const resolveTargetData = async () => {
@@ -333,7 +325,8 @@ function ContactsPage() {
     const buildAdscorePayload = (contact) => ({
         id_contacto: contact.id,
         nombre_empresa: contact.company,
-        dominio: contact.dominio,
+        web: contact.web,
+        dominio: contact.web,
         vertical: contact.verticals && contact.verticals.length > 0 ? contact.verticals[0].name : null
     })
 
@@ -364,10 +357,10 @@ function ContactsPage() {
         try {
             const resolvedContacts = await resolveTargetData()
 
-            // Validar que todos los contactos tengan dominio antes de enviar
-            const sinDominio = resolvedContacts.some(c => !c.dominio || !c.dominio.trim())
+            // Validar que todos los contactos tengan web/dominio antes de enviar
+            const sinDominio = resolvedContacts.some(c => !c.web || !c.web.trim())
             if (sinDominio) {
-                setEnrichError('El dominio es obligatorio para enriquecer contactos')
+                setEnrichError('La web (dominio) es obligatoria para enriquecer contactos')
                 setEnriching(null)
                 return
             }
@@ -449,29 +442,31 @@ function ContactsPage() {
                 <FilterPanel
                     filters={filters}
                     onFilterChange={updateFilter}
+                    onClearFilters={() => removeFilter(null, true)}
                     sectors={sectors}
                     verticals={verticals}
                     campaigns={campaigns}
                     products={products}
                     cargos={cargos}
                 />
+                <div style={{ marginTop: 12 }}>
+                    <ActiveFilters 
+                        filters={filters} 
+                        onRemove={removeFilter} 
+                        optionsMap={lookupMaps} 
+                    />
+                </div>
             </div>
 
             {/* 4. Bulk Actions Bar */}
             <div className="bulk-actions-bar" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <button className="btn-bulk" onClick={() => setAssignmentModal({ type: 'campaña', mode: 'assign' })}>Asignar a campaña ({actionCount})</button>
-                    <button className="btn-bulk" onClick={() => setAssignmentModal({ type: 'sector', mode: 'assign' })}>Asignar a sector ({actionCount})</button>
-                    <button className="btn-bulk" onClick={() => setAssignmentModal({ type: 'vertical', mode: 'assign' })}>Asignar a vertical ({actionCount})</button>
-                    <button className="btn-bulk" onClick={() => setAssignmentModal({ type: 'productos', mode: 'assign' })}>Asignar a productos ({actionCount})</button>
                     <button className="btn-bulk" onClick={() => setAssignmentModal({ type: 'cargo', mode: 'assign' })}>Asignar a cargo ({actionCount})</button>
                     <button className="btn-bulk btn-bulk-danger" style={{ marginLeft: 'auto' }} onClick={handleDeleteBulk}>Borrar ({actionCount}) contactos</button>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <button className="btn-bulk btn-bulk-unassign" onClick={() => setAssignmentModal({ type: 'campaña', mode: 'unassign' })}>Desasignar campaña ({actionCount})</button>
-                    <button className="btn-bulk btn-bulk-unassign" onClick={() => setAssignmentModal({ type: 'sector', mode: 'unassign' })}>Desasignar sector ({actionCount})</button>
-                    <button className="btn-bulk btn-bulk-unassign" onClick={() => setAssignmentModal({ type: 'vertical', mode: 'unassign' })}>Desasignar vertical ({actionCount})</button>
-                    <button className="btn-bulk btn-bulk-unassign" onClick={() => setAssignmentModal({ type: 'productos', mode: 'unassign' })}>Desasignar productos ({actionCount})</button>
                     <button className="btn-bulk btn-bulk-unassign" onClick={() => setAssignmentModal({ type: 'cargo', mode: 'unassign' })}>Desasignar cargo ({actionCount})</button>
                 </div>
             </div>
@@ -578,10 +573,7 @@ function ContactsPage() {
                     targetCount={actionCount}
                     options={
                         assignmentModal.type === 'campaña' ? campaigns :
-                            assignmentModal.type === 'productos' ? products :
-                                assignmentModal.type === 'sector' ? sectors :
-                                    assignmentModal.type === 'vertical' ? verticals :
-                                        assignmentModal.type === 'cargo' ? cargos : []
+                            assignmentModal.type === 'cargo' ? cargos : []
                     }
                     onClose={() => setAssignmentModal(null)}
                     onSave={async (updateData) => {
@@ -618,6 +610,7 @@ function AuthenticatedApp({ onLogout, userRole, userEmail }) {
             <Sidebar page={page} setPage={setPage} userRole={userRole} />
             <main className="main-content">
                 {page === 'contacts' && <ContactsPage />}
+                {page === 'empresas' && <EmpresasPage />}
                 {page === 'master-data' && <MasterDataPage />}
                 {/* RequestsPage (Solicitudes) protegida con ProtectedRoute: requiere rol admin.
                     Si un gestor intenta acceder (ej: manipulando el state), ve "Acceso denegado".

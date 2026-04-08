@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import CompanyAutocomplete from './CompanyAutocomplete'
+import MultiSelect from './MultiSelect'
 
 import { CONTACT_COLUMNS } from '../config/fields'
 
@@ -52,14 +54,18 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
         setError(null)
         try {
             const payload = { ...form }
-            // Convert empty strings to null for optional string fields
+            // Strip out readonly properties and convert empty strings to null
             CONTACT_COLUMNS.forEach((col) => {
-                if ((col.type === 'string' || col.type === 'link') && payload[col.key] === '') {
+                if (col.readonly) {
+                    delete payload[col.key]
+                    // Also strip readonly M2M id_keys (sectors/verticals/products now managed by Empresa)
+                    if (col.id_key) {
+                        delete payload[col.id_key]
+                    }
+                } else if ((col.type === 'string' || col.type === 'link') && payload[col.key] === '') {
                     payload[col.key] = null
                 }
             })
-
-            // legacy properties have been removed, DB only expects array properties
 
             // Parse notes JSON string → object
             if (payload.notes && typeof payload.notes === 'string') {
@@ -108,8 +114,39 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                 <div className="modal-grid">
                     {CONTACT_COLUMNS.map((col) => {
                         if (col.type === 'string' || col.type === 'link') {
+                            if (col.key === 'company') {
+                                return (
+                                    <div key={col.key} className="form-group full">
+                                        <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
+                                        <CompanyAutocomplete
+                                            value={form.company || ''}
+                                            onChange={(name, id, emp) => {
+                                                setForm(prev => {
+                                                    const next = { ...prev, company: name, empresa_id: id };
+                                                    return next;
+                                                });
+                                            }}
+                                        />
+                                    </div>
+                                )
+                            }
+                            if (col.readonly) {
+                                return (
+                                    <div key={col.key} className="form-group">
+                                        <label className="form-label">{col.label}</label>
+                                        <input
+                                            id={`field-${col.key}`}
+                                            className="form-control"
+                                            type="text"
+                                            value={form[col.key] || ''}
+                                            readOnly
+                                            style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                                        />
+                                    </div>
+                                )
+                            }
                             return (
-                                <div key={col.key} className={`form-group ${col.key === 'company' || col.key === 'linkedin' ? 'full' : ''}`}>
+                                <div key={col.key} className={`form-group ${col.key === 'linkedin' ? 'full' : ''}`}>
                                     <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
                                     <input
                                         id={`field-${col.key}`}
@@ -130,21 +167,33 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
 
                             if (!listData || listData.length === 0) return null;
 
+                            if (col.readonly) {
+                                // Read-only M2M: show badges (inherited from Empresa)
+                                const selectedItems = (form[col.id_key] || []).map(id => listData.find(x => x.id === id)).filter(Boolean);
+                                return (
+                                    <div key={col.key} className="form-group full">
+                                        <label className="form-label">{col.label} <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>(desde Empresa)</span></label>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '8px 0', opacity: 0.7, minHeight: 32 }}>
+                                            {selectedItems.length > 0
+                                                ? selectedItems.map(item => (
+                                                    <span key={item.id} className="badge badge-muted">{item.name || item.nombre}</span>
+                                                ))
+                                                : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>—</span>
+                                            }
+                                        </div>
+                                    </div>
+                                )
+                            }
+
                             return (
                                 <div key={col.key} className="form-group full">
                                     <label className="form-label">{col.label}</label>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                        {listData.map((item) => (
-                                            <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={form[col.id_key]?.includes(item.id)}
-                                                    onChange={() => toggleArray(col.id_key, item.id)}
-                                                />
-                                                {item.name || item.nombre}
-                                            </label>
-                                        ))}
-                                    </div>
+                                    <MultiSelect
+                                        options={listData}
+                                        selectedIds={form[col.id_key] || []}
+                                        onChange={(newIds) => set(col.id_key, newIds)}
+                                        placeholder={`Selecciona opciones...`}
+                                    />
                                 </div>
                             )
                         }

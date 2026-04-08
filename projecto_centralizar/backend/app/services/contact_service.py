@@ -6,14 +6,48 @@ from sqlalchemy.orm import selectinload
 
 from app.models.campaign import Campaign
 from app.models.contact import Contact
-from app.models.sector import Sector
-from app.models.vertical import Vertical
 from app.models.cargo import Cargo
-from app.models.product import Product
+from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
 from app.schemas.contact import ContactCreate, ContactFilterParams, ContactUpdate
 from app.services.merge import deep_merge
 
 from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_PROTECTED_FIELDS
+
+async def _resolve_empresa_id(session: AsyncSession, company_name: str | None, provided_id: int | None) -> int | None:
+    if provided_id:
+        return provided_id
+        
+    if not company_name:
+        return None
+        
+    result = await session.execute(select(Empresa).where(Empresa.nombre == company_name))
+    empresa = result.scalar_one_or_none()
+    
+    if empresa:
+        return empresa.id
+        
+    empresa = Empresa(nombre=company_name)
+    session.add(empresa)
+    await session.flush()
+    return empresa.id
+
+async def _apply_empresa_enrichment(session: AsyncSession, empresa_id: int | None, payload: dict, current_notes: dict | None) -> dict | None:
+    if empresa_id:
+        empresa: Empresa | None = await session.get(Empresa, empresa_id)
+        if empresa:
+            emp_info = {
+                "informacion_empresa": {
+                    "id": empresa.id,
+                    "name": empresa.nombre,
+                    "cif": empresa.cif,
+                    "web": empresa.web,
+                    "n_empleados": empresa.numero_empleados,
+                    "facturacion": empresa.facturacion,
+                    "cnae": empresa.cnae,
+                }
+            }
+            return deep_merge(current_notes or {}, emp_info)
+    return current_notes
 
 def split_enrichment_data(data: dict):
     structured = {}
@@ -32,11 +66,11 @@ async def _load_contact(session: AsyncSession, contact_id: int) -> Contact | Non
     result = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.sectors),
-            selectinload(Contact.verticals),
-            selectinload(Contact.products_rel),
             selectinload(Contact.cargos),
             selectinload(Contact.campaigns),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
         )
         .where(Contact.id == contact_id)
     )
@@ -76,46 +110,22 @@ async def _sync_m2m(session: AsyncSession, contact: Contact, ModelClass, ids_lis
 async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
     """
     Upsert logic:
-    1. If cif provided → look up by cif
-    2. Else if dominio provided → look up by dominio
-    3. If no match → create new contact
+    1. If no match → create new contact
     Notes are always deep-merged, never replaced.
     """
     contact: Contact | None = None
 
-    if data.cif:
-        result = await session.execute(
-            select(Contact)
-            .options(
-                selectinload(Contact.sectors),
-                selectinload(Contact.verticals),
-                selectinload(Contact.campaigns),
-                selectinload(Contact.cargos),
-                selectinload(Contact.products_rel),
-            )
-            .where(Contact.cif == data.cif)
-        )
-        contact = result.scalar_one_or_none()
+    payload = data.model_dump(exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids"}, exclude_unset=True)
 
-    if contact is None and data.dominio:
-        result = await session.execute(
-            select(Contact)
-            .options(
-                selectinload(Contact.sectors),
-                selectinload(Contact.verticals),
-                selectinload(Contact.campaigns),
-                selectinload(Contact.cargos),
-                selectinload(Contact.products_rel),
-            )
-            .where(Contact.dominio == data.dominio)
-        )
-        contact = result.scalar_one_or_none()
+    emp_id = await _resolve_empresa_id(session, payload.get("company"), payload.get("empresa_id") or getattr(data, "empresa_id", None))
+    if emp_id:
+        payload["empresa_id"] = emp_id
 
-    payload = data.model_dump(exclude={"notes", "campaign_ids", "sector_ids", "vertical_ids", "cargo_ids", "product_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns"}, exclude_unset=True)
+    new_notes = await _apply_empresa_enrichment(session, emp_id, payload, data.notes)
 
     if contact is None:
         # Create
-        contact = Contact(**payload, notes=data.notes)
+        contact = Contact(**payload, notes=new_notes)
         session.add(contact)
         await session.flush()
         # Reload with all M2M relations initialized (as empty lists)
@@ -126,12 +136,10 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
         for field, value in payload.items():
             setattr(contact, field, value)
         
-        if "notes" in data.model_fields_set:
-            contact.notes = data.notes
+        if "notes" in data.model_fields_set or emp_id:
+            contact.notes = new_notes
 
-    # Sync M2M associations
-    extra_fields = payload.keys() | data.model_extra.keys() if data.model_extra else payload.keys()
-    
+    # Sync M2M associations (only cargo_ids and campaign_ids remain on Contact)
     for m2m_key, config in M2M_FIELD_MAP.items():
         ids_list = getattr(data, m2m_key, None)
         if ids_list is None and data.model_extra:
@@ -156,17 +164,26 @@ async def update_contact(
         return None
 
     payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "sector_ids", "vertical_ids", "cargo_ids", "product_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns"}, 
+        exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids"}, 
         exclude_unset=True
     )
+
+    if "company" in payload:
+        resolved_emp_id = await _resolve_empresa_id(session, payload["company"], payload.get("empresa_id"))
+        if resolved_emp_id:
+            payload["empresa_id"] = resolved_emp_id
+
+    base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
+    emp_id = payload.get("empresa_id") or contact.empresa_id
+    new_notes = await _apply_empresa_enrichment(session, emp_id, payload, base_notes)
+
     for field, value in payload.items():
         setattr(contact, field, value)
 
     # Completely replace notes
-    if "notes" in data.model_fields_set:
-        contact.notes = data.notes
+    contact.notes = new_notes
 
-    # Sync M2M if provided
+    # Sync M2M if provided (only cargo_ids and campaign_ids remain on Contact)
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
     
@@ -210,30 +227,40 @@ async def bulk_update_contacts(
     result = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.sectors),
-            selectinload(Contact.verticals),
-            selectinload(Contact.products_rel),
             selectinload(Contact.cargos),
             selectinload(Contact.campaigns),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
         )
         .where(Contact.id.in_(contact_ids))
     )
     contacts = result.scalars().all()
 
     payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "sector_ids", "vertical_ids", "cargo_ids", "product_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns"}, 
+        exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids"}, 
         exclude_unset=True
     )
+
+    if "company" in payload:
+        resolved_emp_id = await _resolve_empresa_id(session, payload["company"], payload.get("empresa_id"))
+        if resolved_emp_id:
+            payload["empresa_id"] = resolved_emp_id
 
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
 
     for contact in contacts:
-        for field, value in payload.items():
+        base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
+        emp_id = payload.get("empresa_id") or contact.empresa_id
+        
+        contact_payload = payload.copy()
+        new_notes = await _apply_empresa_enrichment(session, emp_id, contact_payload, base_notes)
+        
+        for field, value in contact_payload.items():
             setattr(contact, field, value)
 
-        if "notes" in data.model_fields_set:
-            contact.notes = data.notes
+        contact.notes = new_notes
 
         for m2m_key, config in M2M_FIELD_MAP.items():
             ids_list = getattr(data, m2m_key, None)
@@ -261,7 +288,7 @@ async def enrich_contact(
     # 🔹 1. separar datos
     structured, extra = split_enrichment_data(enrichment_data)
 
-    # 🔹 2. actualizar campos estructurados (protegiendo company/dominio)
+    # 🔹 2. actualizar campos estructurados (protegiendo company/web)
     protected_redirected: dict[str, str] = {}
     for field, value in structured.items():
         if value is not None:
@@ -284,28 +311,60 @@ async def list_contacts(
     session: AsyncSession, filters: ContactFilterParams
 ) -> dict[str, Any]:
     query = select(Contact).options(
-        selectinload(Contact.sectors),
-        selectinload(Contact.verticals),
-        selectinload(Contact.products_rel),
         selectinload(Contact.cargos),
         selectinload(Contact.campaigns),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
     )
 
-    if filters.sector_id is not None:
-        from app.models.contact import contact_sectors as cs_table
-        query = query.join(cs_table, Contact.id == cs_table.c.contact_id).where(
-            cs_table.c.sector_id == filters.sector_id
+    if filters.empresa_id is not None:
+        query = query.where(Contact.empresa_id == filters.empresa_id)
+
+    if filters.empresa_nombre:
+        query = query.where(Contact.company.ilike(f"%{filters.empresa_nombre}%"))
+
+    if filters.contacto_nombre:
+        term = f"%{filters.contacto_nombre}%"
+        query = query.where(
+            or_(
+                Contact.first_name.ilike(term),
+                Contact.last_name.ilike(term)
+            )
         )
-    if filters.vertical_id is not None:
-        from app.models.contact import contact_verticals as cv_table
-        query = query.join(cv_table, Contact.id == cv_table.c.contact_id).where(
-            cv_table.c.vertical_id == filters.vertical_id
-        )
-    if filters.product_id is not None:
-        from app.models.contact import contact_products as cp_table
-        query = query.join(cp_table, Contact.id == cp_table.c.contact_id).where(
-            cp_table.c.product_id == filters.product_id
-        )
+
+    has_empresa_filters = any(x is not None for x in [
+        filters.empresa_numero_empleados_min, 
+        filters.empresa_numero_empleados_max,
+        filters.sector_id,
+        filters.vertical_id,
+        filters.product_id,
+        filters.cnae
+    ])
+    
+    if has_empresa_filters:
+        query = query.join(Empresa, Contact.empresa_id == Empresa.id)
+        if filters.cnae:
+            query = query.where(Empresa.cnae.startswith(filters.cnae))
+        if filters.empresa_numero_empleados_min is not None:
+            query = query.where(Empresa.numero_empleados >= filters.empresa_numero_empleados_min)
+        if filters.empresa_numero_empleados_max is not None:
+            query = query.where(Empresa.numero_empleados <= filters.empresa_numero_empleados_max)
+
+        # Sector/Vertical/Product filters route through Empresa's M2M tables
+        if filters.sector_id is not None:
+            query = query.join(
+                empresa_sectors, Empresa.id == empresa_sectors.c.empresa_id
+            ).where(empresa_sectors.c.sector_id == filters.sector_id)
+        if filters.vertical_id is not None:
+            query = query.join(
+                empresa_verticals, Empresa.id == empresa_verticals.c.empresa_id
+            ).where(empresa_verticals.c.vertical_id == filters.vertical_id)
+        if filters.product_id is not None:
+            query = query.join(
+                empresa_products, Empresa.id == empresa_products.c.empresa_id
+            ).where(empresa_products.c.product_id == filters.product_id)
+
     if filters.cargo_id is not None:
         from app.models.contact import contact_cargos as ccargo_table
         query = query.join(ccargo_table, Contact.id == ccargo_table.c.contact_id).where(
@@ -316,6 +375,16 @@ async def list_contacts(
         query = query.join(ccamp_table, Contact.id == ccamp_table.c.contact_id).where(
             ccamp_table.c.campaign_id == filters.campaign_id
         )
+
+    if filters.email:
+        term = f"%{filters.email}%"
+        query = query.where(
+            or_(
+                Contact.email_contact.ilike(term),
+                Contact.empresa_rel.has(Empresa.email.ilike(term))
+            )
+        )
+        
     if filters.search:
         term = f"%{filters.search}%"
         query = query.where(
@@ -323,7 +392,7 @@ async def list_contacts(
                 Contact.company.ilike(term),
                 Contact.first_name.ilike(term),
                 Contact.last_name.ilike(term),
-                Contact.email_generic.ilike(term),
+                Contact.empresa_rel.has(Empresa.email.ilike(term)),
                 Contact.email_contact.ilike(term),
             )
         )

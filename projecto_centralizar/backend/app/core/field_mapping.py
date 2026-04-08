@@ -14,8 +14,9 @@ CONTACT_FIELD_MAP = {
     "job_title": "job_title",
     "cargo": "job_title",
     "cif": "cif",
-    "dominio": "dominio",
-    "website": "dominio",
+    "dominio": "web",
+    "website": "web",
+    "web": "web",
     "linkedin": "linkedin",
     "email_generic": "email_generic",
     "email_contact": "email_contact",
@@ -31,7 +32,7 @@ CORE_COLUMNS = [
     "last_name",
     "job_title",
     "cif",
-    "dominio",
+    "web",
     "linkedin",
     "email_generic",
     "email_contact",
@@ -40,12 +41,17 @@ CORE_COLUMNS = [
 
 # Campos que NO deben sobrescribirse durante enriquecimiento automático.
 # Si llega un valor nuevo, se redirige a notes[source]["_enrichment_{campo}"].
-ENRICHMENT_PROTECTED_FIELDS = {"company", "dominio"}
+ENRICHMENT_PROTECTED_FIELDS = {"company", "web"}
 
+# M2M fields that remain on Contact
 M2M_FIELD_MAP = {
+    "cargo_ids": {"relation_name": "cargos", "model": "Cargo"},
+    "campaign_ids": {"relation_name": "campaigns", "model": "Campaign"}
+}
+
+# M2M fields that now live on Empresa
+EMPRESA_M2M_FIELD_MAP = {
     "sector_ids": {"relation_name": "sectors", "model": "Sector"},
     "vertical_ids": {"relation_name": "verticals", "model": "Vertical"},
-    "cargo_ids": {"relation_name": "cargos", "model": "Cargo"},
     "product_ids": {"relation_name": "products_rel", "model": "Product"},
-    "campaign_ids": {"relation_name": "campaigns", "model": "Campaign"}
 }

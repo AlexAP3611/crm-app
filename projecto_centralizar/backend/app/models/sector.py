@@ -11,4 +11,4 @@ class Sector(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    contacts: Mapped[list["Contact"]] = relationship(secondary="contact_sectors", back_populates="sectors", lazy="selectin")  # noqa: F821
+    empresas: Mapped[list["Empresa"]] = relationship(secondary="empresa_sectors", back_populates="sectors", lazy="selectin")  # noqa: F821

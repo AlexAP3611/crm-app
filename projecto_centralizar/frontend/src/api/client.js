@@ -81,7 +81,7 @@ export function removeToken() {
  * @returns {Promise<Object|null>} Respuesta JSON o null (204)
  * @throws {Error} Si la respuesta no es 2xx
  */
-async function request(path, { headers, ...options } = {}) {
+async function request(path, { headers, signal, ...options } = {}) {
     // Construir headers con autenticación JWT automática
     // Si hay un token almacenado, se incluye en Authorization
     const authHeaders = {}
@@ -92,6 +92,7 @@ async function request(path, { headers, ...options } = {}) {
 
     const res = await fetch(`${BASE_URL}${path}`, {
         credentials: 'include',   // Enviar cookies (compatibilidad con sesiones)
+        signal,                   // Soporte para AbortController
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -149,11 +150,11 @@ export const api = {
     me: () => request('/me'),
 
     // ── Contacts ──
-    listContacts: (params = {}) => {
+    listContacts: (params = {}, signal = undefined) => {
         const qs = new URLSearchParams(
             Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
         ).toString()
-        return request(`/contacts${qs ? `?${qs}` : ''}`)
+        return request(`/contacts${qs ? `?${qs}` : ''}`, { signal })
     },
     getContact: (id) => request(`/contacts/${id}`),
     upsertContact: (data) => request('/contacts', { method: 'POST', body: JSON.stringify(data) }),
@@ -201,6 +202,19 @@ export const api = {
     createCampaign: (data) => request('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
     updateCampaign: (id, data) => request(`/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteCampaign: (id) => request(`/campaigns/${id}`, { method: 'DELETE' }),
+
+    // ── Empresas ──
+    listEmpresas: (params = {}, signal = undefined) => {
+        const queryParams = new URLSearchParams(Object.entries(params).filter(([_, v]) => v !== undefined && v !== '' && v !== null)).toString();
+        return request('/empresas' + (queryParams ? '?' + queryParams : ''), { signal });
+    },
+    createEmpresa: (data) => request('/empresas', { method: 'POST', body: JSON.stringify(data) }),
+    updateEmpresa: (id, data) => request(`/empresas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteEmpresa: (id) => request(`/empresas/${id}`, { method: 'DELETE' }),
+    deleteBulkEmpresas: (data) => request('/empresas/bulk-delete', { method: 'POST', body: JSON.stringify(data) }),
+    updateBulkEmpresas: (data) => request('/empresas/bulk-update', { method: 'POST', body: JSON.stringify(data) }),
+    assignEmpresaRelation: (empresaId, relationType, relationId) => request(`/empresas/${empresaId}/${relationType}/${relationId}`, { method: 'POST' }),
+    unassignEmpresaRelation: (empresaId, relationType, relationId) => request(`/empresas/${empresaId}/${relationType}/${relationId}`, { method: 'DELETE' }),
 
     // ── Enrichment ──
     enrichContact: (id, source, data) =>

@@ -8,13 +8,15 @@ from app.models.contact import Contact
 from app.schemas.contact import ContactCreate, ContactFilterParams
 from app.services import contact_service
 
-from app.core.field_mapping import CORE_COLUMNS, M2M_FIELD_MAP
+from app.core.field_mapping import CORE_COLUMNS, M2M_FIELD_MAP, EMPRESA_M2M_FIELD_MAP
 
-CSV_FIELDS = ["id"] + CORE_COLUMNS + list(M2M_FIELD_MAP.keys())
+# Combine both maps for CSV export/import purposes
+_ALL_M2M = {**M2M_FIELD_MAP, **EMPRESA_M2M_FIELD_MAP}
+CSV_FIELDS = ["id"] + CORE_COLUMNS + list(_ALL_M2M.keys())
 
 def _contact_to_row(contact: Contact) -> dict[str, Any]:
     row = {field: getattr(contact, field, None) for field in ["id"] + CORE_COLUMNS}
-    for m2m_key, config in M2M_FIELD_MAP.items():
+    for m2m_key, config in _ALL_M2M.items():
         rel_list = getattr(contact, config["relation_name"], [])
         row[m2m_key] = ",".join(str(item.id) for item in rel_list)
     return row
@@ -66,7 +68,7 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
 
         # Track whether upsert created or updated
         cif = data.cif
-        dominio = data.dominio
+        web = data.web
         is_new = True
 
         if cif:
@@ -76,10 +78,10 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
             )
             if res.scalar_one_or_none():
                 is_new = False
-        elif dominio:
+        elif web:
             from sqlalchemy import select
             res = await session.execute(
-                select(Contact.id).where(Contact.dominio == dominio)
+                select(Contact.id).where(Contact.web == web)
             )
             if res.scalar_one_or_none():
                 is_new = False

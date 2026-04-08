@@ -57,7 +57,7 @@ async def bulk_enrich(
     """
     Enrich multiple contacts:
     - nombre_empresa -> company column
-    - dominio -> dominio column
+    - web -> web column
     - vertical -> M2M relationship
     - everything else -> notes[source] as strings
     """
