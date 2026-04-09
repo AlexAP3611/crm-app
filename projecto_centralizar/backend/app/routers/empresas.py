@@ -15,6 +15,7 @@ from app.models.vertical import Vertical
 from app.models.product import Product
 from app.schemas.empresa import EmpresaListResponse, EmpresaCreate, EmpresaResponse, EmpresaCreateResponse, EmpresaBulkUpdate, EmpresaBulkDelete
 from app.auth import get_current_user
+from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
 
 router = APIRouter(
     prefix="/api/empresas",
@@ -158,6 +159,9 @@ async def list_empresas(
 
 @router.post("", response_model=EmpresaCreateResponse)
 async def create_empresa(empresa: EmpresaCreate, db: AsyncSession = Depends(get_db)):
+    if empresa.nombre:
+        empresa.nombre = normalize_company_name(empresa.nombre)
+
     # Validar si ya existe una empresa con este nombre
     existing = await db.execute(select(Empresa).where(func.lower(Empresa.nombre) == empresa.nombre.lower()))
     if existing.scalar_one_or_none():
@@ -181,13 +185,30 @@ async def update_empresa(id: int, empresa_in: EmpresaCreate, db: AsyncSession = 
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
     
+    if empresa_in.nombre:
+        empresa_in.nombre = normalize_company_name(empresa_in.nombre)
+
     update_data = empresa_in.model_dump(exclude={"sector_ids", "vertical_ids", "product_ids"}, exclude_unset=True)
     for field, value in update_data.items():
         setattr(empresa, field, value)
 
     # Sync M2M
     await _sync_empresa_m2m(db, empresa, empresa_in.sector_ids, empresa_in.vertical_ids, empresa_in.product_ids)
-        
+
+    # Flush to persist M2M changes before building snapshots
+    await db.flush()
+
+    # Reload empresa with fresh M2M for snapshot
+    refreshed = await _load_empresa(db, id)
+
+    # Propagate datos_empresa snapshot to all associated contacts
+    result = await db.execute(
+        select(Contact).where(Contact.empresa_id == id)
+    )
+    contactos = result.scalars().all()
+    for contacto in contactos:
+        update_empresa_snapshot_in_contact(contacto, refreshed)
+
     await db.commit()
     return await _load_empresa(db, id)
 

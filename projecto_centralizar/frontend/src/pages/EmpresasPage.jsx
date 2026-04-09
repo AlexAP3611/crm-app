@@ -415,9 +415,7 @@ export default function EmpresasPage() {
     return (
         <div className="page-wrap">
             <div className="top-action-bar">
-                <div className="top-search-wrap">
-                    <input type="text" className="search-input" placeholder="Buscar empresas por nombre..." value={filters.q} onChange={e => handleFilterChange('q', e.target.value)} />
-                </div>
+                <div></div>
                 <div className="top-actions">
                     <button className="btn btn-primary" onClick={handleOpenCreate}>
                         Crear Empresa
@@ -450,6 +448,9 @@ export default function EmpresasPage() {
                                 Filtros de Empresa
                             </div>
                             <div className="filter-grid dense">
+                                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                                    <input className="form-control" placeholder="Buscar empresas por nombre..." value={filters.q} onChange={e => handleFilterChange('q', e.target.value)} />
+                                </div>
                                 <div className="form-group">
                                     <select className="form-control" value={filters.sector_id} onChange={e => handleFilterChange('sector_id', e.target.value)}>
                                         <option value="">Todos los Sectores</option>

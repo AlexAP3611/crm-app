@@ -12,6 +12,7 @@ from app.schemas.contact import ContactCreate, ContactFilterParams, ContactUpdat
 from app.services.merge import deep_merge
 
 from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_PROTECTED_FIELDS
+from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
 
 async def _resolve_empresa_id(session: AsyncSession, company_name: str | None, provided_id: int | None) -> int | None:
     if provided_id:
@@ -20,7 +21,9 @@ async def _resolve_empresa_id(session: AsyncSession, company_name: str | None, p
     if not company_name:
         return None
         
-    result = await session.execute(select(Empresa).where(Empresa.nombre == company_name))
+    company_name = normalize_company_name(company_name)
+        
+    result = await session.execute(select(Empresa).where(func.lower(Empresa.nombre) == company_name.lower()))
     empresa = result.scalar_one_or_none()
     
     if empresa:
@@ -31,23 +34,7 @@ async def _resolve_empresa_id(session: AsyncSession, company_name: str | None, p
     await session.flush()
     return empresa.id
 
-async def _apply_empresa_enrichment(session: AsyncSession, empresa_id: int | None, payload: dict, current_notes: dict | None) -> dict | None:
-    if empresa_id:
-        empresa: Empresa | None = await session.get(Empresa, empresa_id)
-        if empresa:
-            emp_info = {
-                "informacion_empresa": {
-                    "id": empresa.id,
-                    "name": empresa.nombre,
-                    "cif": empresa.cif,
-                    "web": empresa.web,
-                    "n_empleados": empresa.numero_empleados,
-                    "facturacion": empresa.facturacion,
-                    "cnae": empresa.cnae,
-                }
-            }
-            return deep_merge(current_notes or {}, emp_info)
-    return current_notes
+
 
 def split_enrichment_data(data: dict):
     structured = {}
@@ -121,16 +108,18 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
     if emp_id:
         payload["empresa_id"] = emp_id
 
-    new_notes = await _apply_empresa_enrichment(session, emp_id, payload, data.notes)
-
     if contact is None:
         # Create
-        contact = Contact(**payload, notes=new_notes)
+        contact = Contact(**payload, notes=data.notes)
         session.add(contact)
         await session.flush()
         # Reload with all M2M relations initialized (as empty lists)
         # so that _sync_m2m's setattr() won't trigger lazy loading.
         contact = await _load_contact(session, contact.id)
+
+        # Inject datos_empresa snapshot into notes
+        if contact and contact.empresa_rel:
+            update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
     else:
         # Update — completely replace notes
         for field, value in payload.items():
@@ -174,14 +163,21 @@ async def update_contact(
             payload["empresa_id"] = resolved_emp_id
 
     base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
-    emp_id = payload.get("empresa_id") or contact.empresa_id
-    new_notes = await _apply_empresa_enrichment(session, emp_id, payload, base_notes)
 
     for field, value in payload.items():
         setattr(contact, field, value)
 
-    # Completely replace notes
-    contact.notes = new_notes
+    # Set notes from user input (or keep existing)
+    contact.notes = base_notes
+
+    # Inject/update datos_empresa snapshot
+    final_emp_id = payload.get("empresa_id") or contact.empresa_id
+    if final_emp_id:
+        empresa_obj = await session.get(Empresa, final_emp_id)
+        if empresa_obj:
+            # Need M2M loaded for snapshot
+            await session.refresh(empresa_obj, ["sectors", "verticals", "products_rel"])
+            update_empresa_snapshot_in_contact(contact, empresa_obj)
 
     # Sync M2M if provided (only cargo_ids and campaign_ids remain on Contact)
     is_merge = data.merge_lists
@@ -255,12 +251,18 @@ async def bulk_update_contacts(
         emp_id = payload.get("empresa_id") or contact.empresa_id
         
         contact_payload = payload.copy()
-        new_notes = await _apply_empresa_enrichment(session, emp_id, contact_payload, base_notes)
         
         for field, value in contact_payload.items():
             setattr(contact, field, value)
 
-        contact.notes = new_notes
+        contact.notes = base_notes
+
+        # Inject/update datos_empresa snapshot
+        if emp_id:
+            empresa_obj = await session.get(Empresa, emp_id)
+            if empresa_obj:
+                await session.refresh(empresa_obj, ["sectors", "verticals", "products_rel"])
+                update_empresa_snapshot_in_contact(contact, empresa_obj)
 
         for m2m_key, config in M2M_FIELD_MAP.items():
             ids_list = getattr(data, m2m_key, None)
