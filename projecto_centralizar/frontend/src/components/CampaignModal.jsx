@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Checkbox from './Checkbox'
 
 const dateToYMD = (dateString) => {
     if (!dateString) return ''
@@ -118,14 +119,11 @@ export default function CampaignModal({ payload, onClose, onSave }) {
                         <label className="form-label">Tipo</label>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '4px' }}>
                             {TIPO_OPTIONS.map(opt => (
-                                <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', cursor: 'pointer' }}>
-                                    <input 
-                                        type="checkbox" 
-                                        checked={(form.tipo || []).includes(opt)}
-                                        onChange={() => toggleArrayItem('tipo', opt)}
-                                    />
-                                    {opt}
-                                </label>
+                                <Checkbox 
+                                    label={opt}
+                                    checked={(form.tipo || []).includes(opt)}
+                                    onChange={() => toggleArrayItem('tipo', opt)}
+                                />
                             ))}
                         </div>
                     </div>
@@ -149,14 +147,11 @@ export default function CampaignModal({ payload, onClose, onSave }) {
                         <label className="form-label">Canal</label>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '4px' }}>
                             {CANAL_OPTIONS.map(opt => (
-                                <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', cursor: 'pointer' }}>
-                                    <input 
-                                        type="checkbox" 
-                                        checked={(form.canal || []).includes(opt)}
-                                        onChange={() => toggleArrayItem('canal', opt)}
-                                    />
-                                    {opt}
-                                </label>
+                                <Checkbox 
+                                    label={opt}
+                                    checked={(form.canal || []).includes(opt)}
+                                    onChange={() => toggleArrayItem('canal', opt)}
+                                />
                             ))}
                         </div>
                     </div>

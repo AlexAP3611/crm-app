@@ -45,16 +45,16 @@ async def create_entity(db: AsyncSession, model_class, data: MasterDataCreate):
         raise HTTPException(status_code=400, detail="Ya existe una entidad con este nombre")
 
 async def delete_entity(db: AsyncSession, model_class, entity_id: int, relation_attr_name: str):
-    # Retrieve the entity and its contacts to check for existing relations
-    stmt = select(model_class).options(selectinload(getattr(model_class, "contacts"))).where(model_class.id == entity_id)
+    # Retrieve the entity and its related items to check for existing relations
+    stmt = select(model_class).options(selectinload(getattr(model_class, relation_attr_name))).where(model_class.id == entity_id)
     result = await db.execute(stmt)
     entity = result.scalars().first()
     
     if not entity:
         raise HTTPException(status_code=404, detail="Entidad no encontrada")
         
-    if getattr(entity, "contacts"):
-        raise HTTPException(status_code=400, detail="No se puede eliminar este valor porque está asignado a uno o más contactos.")
+    if getattr(entity, relation_attr_name):
+        raise HTTPException(status_code=400, detail="No se puede eliminar este valor porque está asignado a otros elementos.")
 
     await db.delete(entity)
     await db.commit()
@@ -72,7 +72,7 @@ async def create_sector(data: MasterDataCreate, db: AsyncSession = Depends(get_d
 
 @router.delete("/sectors/{item_id}", status_code=204)
 async def delete_sector(item_id: int, db: AsyncSession = Depends(get_db)):
-    return await delete_entity(db, Sector, item_id, "contacts")
+    return await delete_entity(db, Sector, item_id, "empresas")
 
 
 # --- Verticals ---
@@ -86,7 +86,7 @@ async def create_vertical(data: MasterDataCreate, db: AsyncSession = Depends(get
 
 @router.delete("/verticals/{item_id}", status_code=204)
 async def delete_vertical(item_id: int, db: AsyncSession = Depends(get_db)):
-    return await delete_entity(db, Vertical, item_id, "contacts")
+    return await delete_entity(db, Vertical, item_id, "empresas")
 
 
 # --- Products ---
@@ -100,7 +100,7 @@ async def create_product(data: MasterDataCreate, db: AsyncSession = Depends(get_
 
 @router.delete("/products/{item_id}", status_code=204)
 async def delete_product(item_id: int, db: AsyncSession = Depends(get_db)):
-    return await delete_entity(db, Product, item_id, "contacts")
+    return await delete_entity(db, Product, item_id, "empresas")
 
 
 # --- Cargos ---

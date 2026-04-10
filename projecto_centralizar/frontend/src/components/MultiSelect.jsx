@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Checkbox from './Checkbox';
 
 export default function MultiSelect({ options, selectedIds, onChange, placeholder = "Seleccionar opciones..." }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -133,8 +134,7 @@ export default function MultiSelect({ options, selectedIds, onChange, placeholde
                                             toggleSelection(opt.id);
                                         }}
                                     >
-                                        <input 
-                                            type="checkbox" 
+                                        <Checkbox 
                                             checked={isSelected}
                                             readOnly
                                             style={{ pointerEvents: 'none' }}

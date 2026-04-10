@@ -1,109 +1,49 @@
-/**
- * RequestsPage — Página de gestión de solicitudes de acceso al CRM.
- *
- * Muestra una tabla con las solicitudes de acceso enviadas por usuarios
- * externos, permitiendo al administrador aprobar o rechazar cada una.
- *
- * ══ TOGGLE DE FILTRADO (pending/all) ══
- * La página incluye un toggle visual con dos opciones:
- *   - "Pendientes" (predeterminado): solo muestra solicitudes con status = 'pending'
- *   - "Todas": muestra todas las solicitudes (pending, approved, rejected)
- *
- * ¿Cómo funciona el filtrado?
- *   1. Se obtiene la lista COMPLETA de solicitudes desde GET /api/requests
- *   2. Se almacena en el estado `allRequests` (sin filtrar)
- *   3. Se calcula `filteredRequests` derivando de `allRequests` según el toggle
- *   4. La tabla renderiza `filteredRequests`
- *
- * ¿Por qué filtrar en frontend y no en backend?
- *   - La cantidad de solicitudes es típicamente baja (decenas, no miles)
- *   - Filtrar en frontend evita llamadas adicionales al cambiar el toggle
- *   - El toggle cambia instantáneamente sin latencia de red
- *   - El backend ya soporta el param `status_filter` para eficiencia futura
- *
- * Integración con backend:
- * - GET  /api/requests              → Carga la lista completa de solicitudes
- * - POST /api/requests/{id}/approve → Aprueba una solicitud pendiente
- * - POST /api/requests/{id}/reject  → Rechaza una solicitud pendiente
- */
-
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { api } from '../api/client'
 
-/**
- * Formatea una fecha ISO 8601 a formato legible en español.
- * Ejemplo: "06/04/2026, 13:30"
- *
- * @param {string} isoString - Fecha en formato ISO 8601
- * @returns {string} Fecha formateada en dd/mm/yyyy, hh:mm
- */
 function formatDate(isoString) {
     const date = new Date(isoString)
-    return date.toLocaleDateString('es-ES', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    })
+    return {
+        dateStr: date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }),
+        timeStr: date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+    }
 }
 
-/**
- * Badge visual para mostrar el estado de una solicitud.
- * Usa colores diferentes para cada estado:
- *   - pending  → amarillo (badge-warning)
- *   - approved → verde (badge-accent)
- *   - rejected → rojo (badge-danger)
- *
- * @param {Object} props
- * @param {string} props.status - Estado de la solicitud
- */
 function StatusBadge({ status }) {
-    const map = {
-        pending: { label: 'Pendiente', className: 'badge badge-warning' },
-        approved: { label: 'Aprobado', className: 'badge badge-accent' },
-        rejected: { label: 'Rechazado', className: 'badge badge-danger' },
+    if (status === 'pending') {
+        return (
+            <span className="px-3 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 w-fit">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                Pendiente
+            </span>
+        )
     }
-    const info = map[status] || map.pending
-    return <span className={info.className}>{info.label}</span>
+    if (status === 'approved') {
+        return (
+            <span className="px-3 py-1 bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 w-fit">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                Aprobada
+            </span>
+        )
+    }
+    return (
+        <span className="px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+            Rechazada
+        </span>
+    )
 }
 
 export default function RequestsPage() {
-    // ── Estado del componente ──
-
-    // Lista COMPLETA de solicitudes obtenida del backend (sin filtrar).
-    // Se usa como fuente de datos para el filtrado en frontend.
     const [allRequests, setAllRequests] = useState([])
-
-    // Controla el spinner de carga inicial
     const [loading, setLoading] = useState(true)
-
-    // Mensaje de error (carga, aprobación o rechazo)
     const [error, setError] = useState(null)
-
-    // ID de la solicitud que se está procesando (aprobar/rechazar)
-    // Se usa para mostrar spinner en el botón correspondiente
     const [actionLoading, setActionLoading] = useState(null)
-
-    // ══ TOGGLE DE FILTRADO ══
-    // `showAll` controla qué solicitudes se muestran en la tabla:
-    //   - false (predeterminado): solo muestra solicitudes con status = 'pending'
-    //   - true: muestra TODAS las solicitudes sin importar su estado
-    //
-    // Al cambiar este valor, la tabla se actualiza instantáneamente
-    // porque el filtrado se hace en frontend (no hay llamada al API).
     const [showAll, setShowAll] = useState(false)
 
-    /**
-     * Carga la lista COMPLETA de solicitudes desde el backend.
-     * No aplica filtro de status — trae pending, approved y rejected.
-     * El filtrado lo hace el frontend según el estado del toggle.
-     */
     const fetchRequests = useCallback(async () => {
         setError(null)
         try {
-            // Traemos TODAS las solicitudes del backend sin filtro
-            // para poder filtrar en frontend según el toggle
             const data = await api.listRequests()
             setAllRequests(data.requests || [])
         } catch (err) {
@@ -113,36 +53,18 @@ export default function RequestsPage() {
         }
     }, [])
 
-    // Cargar solicitudes al montar el componente
-    useEffect(() => {
-        fetchRequests()
-    }, [fetchRequests])
+    useEffect(() => { fetchRequests() }, [fetchRequests])
 
-    // ══ FILTRADO EN FRONTEND ══
-    // `filteredRequests` es la lista derivada que se muestra en la tabla.
-    // Se recalcula automáticamente cuando cambian `allRequests` o `showAll`.
-    //
-    // useMemo evita recalcular en cada render si las dependencias no cambiaron.
-    // Para la cantidad típica de solicitudes (<100) esto es casi instantáneo.
     const filteredRequests = useMemo(() => {
-        if (showAll) {
-            // Mostrar TODAS las solicitudes sin filtrar
-            return allRequests
-        }
-        // Mostrar solo las solicitudes pendientes (predeterminado)
+        if (showAll) return allRequests;
         return allRequests.filter(req => req.status === 'pending')
     }, [allRequests, showAll])
 
-    /**
-     * Aprueba una solicitud de acceso.
-     * Llama a POST /api/requests/{id}/approve y refresca la tabla.
-     */
     const handleApprove = async (id) => {
         setActionLoading(id)
         setError(null)
         try {
             await api.approveRequest(id)
-            // Refrescar la lista completa para obtener el nuevo estado
             await fetchRequests()
         } catch (err) {
             setError(err.message || 'Error al aprobar solicitud')
@@ -151,16 +73,11 @@ export default function RequestsPage() {
         }
     }
 
-    /**
-     * Rechaza una solicitud de acceso.
-     * Llama a POST /api/requests/{id}/reject y refresca la tabla.
-     */
     const handleReject = async (id) => {
         setActionLoading(id)
         setError(null)
         try {
             await api.rejectRequest(id)
-            // Refrescar la lista completa para obtener el nuevo estado
             await fetchRequests()
         } catch (err) {
             setError(err.message || 'Error al rechazar solicitud')
@@ -169,160 +86,134 @@ export default function RequestsPage() {
         }
     }
 
-    // Contadores para mostrar en el toggle
-    // Permite al usuario saber cuántas solicitudes hay en cada categoría
     const pendingCount = allRequests.filter(r => r.status === 'pending').length
+    const processedCount = allRequests.filter(r => r.status !== 'pending').length
     const totalCount = allRequests.length
 
     return (
-        <>
-            {/* ── Título de la página ── */}
-            <div className="page-title-wrap">
-                <h1 className="page-title">Solicitudes de acceso</h1>
-                <p className="page-subtitle">Gestiona las solicitudes de nuevos usuarios</p>
+        <div className="p-8 space-y-8">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-1">
+                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Solicitudes</h2>
+                    <p className="text-on-surface-variant font-medium">Gestiona y modera las solicitudes de acceso al sistema.</p>
+                </div>
+                <div className="flex gap-3">
+                    <button onClick={() => fetchRequests()} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">sync</span>
+                        Actualizar
+                    </button>
+                </div>
             </div>
 
-            {/* ══ TOGGLE DE FILTRADO ══
-                Dos botones estilo "pill" que permiten alternar entre:
-                - "Pendientes": muestra solo solicitudes con status = 'pending'
-                - "Todas": muestra todas las solicitudes
+            {error && <div className="bg-error-container text-on-error-container p-4 rounded-xl text-sm font-medium">{error}</div>}
 
-                El botón activo tiene clase 'active' para resaltarlo visualmente.
-                Al hacer clic, se actualiza el estado `showAll` y la tabla
-                se filtra instantáneamente sin llamar al backend. */}
-            <div className="filter-toggle-group" id="requests-filter-toggle">
-                <button
-                    id="filter-pending"
-                    className={`filter-toggle-btn${!showAll ? ' active' : ''}`}
-                    onClick={() => setShowAll(false)}
-                >
-                    Pendientes ({pendingCount})
-                </button>
-                <button
-                    id="filter-all"
-                    className={`filter-toggle-btn${showAll ? ' active' : ''}`}
-                    onClick={() => setShowAll(true)}
-                >
-                    Todas ({totalCount})
-                </button>
-            </div>
-
-            {/* Mensajes de error */}
-            {error && <div className="alert alert-error">{error}</div>}
-
-            {/* ── Tabla de solicitudes ── */}
-            <div className="card">
-                <div className="table-wrap" style={{ border: 'none' }}>
-                    <table>
+            {/* Main Requests Table */}
+            <div className="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden border border-stone-200/50">
+                <div className="px-6 py-4 flex items-center justify-between bg-surface-container-low/50">
+                    <div className="flex p-1 bg-surface-container-high rounded-lg shadow-inner">
+                        <button 
+                            onClick={() => setShowAll(false)}
+                            className={`px-4 py-1.5 text-xs font-bold rounded shadow-sm transition-colors ${!showAll ? 'bg-surface-container-lowest text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+                        >
+                            Pendientes
+                            <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] ${!showAll ? 'bg-primary/10 text-primary' : 'bg-stone-200 text-stone-500'}`}>{pendingCount}</span>
+                        </button>
+                        <button 
+                            onClick={() => setShowAll(true)}
+                            className={`px-4 py-1.5 text-xs font-bold rounded shadow-sm transition-colors ${showAll ? 'bg-surface-container-lowest text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+                        >
+                            Historial
+                            <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] ${showAll ? 'bg-primary/10 text-primary' : 'bg-stone-200 text-stone-500'}`}>{totalCount}</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr>
-                                <th>Email</th>
-                                <th>Fecha de solicitud</th>
-                                <th>Estado</th>
-                                <th style={{ textAlign: 'right' }}>Acciones</th>
+                            <tr className="bg-surface-container-low">
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Solicitante</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Estado</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Fecha</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest text-right whitespace-nowrap">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {/* Estado: Cargando — spinner centrado */}
+                        <tbody className="divide-y divide-surface-container-low">
                             {loading ? (
-                                <tr>
-                                    <td colSpan={4}>
-                                        <div className="empty-state" style={{ padding: '60px 24px' }}>
-                                            <div className="spinner"></div>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <tr><td colSpan="4" className="py-20 text-center text-stone-400">Cargando solicitudes...</td></tr>
                             ) : filteredRequests.length === 0 ? (
-                                /* Estado: Sin resultados — mensaje adaptado al filtro activo */
                                 <tr>
-                                    <td colSpan={4}>
-                                        <div className="empty-state" style={{ padding: '60px 24px' }}>
-                                            <div className="empty-state-icon">📋</div>
-                                            <p style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 4 }}>
-                                                {showAll
-                                                    ? 'No hay solicitudes registradas'
-                                                    : 'No hay solicitudes pendientes'
-                                                }
-                                            </p>
-                                            <p className="text-muted text-xs">
-                                                {showAll
-                                                    ? 'Aún no se ha recibido ninguna solicitud de acceso'
-                                                    : 'Todas las solicitudes han sido procesadas'
-                                                }
-                                            </p>
+                                    <td colSpan="4">
+                                        <div className="py-20 flex flex-col items-center justify-center text-stone-400 gap-3">
+                                            <span className="material-symbols-outlined text-4xl">inbox</span>
+                                            <span className="font-medium text-sm text-stone-500">
+                                                {showAll ? 'No se encontraron solicitudes.' : '¡Todo al día! No hay solicitudes pendientes.'}
+                                            </span>
                                         </div>
                                     </td>
                                 </tr>
-                            ) : (
-                                /* Estado: Con resultados — renderizar filas filtradas */
-                                filteredRequests.map((req) => (
-                                    <tr key={req.id}>
-                                        {/* Celda Email */}
-                                        <td>
-                                            <span style={{ fontWeight: 500 }}>{req.email}</span>
-                                        </td>
-                                        {/* Celda Fecha */}
-                                        <td className="td-muted">
-                                            {formatDate(req.requested_at)}
-                                        </td>
-                                        {/* Celda Estado — badge visual con color según status */}
-                                        <td>
-                                            <StatusBadge status={req.status} />
-                                        </td>
-                                        {/* Celda Acciones — botones solo para solicitudes pendientes */}
-                                        <td>
-                                            <div className="request-actions">
-                                                {/* Los botones de Aprobar/Rechazar SOLO se muestran
-                                                    para solicitudes en estado 'pending'.
-                                                    Para solicitudes ya procesadas (approved/rejected),
-                                                    se muestra un texto indicando que la acción fue completada. */}
-                                                {req.status === 'pending' ? (
-                                                    <>
-                                                        <button
-                                                            id={`approve-${req.id}`}
-                                                            className="btn btn-sm btn-approve"
-                                                            onClick={() => handleApprove(req.id)}
-                                                            disabled={actionLoading === req.id}
-                                                        >
-                                                            {actionLoading === req.id ? '...' : '✓ Aprobar'}
-                                                        </button>
-                                                        <button
-                                                            id={`reject-${req.id}`}
-                                                            className="btn btn-sm btn-reject"
-                                                            onClick={() => handleReject(req.id)}
-                                                            disabled={actionLoading === req.id}
-                                                        >
-                                                            {actionLoading === req.id ? '...' : '✕ Rechazar'}
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-muted text-xs" style={{ fontStyle: 'italic' }}>
-                                                        Acción completada
-                                                    </span>
-                                                )}
+                            ) : filteredRequests.map(req => {
+                                const { dateStr, timeStr } = formatDate(req.requested_at);
+                                const isPending = req.status === 'pending';
+                                return (
+                                    <tr key={req.id} className="hover:bg-surface-container-low/30 transition-colors group">
+                                        <td className="py-5 px-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center font-bold text-primary text-xs uppercase">
+                                                    {req.email.substring(0, 2)}
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-on-surface text-sm">{req.email.split('@')[0]}</div>
+                                                    <div className="text-[10px] text-stone-400 font-medium">{req.email}</div>
+                                                </div>
                                             </div>
                                         </td>
+                                        <td className="py-5 px-6">
+                                            <StatusBadge status={req.status} />
+                                        </td>
+                                        <td className="py-5 px-6">
+                                            <div className="text-sm text-on-surface font-medium">{dateStr}</div>
+                                            <div className="text-[10px] text-stone-400">{timeStr}</div>
+                                        </td>
+                                        <td className="py-5 px-6 text-right">
+                                            {isPending ? (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button 
+                                                        onClick={() => handleApprove(req.id)}
+                                                        disabled={actionLoading === req.id}
+                                                        className="px-4 py-2 bg-primary/5 border border-primary/20 text-primary font-bold text-xs rounded-lg hover:bg-primary/10 transition-colors flex items-center gap-1.5"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">check_circle</span>
+                                                        {actionLoading === req.id ? '...' : 'Aprobar'}
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleReject(req.id)}
+                                                        disabled={actionLoading === req.id}
+                                                        className="px-4 py-2 bg-error/5 border border-error/20 text-error font-bold text-xs rounded-lg hover:bg-error/10 transition-colors flex items-center gap-1.5"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">cancel</span>
+                                                        {actionLoading === req.id ? '...' : 'Rechazar'}
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[11px] font-bold text-stone-400 italic flex items-center justify-end gap-1">
+                                                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                                    Procesada
+                                                </span>
+                                            )}
+                                        </td>
                                     </tr>
-                                ))
-                            )}
+                                )
+                            })}
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            {/* ── Contador de solicitudes mostradas ── */}
-            {!loading && filteredRequests.length > 0 && (
-                <div
-                    style={{
-                        marginTop: 8,
-                        fontSize: '0.8rem',
-                        color: 'var(--color-text-muted)',
-                        fontStyle: 'italic',
-                    }}
-                >
-                    Mostrando {filteredRequests.length} de {totalCount} solicitud{totalCount !== 1 ? 'es' : ''}
+                
+                <div className="px-6 py-4 bg-surface-container-low/50 flex items-center justify-between border-t border-stone-100">
+                    <p className="text-xs font-medium text-stone-500">Mostrando {filteredRequests.length} solicitudes</p>
                 </div>
-            )}
-        </>
+            </div>
+        </div>
     )
 }

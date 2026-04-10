@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Master Data | Prisma CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-container": "#00bbd4",
+                    "secondary-container": "#e4e2e1",
+                    "on-primary-fixed-variant": "#004e5a",
+                    "on-secondary": "#ffffff",
+                    "tertiary": "#be003b",
+                    "surface-container-low": "#f5f3f3",
+                    "secondary": "#5f5e5e",
+                    "inverse-primary": "#45d8f1",
+                    "primary-fixed": "#a3eeff",
+                    "on-secondary-fixed": "#1b1c1c",
+                    "on-primary-fixed": "#001f25",
+                    "on-error-container": "#93000a",
+                    "on-primary-container": "#004650",
+                    "on-tertiary-fixed": "#40000e",
+                    "primary": "#006877",
+                    "surface-dim": "#dcd9d9",
+                    "on-error": "#ffffff",
+                    "on-background": "#1b1c1c",
+                    "on-secondary-container": "#656464",
+                    "error-container": "#ffdad6",
+                    "surface-variant": "#e4e2e1",
+                    "surface-tint": "#006877",
+                    "on-surface-variant": "#3c494c",
+                    "secondary-fixed": "#e4e2e1",
+                    "on-secondary-fixed-variant": "#474747",
+                    "surface-container-highest": "#e4e2e1",
+                    "secondary-fixed-dim": "#c8c6c6",
+                    "outline": "#6c797d",
+                    "outline-variant": "#bbc9cc",
+                    "error": "#ba1a1a",
+                    "on-tertiary-container": "#830026",
+                    "primary-fixed-dim": "#45d8f1",
+                    "tertiary-container": "#ff8692",
+                    "surface-container-high": "#eae8e7",
+                    "surface-bright": "#fbf9f8",
+                    "surface-container-lowest": "#ffffff",
+                    "on-primary": "#ffffff",
+                    "surface": "#fbf9f8",
+                    "surface-container": "#f0eded",
+                    "on-tertiary": "#ffffff",
+                    "background": "#fbf9f8",
+                    "tertiary-fixed": "#ffdadb",
+                    "inverse-on-surface": "#f2f0f0",
+                    "inverse-surface": "#303030",
+                    "tertiary-fixed-dim": "#ffb2b7",
+                    "on-tertiary-fixed-variant": "#91002b",
+                    "on-surface": "#1b1c1c"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(251, 249, 248, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        .chip-hover:hover .chip-actions {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-slate-100 dark:bg-slate-900 z-40 hidden md:flex flex-col gap-2 p-6 border-r border-outline-variant/10">
+<div class="mb-8 px-2">
+<h1 class="text-lg font-black text-slate-900 dark:text-slate-50 uppercase tracking-widest font-headline">Prisma CRM</h1>
+<p class="text-[10px] text-on-surface-variant/60 tracking-wider uppercase font-medium">Editorial Precision</p>
+</div>
+<nav class="flex flex-col gap-1 flex-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all font-headline font-medium text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 text-primary dark:text-cyan-400 rounded-lg shadow-sm font-bold font-headline text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+<span>Master Data</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all font-headline font-medium text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="task_alt">task_alt</span>
+<span>Requests</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all font-headline font-medium text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span>Users</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all font-headline font-medium text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="code">code</span>
+<span>APIs &amp; Webhooks</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all font-headline font-medium text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>General Settings</span>
+</a>
+</nav>
+<div class="mt-auto">
+<button class="w-full py-3 rounded-lg bg-gradient-to-br from-primary to-primary-container text-white font-semibold text-sm shadow-sm transition-transform active:scale-95">
+                New Request
+            </button>
+</div>
+</aside>
+<!-- Top Navigation -->
+<header class="fixed top-0 left-0 md:left-64 right-0 z-30 h-16 glass-panel border-none shadow-sm flex items-center justify-between px-8">
+<div class="flex items-center gap-4">
+<span class="md:hidden material-symbols-outlined text-on-surface-variant cursor-pointer">menu</span>
+<h2 class="font-headline font-bold text-xl tracking-tight text-on-surface">Master Data Management</h2>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden lg:flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-full text-on-surface-variant">
+<span class="material-symbols-outlined text-lg" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48" placeholder="Quick search dictionary..." type="text"/>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors" data-icon="help">help</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors" data-icon="settings">settings</span>
+<div class="h-8 w-8 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant/20">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXTsXBwz64qS8D98nqAkdlXixFWX-7v_BBIB96wOlac1qlo09zVtaPwOOo2dfdP_qPvbHMjKDpVKJ3TSAnrrAxUvfnrSJx6MCWHRfiZDPSlErrRJyZTZqS5fXhYb83IbqBu0355Ol_ukla2g3QOchb3ZTrxkWH3pQKBroZ582Os3gLPMjc6BGBgdCOhm-MenNaltKitFLNT0fJBORRzq0AowRZLuDiwtkbSbWpuUj6dF2iHJrqMv7XCfO_NYJ72jDZS0n03e9GmQYj"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-12 md:ml-64 px-8 min-h-screen transition-all duration-300">
+<!-- Action Bar -->
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+<div>
+<p class="text-label-sm text-tertiary font-bold tracking-widest uppercase mb-2">Centralized Hub</p>
+<h3 class="text-4xl md:text-5xl font-headline font-extrabold text-on-surface tracking-tight">Data Architecture</h3>
+<p class="mt-4 text-on-surface-variant max-w-xl leading-relaxed">Organize your ecosystem's foundation. Manage classification structures for sectors, verticals, and products as a modular inventory of editorial chips.</p>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2.5 rounded-lg bg-surface-container-highest text-on-surface font-semibold text-sm hover:bg-surface-dim transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="download">download</span>
+                    Export Dictionary
+                </button>
+<button class="px-6 py-2.5 rounded-lg bg-gradient-to-br from-primary to-primary-container text-white font-semibold text-sm transition-transform active:scale-95 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="add">add</span>
+                    Add New Category
+                </button>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-8">
+<!-- Main Ledger Section -->
+<div class="col-span-12 lg:col-span-8 space-y-10">
+<!-- Sectores Section -->
+<section>
+<div class="flex items-center justify-between mb-4 px-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="category">category</span>
+<h4 class="font-headline font-bold text-lg text-on-surface">Sectores</h4>
+</div>
+<button class="text-xs font-bold text-primary hover:underline">Add Sector</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-sm font-medium transition-all hover:bg-primary/20 cursor-default">
+<span>Financial Services</span>
+<button class="material-symbols-outlined text-base hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-sm font-medium transition-all hover:bg-primary/20 cursor-default">
+<span>Technology &amp; SaaS</span>
+<button class="material-symbols-outlined text-base hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-sm font-medium transition-all hover:bg-primary/20 cursor-default">
+<span>Healthcare</span>
+<button class="material-symbols-outlined text-base hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-sm font-medium transition-all hover:bg-primary/20 cursor-default">
+<span>Consumer Goods</span>
+<button class="material-symbols-outlined text-base hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-sm font-medium transition-all hover:bg-primary/20 cursor-default">
+<span>Manufacturing</span>
+<button class="material-symbols-outlined text-base hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-sm font-medium transition-all hover:bg-primary/20 cursor-default">
+<span>Public Sector</span>
+<button class="material-symbols-outlined text-base hover:text-error transition-colors">close</button>
+</div>
+</div>
+</section>
+<!-- Verticales Section -->
+<section>
+<div class="flex items-center justify-between mb-4 px-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="layers">layers</span>
+<h4 class="font-headline font-bold text-lg text-on-surface">Verticales</h4>
+</div>
+<button class="text-xs font-bold text-primary hover:underline">Add Vertical</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Enterprise Core</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>SME Solutions</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Cloud Migration</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Cyber Security</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Digital Transformation</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+</div>
+</section>
+<!-- Productos Section -->
+<section>
+<div class="flex items-center justify-between mb-4 px-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="inventory_2">inventory_2</span>
+<h4 class="font-headline font-bold text-lg text-on-surface">Productos</h4>
+</div>
+<button class="text-xs font-bold text-primary hover:underline">Add Product</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Prisma Sentinel</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Pulse Analytics</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Nexus Gateway</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Optic CRM Plus</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+</div>
+</section>
+<!-- Cargos Section -->
+<section>
+<div class="flex items-center justify-between mb-4 px-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="badge">badge</span>
+<h4 class="font-headline font-bold text-lg text-on-surface">Cargos</h4>
+</div>
+<button class="text-xs font-bold text-primary hover:underline">Add Role</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>CEO</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>CTO</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Sales Manager</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Product Owner</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Marketing Director</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Operations Lead</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+</div>
+</section>
+<!-- Campañas Section -->
+<section>
+<div class="flex items-center justify-between mb-4 px-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="campaign">campaign</span>
+<h4 class="font-headline font-bold text-lg text-on-surface">Campañas</h4>
+</div>
+<button class="text-xs font-bold text-primary hover:underline">Add Campaign</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Q4 Outreach</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Product Launch 2024</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>End of Year Promo</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+<div class="group relative flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest text-on-surface border border-outline-variant/30 rounded-full text-sm font-medium transition-all hover:border-primary/40 cursor-default">
+<span>Regional Expansion</span>
+<button class="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">close</button>
+</div>
+</div>
+</section>
+</div>
+<!-- Side Bento Column -->
+<div class="col-span-12 lg:col-span-4 space-y-8">
+<!-- Quick Stats -->
+<div class="bg-gradient-to-br from-on-surface to-slate-800 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-xs font-bold uppercase tracking-[0.2em] opacity-60 mb-1">Total Distribution</p>
+<h5 class="text-6xl font-headline font-black mb-6">6.5k</h5>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-sm">
+<span class="opacity-70">Assigned Companies</span>
+<span class="font-bold">6,488</span>
+</div>
+<div class="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[88%]"></div>
+</div>
+<div class="flex justify-between items-center text-sm">
+<span class="opacity-70">Uncategorized Data</span>
+<span class="font-bold">12</span>
+</div>
+</div>
+</div>
+<!-- Abstract Graphic Background -->
+<div class="absolute -right-12 -bottom-12 opacity-20 transform rotate-12">
+<span class="material-symbols-outlined text-[180px]" data-icon="grid_view">grid_view</span>
+</div>
+</div>
+<!-- Recent Dictionary Edits -->
+<div class="bg-surface-container-low rounded-xl p-8">
+<h4 class="font-headline font-bold text-lg mb-6">Revision History</h4>
+<div class="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-outline-variant/30">
+<div class="relative pl-8">
+<div class="absolute left-0 top-1.5 w-[24px] h-[24px] bg-white rounded-full border-2 border-primary flex items-center justify-center">
+<div class="w-2 h-2 bg-primary rounded-full"></div>
+</div>
+<div class="text-sm font-bold">New Role Added</div>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">Sarah Miller added 'Operations Lead' to the Roles inventory.</p>
+<span class="text-[10px] text-primary font-bold mt-2 inline-block">2 hours ago</span>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1.5 w-[24px] h-[24px] bg-white rounded-full border-2 border-outline-variant flex items-center justify-center">
+<div class="w-2 h-2 bg-outline-variant rounded-full"></div>
+</div>
+<div class="text-sm font-bold">Campaign Updated</div>
+<p class="text-xs text-on-surface-variant mt-1 leading-relaxed">'Product Launch 2024' name refined for consistency.</p>
+<span class="text-[10px] text-on-surface-variant font-medium mt-2 inline-block">Yesterday, 14:20</span>
+</div>
+</div>
+<button class="w-full mt-8 py-3 text-sm font-bold text-primary hover:underline transition-all text-left">
+                        View Audit Log
+                    </button>
+</div>
+<!-- Data Integrity Card -->
+<div class="p-8 rounded-xl bg-surface-container-lowest border border-outline-variant/10">
+<div class="flex items-center gap-4 mb-4">
+<span class="material-symbols-outlined text-tertiary" data-icon="verified_user">verified_user</span>
+<h4 class="font-headline font-bold">Quality Score</h4>
+</div>
+<div class="text-4xl font-headline font-extrabold text-on-surface mb-2">99.4%</div>
+<p class="text-sm text-on-surface-variant leading-relaxed">Your master data taxonomy is highly consistent across all active products and campaigns.</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action for Mobile -->
+<button class="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center z-50">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</button>
+</body></html>

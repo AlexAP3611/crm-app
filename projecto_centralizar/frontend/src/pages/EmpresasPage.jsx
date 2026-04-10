@@ -7,6 +7,7 @@ import { useQueryParams } from '../hooks/useQueryParams'
 import { ActiveFilters } from '../components/ActiveFilters'
 import MultiSelect from '../components/MultiSelect'
 import ContactModal from '../components/ContactModal'
+import Checkbox from '../components/Checkbox'
 
 function EmpresaConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
     return (
@@ -83,9 +84,7 @@ function EmpresaBulkAssignmentModal({ type, mode = 'assign', targetCount, option
                             return (
                                 <div key={opt.id} onClick={() => handleToggle(opt.id)} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', backgroundColor: isSelected ? 'rgba(79, 114, 239, 0.1)' : 'transparent', transition: 'all 0.15s ease' }}>
                                     <span style={{ color: isSelected ? 'var(--color-accent)' : 'inherit', fontWeight: isSelected ? 600 : 400, fontSize: '0.9375rem' }}>{label}</span>
-                                    <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${isSelected ? 'var(--color-accent)' : 'var(--color-border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: isSelected ? 'var(--color-accent)' : 'transparent', transition: 'all 0.15s ease' }}>
-                                        {isSelected && <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 700 }}>✓</span>}
-                                    </div>
+                                    <Checkbox checked={isSelected} readOnly />
                                 </div>
                             )
                         })}
@@ -104,7 +103,7 @@ function EmpresaBulkAssignmentModal({ type, mode = 'assign', targetCount, option
 }
 
 const EMPTY_FORM = { nombre: '', cif: '', email: '', web: '', sector_ids: [], vertical_ids: [], product_ids: [], cargo_ids: [], campaign_ids: [], numero_empleados: '', facturacion: '', cnae: '' }
-const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', c_search: '', c_cargo_id: '', c_campaign_id: '' }
+const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', c_search: '', c_cargo_id: '', c_campaign_id: '', page: 1, page_size: 50 }
 
 function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess }) {
     const [selectedToAssign, setSelectedToAssign] = useState("");
@@ -241,8 +240,17 @@ export default function EmpresasPage() {
         }
     }
 
+    const currentPage = Number(filters.page) || 1
+    const pageSize = Number(filters.page_size) || 50
+    const totalPages = Math.ceil(totalEmpresas / pageSize)
+
+    const setPage = (page) => {
+        setFilters(prev => ({ ...prev, page }))
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+
     const handleFilterChange = (key, val) => {
-        setFilters(prev => ({ ...prev, [key]: val }))
+        setFilters(prev => ({ ...prev, [key]: val, page: 1 }))
     }
 
     const resetFilters = () => {
@@ -413,248 +421,258 @@ export default function EmpresasPage() {
     }
 
     return (
-        <div className="page-wrap">
-            <div className="top-action-bar">
-                <div></div>
-                <div className="top-actions">
-                    <button className="btn btn-primary" onClick={handleOpenCreate}>
-                        Crear Empresa
-                    </button>
+        <div className="p-8 space-y-8 animate-[authFadeIn_0.4s_ease-out]">
+            {/* Header & KPIs Section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-1">
+                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Companies</h2>
+                    <p className="text-on-surface-variant font-medium">Gestionando {totalEmpresas.toLocaleString()} entidades corporativas en Prisma CRM.</p>
                 </div>
             </div>
 
-            <div className="page-title-wrap">
-                <h1 className="page-title">Directorio de Empresas</h1>
-                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', marginTop: 8 }}>
-                    Organiza y filtra las empresas usando múltiples parámetros y listados basados en atributos de contactos.
-                </p>
-            </div>
-
-            {error && <div className="alert alert-error" style={{ marginBottom: 16 }}>{error}</div>}
+            {error && <div className="p-4 bg-error-container text-on-error-container rounded-lg font-medium text-sm">{error}</div>}
 
             <ActiveFilters filters={filters} onRemove={handleRemoveFilter} optionsMap={lookupMaps} />
 
-            {/* Filter Bar */}
-            <div className="filter-card" style={{ marginTop: 16 }}>
-                <div>
-                    <div className="filter-section-wrapper">
-                        
-                        {/* Company Filters */}
-                        <div className="filter-section">
-                            <div className="filter-section-title">
-                                <svg className="title-icon-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                                Filtros de Empresa
-                            </div>
-                            <div className="filter-grid dense">
-                                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                                    <input className="form-control" placeholder="Buscar empresas por nombre..." value={filters.q} onChange={e => handleFilterChange('q', e.target.value)} />
-                                </div>
-                                <div className="form-group">
-                                    <select className="form-control" value={filters.sector_id} onChange={e => handleFilterChange('sector_id', e.target.value)}>
-                                        <option value="">Todos los Sectores</option>
-                                        {sectors.map(s => <option key={s.id} value={s.id}>{s.name || s.nombre}</option>)}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <select className="form-control" value={filters.vertical_id} onChange={e => handleFilterChange('vertical_id', e.target.value)}>
-                                        <option value="">Todas las Verticales</option>
-                                        {verticals.map(v => <option key={v.id} value={v.id}>{v.name || v.nombre}</option>)}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <select className="form-control" value={filters.product_id} onChange={e => handleFilterChange('product_id', e.target.value)}>
-                                        <option value="">Todos los Productos</option>
-                                        {products.map(p => <option key={p.id} value={p.id}>{p.name || p.nombre}</option>)}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <input className="form-control" placeholder="CNAE..." value={filters.cnae} onChange={e => handleFilterChange('cnae', e.target.value)} />
-                                </div>
-                                <div className="form-group">
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <input type="number" className="form-control" placeholder="Mín empleados" value={filters.numero_empleados_min} onChange={e => handleFilterChange('numero_empleados_min', e.target.value)} />
-                                        <input type="number" className="form-control" placeholder="Máx empleados" value={filters.numero_empleados_max} onChange={e => handleFilterChange('numero_empleados_max', e.target.value)} />
-                                    </div>
-                                </div>
-                                <div className="form-group">
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <input type="number" className="form-control" placeholder="Mín facturación" value={filters.facturacion_min} onChange={e => handleFilterChange('facturacion_min', e.target.value)} />
-                                        <input type="number" className="form-control" placeholder="Máx" value={filters.facturacion_max} onChange={e => handleFilterChange('facturacion_max', e.target.value)} />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Contact Filters */}
-                        <div className="filter-section">
-                            <div className="filter-section-title">
-                                <svg className="title-icon-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                                Contactos Asociados (Join)
-                            </div>
-                            <div className="filter-grid dense">
-                                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                                    <input className="form-control" placeholder="Buscar nombre/email del contacto..." value={filters.c_search} onChange={e => handleFilterChange('c_search', e.target.value)} />
-                                </div>
-                                <div className="form-group">
-                                    <select className="form-control" value={filters.c_campaign_id} onChange={e => handleFilterChange('c_campaign_id', e.target.value)}>
-                                        <option value="">Todas las Campañas</option>
-                                        {campaigns.map(c => <option key={c.id} value={c.id}>{c.name || c.nombre}</option>)}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <select className="form-control" value={filters.c_cargo_id} onChange={e => handleFilterChange('c_cargo_id', e.target.value)}>
-                                        <option value="">Todos los cargos</option>
-                                        {cargos.map(c => <option key={c.id} value={c.id}>{c.name || c.nombre}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
+            {/* Advanced Filter Strip */}
+            <div className="bg-surface-container-low p-6 rounded-2xl border border-stone-200/50 space-y-6">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
+                        <span className="material-symbols-outlined text-lg">tune</span> Búsqueda y Filtros
+                    </h3>
+                    <button className="text-[10px] font-bold text-primary uppercase tracking-tighter hover:opacity-70 bg-transparent border-none p-0 outline-none cursor-pointer" onClick={resetFilters}>Limpiar filtros</button>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                    <div className="space-y-1.5 lg:col-span-2">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Empresa / Contacto</label>
+                        <input 
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400" 
+                            placeholder="Buscar nombre..." 
+                            type="text" 
+                            value={filters.q} 
+                            onChange={e => handleFilterChange('q', e.target.value)} 
+                        />
                     </div>
-                    
-                    <div className="filter-actions">
-                        <button type="button" className="btn btn-secondary" onClick={resetFilters}>Limpiar Filtros</button>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">CNAE (Inicia con)</label>
+                        <input 
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400" 
+                            placeholder="Ej. 6201" 
+                            type="text" 
+                            value={filters.cnae} 
+                            onChange={e => handleFilterChange('cnae', e.target.value)} 
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Sector</label>
+                        <select 
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
+                            value={filters.sector_id}
+                            onChange={e => handleFilterChange('sector_id', e.target.value)}
+                        >
+                            <option value="">Todos</option>
+                            {sectors.map(s => <option key={s.id} value={s.id}>{s.name || s.nombre}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Vertical</label>
+                        <select 
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
+                            value={filters.vertical_id}
+                            onChange={e => handleFilterChange('vertical_id', e.target.value)}
+                        >
+                            <option value="">Todas</option>
+                            {verticals.map(v => <option key={v.id} value={v.id}>{v.name || v.nombre}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Producto</label>
+                        <select 
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
+                            value={filters.product_id}
+                            onChange={e => handleFilterChange('product_id', e.target.value)}
+                        >
+                            <option value="">Todos</option>
+                            {products.map(p => <option key={p.id} value={p.id}>{p.name || p.nombre}</option>)}
+                        </select>
                     </div>
                 </div>
             </div>
 
-            {/* 4. Bulk Actions Bar */}
-            <div className="bulk-actions-bar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 16 }}>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <button className="btn-bulk" onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'assign' })}>Asignar a sector ({actionCount})</button>
-                    <button className="btn-bulk" onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'assign' })}>Asignar a vertical ({actionCount})</button>
-                    <button className="btn-bulk" onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'assign' })}>Asignar a productos ({actionCount})</button>
-                    <button className="btn-bulk btn-bulk-danger" style={{ marginLeft: 'auto' }} onClick={handleDeleteBulk}>Borrar ({actionCount}) empresas</button>
+            {/* Batch Actions Area */}
+            <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'assign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">assignment_ind</span>
+                        Asignar Sector
+                        <span className="bg-primary-fixed text-primary px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                    </button>
+                    <button onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">person_remove</span>
+                        Desasignar Sector
+                        <span className="bg-error/10 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                    </button>
+                    <button onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'assign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">category</span>
+                        Asignar Vertical
+                        <span className="bg-primary-fixed text-primary px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                    </button>
+                    <button onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">remove_selection</span>
+                        Desasignar Vertical
+                        <span className="bg-error/10 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                    </button>
+                    <button onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'assign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">inventory_2</span>
+                        Asignar Producto
+                        <span className="bg-primary-fixed text-primary px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                    </button>
+                    <button onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">remove_selection</span>
+                        Desasignar Producto
+                        <span className="bg-error/10 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                    </button>
+                    <div className="flex-1"></div>
+                    <button 
+                        onClick={handleDeleteBulk}
+                        className="bg-error/10 text-error px-4 py-2 rounded-lg text-sm font-bold hover:bg-error/20 transition-colors flex items-center gap-2 border border-error/20 shadow-sm"
+                    >
+                        <span className="material-symbols-outlined text-lg">delete</span>
+                        Eliminar
+                        <span className="bg-error/20 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                    </button>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <button className="btn-bulk btn-bulk-unassign" onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'unassign' })}>Desasignar sector ({actionCount})</button>
-                    <button className="btn-bulk btn-bulk-unassign" onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'unassign' })}>Desasignar vertical ({actionCount})</button>
-                    <button className="btn-bulk btn-bulk-unassign" onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'unassign' })}>Desasignar productos ({actionCount})</button>
-                </div>
-                {deleteError && <div className="alert alert-error">{deleteError}</div>}
             </div>
+            {deleteError && <div className="p-3 bg-error-container text-on-error-container rounded text-sm mt-2">{deleteError}</div>}
 
-            <div className="card" style={{ marginTop: 16 }}>
-                <div style={{ overflowX: 'auto' }}>
-                    <table className="table" style={{ width: '100%' }}>
+            {/* Main Data Table */}
+            <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm border border-stone-200/40">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr>
-                                <th style={{ width: 40, textAlign: 'center' }}>
-                                    <input 
-                                        type="checkbox" 
-                                        checked={selectedIds.length > 0 && selectedIds.length === empresas.length} 
-                                        onChange={e => handleSelectAll(e.target.checked)} 
-                                    />
+                            <tr className="bg-surface-container-low border-b border-stone-200/40">
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">
+                                    <div className="flex items-center gap-4">
+                                        <Checkbox 
+                                            checked={selectedIds.length > 0 && selectedIds.length === empresas.length}
+                                            onChange={e => handleSelectAll(e.target.checked)}
+                                        />
+                                        Empresa
+                                    </div>
                                 </th>
-                                <th style={{ width: 40 }}>+</th>
-                                <th>Nombre</th>
-                                <th>CIF</th>
-                                <th>Email</th>
-                                <th>Web</th>
-                                <th>Sector</th>
-                                <th>Vertical</th>
-                                <th>Producto</th>
-                                <th>Empleados</th>
-                                <th>Facturación</th>
-                                <th>CNAE</th>
-                                <th style={{ width: 60 }}></th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">CNAE</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Sector</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Vertical</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Producto</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Empleados</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest text-right whitespace-nowrap">Facturación</th>
+                                <th className="py-4 px-6 w-10"></th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {loading ? (
+                        <tbody className="divide-y divide-surface-container-low">
+                            {loading && empresas.length === 0 ? (
                                 <tr>
-                                    <td colSpan="12" style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
-                                        Cargando vista combinada...
-                                    </td>
+                                    <td colSpan="8" className="text-center py-12 text-on-surface-variant">Cargando empresas...</td>
                                 </tr>
                             ) : empresas.length === 0 ? (
                                 <tr>
-                                    <td colSpan="12" style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-muted)' }}>
-                                        No hay coincidencias.
-                                    </td>
+                                    <td colSpan="8" className="text-center py-12 text-on-surface-variant">No se encontraron empresas con esos filtros.</td>
                                 </tr>
                             ) : (
                                 empresas.map(emp => (
                                     <React.Fragment key={emp.id}>
-                                <tr style={{ background: expandedRows.has(emp.id) ? 'var(--color-bg-subtle)' : 'transparent', transition: 'background 0.2s' }}>
-                                            <td style={{ textAlign: 'center' }}>
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={selectedIds.includes(emp.id)} 
-                                                    onChange={e => handleSelect(emp.id, e.target.checked)} 
-                                                />
-                                            </td>
-                                            <td onClick={() => toggleRow(emp.id)} style={{ cursor: 'pointer', textAlign: 'center', userSelect: 'none', fontWeight: 'bold' }}>
-                                                {expandedRows.has(emp.id) ? '▾' : '▸'}
-                                            </td>
-                                            <td style={{ fontWeight: 500 }}>
-                                                {emp.nombre}
-                                                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: 4 }}>
-                                                    {emp.contactos ? `${emp.contactos.length} contactos resultantes` : '0 contactos'}
+                                        <tr className="group hover:bg-stone-50 transition-colors cursor-pointer" onClick={() => toggleRow(emp.id)}>
+                                            <td className="py-5 px-6" onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center gap-4">
+                                                    <Checkbox 
+                                                        checked={selectedIds.includes(emp.id)}
+                                                        onChange={e => handleSelect(emp.id, e.target.checked)}
+                                                    />
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-stone-100 flex items-center justify-center font-bold text-stone-500 text-xs border border-stone-200">
+                                                            {emp.nombre ? emp.nombre.charAt(0).toUpperCase() : '?'}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-on-surface leading-tight hover:text-cyan-700 transition-colors" onClick={() => handleEdit(emp)}>{emp.nombre}</p>
+                                                            <div className="text-[10px] text-stone-400 font-medium flex items-center gap-1 mt-0.5">
+                                                                <span className="material-symbols-outlined text-[12px]">group</span>
+                                                                {emp.contactos ? `${emp.contactos.length} contactos` : '0 contactos'}
+                                                                {expandedRows.has(emp.id) ? '▾' : '▸'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </td>
-                                            <td>{emp.cif || <span style={{ color: 'var(--color-text-muted)' }}>-</span>}</td>
-                                            <td>{emp.email || <span style={{ color: 'var(--color-text-muted)' }}>-</span>}</td>
-                                            <td>{emp.web || <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>}</td>
-                                            <td>{Array.isArray(emp.sectors) && emp.sectors.length > 0 ? emp.sectors.map(x => <span key={x.id} className="badge badge-muted" style={{marginRight:4, display:'inline-block', marginBottom:4}}>{x.name||x.nombre}</span>) : <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>}</td>
-                                            <td>{Array.isArray(emp.verticals) && emp.verticals.length > 0 ? emp.verticals.map(x => <span key={x.id} className="badge badge-muted" style={{marginRight:4, display:'inline-block', marginBottom:4}}>{x.name||x.nombre}</span>) : <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>}</td>
-                                            <td>{Array.isArray(emp.products_rel) && emp.products_rel.length > 0 ? emp.products_rel.map(x => <span key={x.id} className="badge badge-muted" style={{marginRight:4, display:'inline-block', marginBottom:4}}>{x.name||x.nombre}</span>) : <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>}</td>
-                                            <td>{emp.numero_empleados?.toLocaleString() || <span style={{ color: 'var(--color-text-muted)' }}>-</span>}</td>
-                                            <td>{emp.facturacion ? `$${emp.facturacion.toLocaleString()}` : <span style={{ color: 'var(--color-text-muted)' }}>-</span>}</td>
-                                            <td>{emp.cnae || <span style={{ color: 'var(--color-text-muted)' }}>-</span>}</td>
-                                            <td>
+                                            <td className="py-5 px-6"><span className="text-sm font-medium text-stone-600">{emp.cnae || '-'}</span></td>
+                                            <td className="py-5 px-6">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {Array.isArray(emp.sectors) && emp.sectors.length > 0 ? emp.sectors.map(x => (
+                                                        <span key={x.id} className="px-2 py-1 bg-secondary-container/50 text-on-secondary-container text-[10px] font-bold rounded uppercase tracking-wide border border-secondary-container">
+                                                            {x.name || x.nombre}
+                                                        </span>
+                                                    )) : <span className="text-stone-400 text-sm">-</span>}
+                                                </div>
+                                            </td>
+                                            <td className="py-5 px-6">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {Array.isArray(emp.verticals) && emp.verticals.length > 0 ? emp.verticals.map(x => (
+                                                        <span key={x.id} className="text-sm text-stone-600">{x.name || x.nombre}</span>
+                                                    )) : <span className="text-stone-400 text-sm">-</span>}
+                                                </div>
+                                            </td>
+                                            <td className="py-5 px-6">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {Array.isArray(emp.products_rel) && emp.products_rel.length > 0 ? emp.products_rel.map(x => (
+                                                        <span key={x.id} className="text-sm text-stone-600">{x.name || x.nombre}</span>
+                                                    )) : <span className="text-stone-400 text-sm">-</span>}
+                                                </div>
+                                            </td>
+                                            <td className="py-5 px-6"><span className="text-sm text-stone-600">{emp.numero_empleados?.toLocaleString() || '-'}</span></td>
+                                            <td className="py-5 px-6 text-right"><span className="text-sm font-bold text-on-surface">{emp.facturacion ? `$${emp.facturacion.toLocaleString()}` : '-'}</span></td>
+                                            <td className="py-5 px-6" onClick={e => e.stopPropagation()}>
                                                 <RowMenu 
                                                     onEdit={() => handleEdit(emp)} 
                                                     onDelete={() => handleDelete(emp)} 
                                                 />
                                             </td>
                                         </tr>
+                                        {/* Expanded Child Rows */}
                                         {expandedRows.has(emp.id) && (
-                                            <tr style={{ backgroundColor: 'var(--color-bg-subtle)' }}>
-                                                <td colSpan="12" style={{ padding: '16px 40px', borderTop: 0 }}>
-                                                    {emp.contactos && emp.contactos.length > 0 ? (
-                                                        <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: 6, overflow: 'hidden' }}>
-                                                            <table className="table" style={{ width: '100%', margin: 0 }}>
-                                                                <thead style={{ background: 'var(--color-bg-subtle)' }}>
-                                                                    <tr>
-                                                                        <th style={{ padding: '8px 12px', fontSize: '0.8rem' }}>Contacto</th>
-                                                                        <th style={{ padding: '8px 12px', fontSize: '0.8rem' }}>Cargo</th>
-                                                                        <th style={{ padding: '8px 12px', fontSize: '0.8rem' }}>Email</th>
-                                                                        <th style={{ padding: '8px 12px', fontSize: '0.8rem' }}>LinkedIn</th>
-                                                                        <th style={{ padding: '8px 12px', fontSize: '0.8rem', width: 60 }}></th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {emp.contactos.map(c => (
-                                                                        <tr key={c.id}>
-                                                                            <td style={{ padding: '8px 12px', fontSize: '0.9rem' }}>
-                                                                                <strong>{c.first_name} {c.last_name}</strong>
-                                                                            </td>
-                                                                            <td style={{ padding: '8px 12px', fontSize: '0.9rem' }}>{c.job_title || <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>}</td>
-                                                                            <td style={{ padding: '8px 12px', fontSize: '0.9rem' }}>
-                                                                                {c.email_contact || c.email_generic || <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>}
-                                                                            </td>
-                                                                            <td style={{ padding: '8px 12px', fontSize: '0.9rem' }}>
-                                                                                {c.linkedin ? <div><a href={c.linkedin} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: 'var(--color-accent)' }}>LinkedIn</a></div> : <span style={{ color: 'var(--color-text-muted)' }}>N/A</span>}
-                                                                            </td>
-                                                                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                                                                <RowMenu 
-                                                                                    onEdit={() => handleEditContact(c)} 
-                                                                                    onDelete={() => handleDeleteContact(c)} 
-                                                                                />
-                                                                            </td>
+                                            <tr className="bg-stone-50 border-transparent">
+                                                <td colSpan="8" className="p-0">
+                                                    <div className="px-16 py-4">
+                                                        <div className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                                                            {emp.contactos && emp.contactos.length > 0 ? (
+                                                                <table className="w-full text-left">
+                                                                    <thead className="bg-stone-100/50">
+                                                                        <tr>
+                                                                            <th className="py-2.5 px-4 text-[10px] font-bold text-stone-500 uppercase tracking-wider">Contacto</th>
+                                                                            <th className="py-2.5 px-4 text-[10px] font-bold text-stone-500 uppercase tracking-wider">Cargo</th>
+                                                                            <th className="py-2.5 px-4 text-[10px] font-bold text-stone-500 uppercase tracking-wider">Email</th>
+                                                                            <th className="py-2.5 px-4 text-[10px] font-bold text-stone-500 uppercase tracking-wider">LinkedIn</th>
+                                                                            <th className="py-2.5 px-4 w-10"></th>
                                                                         </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
+                                                                    </thead>
+                                                                    <tbody className="divide-y divide-stone-100">
+                                                                        {emp.contactos.map(c => (
+                                                                            <tr key={c.id} className="hover:bg-stone-50 transition-colors">
+                                                                                <td className="py-2 px-4 text-sm font-semibold text-stone-800">{c.first_name} {c.last_name}</td>
+                                                                                <td className="py-2 px-4 text-sm text-stone-600">{c.job_title || '-'}</td>
+                                                                                <td className="py-2 px-4 text-sm text-stone-600">{c.email_contact || c.email_generic || '-'}</td>
+                                                                                <td className="py-2 px-4 text-sm text-cyan-600">{c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer" className="hover:underline">Perfil</a> : '-'}</td>
+                                                                                <td className="py-2 px-4 text-right">
+                                                                                    <RowMenu onEdit={() => handleEditContact(c)} onDelete={() => handleDeleteContact(c)} />
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            ) : (
+                                                                <div className="p-4 text-center text-sm text-stone-500">No hay contactos vinculados.</div>
+                                                            )}
                                                         </div>
-                                                    ) : (
-                                                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>No se encontraron contactos para los filtros aplicados.</div>
-                                                    )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )}
@@ -664,83 +682,162 @@ export default function EmpresasPage() {
                         </tbody>
                     </table>
                 </div>
+                {/* Pagination */}
+                {totalPages > 0 && (
+                    <div className="flex items-center justify-between p-6 border-t border-stone-100">
+                        <p className="text-xs text-stone-500">Página <span className="font-bold text-stone-900">{currentPage}</span> de {totalPages}</p>
+                        <div className="flex gap-2">
+                            <button onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1} className="w-8 h-8 rounded-lg border border-stone-200 flex items-center justify-center text-stone-400 hover:bg-stone-100 disabled:opacity-50 transition-colors">
+                                <span className="material-symbols-outlined text-sm">chevron_left</span>
+                            </button>
+                            <button onClick={() => setPage(currentPage + 1)} disabled={currentPage >= totalPages} className="w-8 h-8 rounded-lg border border-stone-200 flex items-center justify-center text-stone-400 hover:bg-stone-100 disabled:opacity-50 transition-colors">
+                                <span className="material-symbols-outlined text-sm">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
+
+
+            {/* F.A.B (Create Entry) -> Mapped from original Header button */}
+            <button 
+                onClick={handleOpenCreate}
+                className="fixed bottom-8 right-8 w-14 h-14 btn-primary-gradient text-white rounded-full flex items-center justify-center shadow-xl shadow-cyan-900/30 z-50 hover:scale-110 transition-transform active:scale-95"
+            >
+                <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'wght' 600" }}>add</span>
+            </button>
+
             {modalConfig.data && (
-                <div className="modal-backdrop" onClick={handleCloseModal}>
-                    <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-                        <div className="modal-header">
-                            <h2 className="modal-title">
-                                {modalConfig.mode === 'create' ? 'Crear nueva empresa' : 'Editar empresa'}
-                            </h2>
-                            <button type="button" className="modal-close" onClick={handleCloseModal}>✕</button>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-md animate-in fade-in duration-300" onClick={handleCloseModal}></div>
+                    
+                    <div className="relative w-full max-w-4xl bg-surface-container-lowest rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+                        {/* Modal Header */}
+                        <div className="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-low/50">
+                            <div>
+                                <h2 className="font-headline text-2xl font-bold text-on-surface">
+                                    {modalConfig.mode === 'create' ? 'Register New Company' : 'Edit Company Profile'}
+                                </h2>
+                                <p className="text-xs text-on-surface-variant font-medium mt-1 uppercase tracking-widest">Architectural Ledger • Enterprise Node</p>
+                            </div>
+                            <button onClick={handleCloseModal} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-highest transition-colors">
+                                <span className="material-symbols-outlined text-on-surface">close</span>
+                            </button>
                         </div>
-                        <form onSubmit={handleSubmit}>
-                            <div className="modal-body" style={{ padding: '0 0 16px 0' }}>
-                                {formError && <div className="alert alert-error" style={{ marginBottom: 16 }}>{formError}</div>}
-                                
-                                <div className="form-group">
-                                    <label>Nombre *</label>
-                                    <input required className="form-control" name="nombre" value={modalConfig.data.nombre} onChange={handleChange} />
+
+                        {/* Modal Content - Scrollable */}
+                        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-12">
+                            {formError && <div className="p-4 bg-error-container text-on-error-container rounded-xl text-sm font-bold border border-error/20">{formError}</div>}
+                            
+                            {/* Section: Basic Information */}
+                            <section className="space-y-6">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="material-symbols-outlined text-primary">info</span>
+                                    <h3 className="font-headline font-bold text-lg">Basic Information</h3>
                                 </div>
-                                <div className="form-group">
-                                    <label>CIF</label>
-                                    <input className="form-control" name="cif" value={modalConfig.data.cif} onChange={handleChange} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Company Name *</label>
+                                        <input required name="nombre" value={modalConfig.data.nombre} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="e.g. Acme Corp" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Tax ID / CIF</label>
+                                        <input name="cif" value={modalConfig.data.cif} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="B12345678" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Email Address</label>
+                                        <input type="email" name="email" value={modalConfig.data.email} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="office@company.com" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Website URL</label>
+                                        <input name="web" value={modalConfig.data.web} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://..." />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Employee Count</label>
+                                        <input type="number" name="numero_empleados" value={modalConfig.data.numero_empleados} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Annual Revenue (€)</label>
+                                        <input type="number" step="0.01" name="facturacion" value={modalConfig.data.facturacion} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
+                                    </div>
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">CNAE Code</label>
+                                        <input name="cnae" value={modalConfig.data.cnae} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="e.g. 6201" />
+                                    </div>
                                 </div>
-                                <div className="form-group">
-                                    <label>Email General</label>
-                                    <input type="email" className="form-control" name="email" value={modalConfig.data.email} onChange={handleChange} />
+                            </section>
+
+                            <hr className="border-outline-variant/30" />
+
+                            {/* Section: Industry Taxonomy */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="material-symbols-outlined text-primary">category</span>
+                                        <h3 className="font-headline font-bold text-lg">Industry Sectors</h3>
+                                    </div>
+                                    <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/20 min-h-[140px]">
+                                        {modalConfig.mode === 'create' ? (
+                                            <MultiSelect
+                                                options={sectors}
+                                                selectedIds={modalConfig.data.sector_ids || []}
+                                                onChange={(ids) => handleChange({ target: { name: 'sector_ids', value: ids } })}
+                                                placeholder="Assign sectors..."
+                                            />
+                                        ) : (
+                                            <DynamicM2MEditor
+                                                empresaId={modalConfig.data.id}
+                                                type="sectors"
+                                                items={modalConfig.data.sector_ids || []}
+                                                availableOptions={sectors}
+                                                onSuccess={handleDynamicM2MSuccess}
+                                            />
+                                        )}
+                                    </div>
+                                </section>
+
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="material-symbols-outlined text-primary">account_tree</span>
+                                        <h3 className="font-headline font-bold text-lg">Business Verticals</h3>
+                                    </div>
+                                    <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/20 min-h-[140px]">
+                                        {modalConfig.mode === 'create' ? (
+                                            <MultiSelect
+                                                options={verticals}
+                                                selectedIds={modalConfig.data.vertical_ids || []}
+                                                onChange={(ids) => handleChange({ target: { name: 'vertical_ids', value: ids } })}
+                                                placeholder="Assign verticals..."
+                                            />
+                                        ) : (
+                                            <DynamicM2MEditor
+                                                empresaId={modalConfig.data.id}
+                                                type="verticals"
+                                                items={modalConfig.data.vertical_ids || []}
+                                                availableOptions={verticals}
+                                                onSuccess={handleDynamicM2MSuccess}
+                                            />
+                                        )}
+                                    </div>
+                                </section>
+                            </div>
+
+                            <hr className="border-outline-variant/30" />
+
+                            {/* Section: Product Ecosystem */}
+                            <section className="space-y-4 pb-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="material-symbols-outlined text-tertiary">inventory_2</span>
+                                    <h3 className="font-headline font-bold text-lg text-tertiary">Product Licenses</h3>
                                 </div>
-                                <div className="form-group">
-                                    <label>Web</label>
-                                    <input className="form-control" name="web" value={modalConfig.data.web} onChange={handleChange} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Sectores</label>
-                                    {modalConfig.mode === 'create' ? (
-                                        <MultiSelect
-                                            options={sectors}
-                                            selectedIds={modalConfig.data.sector_ids || []}
-                                            onChange={(ids) => handleChange({ target: { name: 'sector_ids', value: ids } })}
-                                            placeholder="Seleccionar sectores..."
-                                        />
-                                    ) : (
-                                        <DynamicM2MEditor
-                                            empresaId={modalConfig.data.id}
-                                            type="sectors"
-                                            items={modalConfig.data.sector_ids || []}
-                                            availableOptions={sectors}
-                                            onSuccess={handleDynamicM2MSuccess}
-                                        />
-                                    )}
-                                </div>
-                                <div className="form-group">
-                                    <label>Verticales</label>
-                                    {modalConfig.mode === 'create' ? (
-                                        <MultiSelect
-                                            options={verticals}
-                                            selectedIds={modalConfig.data.vertical_ids || []}
-                                            onChange={(ids) => handleChange({ target: { name: 'vertical_ids', value: ids } })}
-                                            placeholder="Seleccionar verticales..."
-                                        />
-                                    ) : (
-                                        <DynamicM2MEditor
-                                            empresaId={modalConfig.data.id}
-                                            type="verticals"
-                                            items={modalConfig.data.vertical_ids || []}
-                                            availableOptions={verticals}
-                                            onSuccess={handleDynamicM2MSuccess}
-                                        />
-                                    )}
-                                </div>
-                                <div className="form-group">
-                                    <label>Productos</label>
+                                <div className="bg-tertiary/5 p-8 rounded-3xl border border-tertiary/10">
                                     {modalConfig.mode === 'create' ? (
                                         <MultiSelect
                                             options={products}
                                             selectedIds={modalConfig.data.product_ids || []}
                                             onChange={(ids) => handleChange({ target: { name: 'product_ids', value: ids } })}
-                                            placeholder="Seleccionar productos..."
+                                            placeholder="Assign product keys..."
                                         />
                                     ) : (
                                         <DynamicM2MEditor
@@ -752,26 +849,18 @@ export default function EmpresasPage() {
                                         />
                                     )}
                                 </div>
-                                <div className="form-group">
-                                    <label>Número de empleados</label>
-                                    <input type="number" className="form-control" name="numero_empleados" value={modalConfig.data.numero_empleados} onChange={handleChange} />
-                                </div>
-                                <div className="form-group">
-                                    <label>Facturación</label>
-                                    <input type="number" step="0.01" className="form-control" name="facturacion" value={modalConfig.data.facturacion} onChange={handleChange} />
-                                </div>
-                                <div className="form-group">
-                                    <label>CNAE</label>
-                                    <input className="form-control" name="cnae" value={modalConfig.data.cnae} onChange={handleChange} />
-                                </div>
-                            </div>
-                            <div className="modal-footer">
-                                <button type="button" className="btn btn-secondary" onClick={handleCloseModal} disabled={saving}>Cancelar</button>
-                                <button type="submit" className="btn btn-primary" disabled={saving}>
-                                    {saving ? 'Guardando...' : (modalConfig.mode === 'create' ? 'Crear empresa' : 'Guardar cambios')}
-                                </button>
-                            </div>
+                            </section>
                         </form>
+
+                        {/* Modal Footer */}
+                        <div className="p-8 bg-surface-container-low border-t border-outline-variant/30 flex justify-end gap-3">
+                            <button type="button" onClick={handleCloseModal} disabled={saving} className="px-6 py-3 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" onClick={handleSubmit} disabled={saving} className="px-8 py-3 btn-primary-gradient text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 disabled:opacity-50">
+                                {saving ? 'Syncing...' : (modalConfig.mode === 'create' ? 'Create Node' : 'Commit Changes')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

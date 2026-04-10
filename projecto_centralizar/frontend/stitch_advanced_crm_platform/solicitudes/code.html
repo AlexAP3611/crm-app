@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Requests Management | Prisma CRM</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#00bbd4",
+                        "secondary-container": "#e4e2e1",
+                        "on-primary-fixed-variant": "#004e5a",
+                        "on-secondary": "#ffffff",
+                        "tertiary": "#be003b",
+                        "surface-container-low": "#f5f3f3",
+                        "secondary": "#5f5e5e",
+                        "inverse-primary": "#45d8f1",
+                        "primary-fixed": "#a3eeff",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "on-primary-fixed": "#001f25",
+                        "on-error-container": "#93000a",
+                        "on-primary-container": "#004650",
+                        "on-tertiary-fixed": "#40000e",
+                        "primary": "#006877",
+                        "surface-dim": "#dcd9d9",
+                        "on-error": "#ffffff",
+                        "on-background": "#1b1c1c",
+                        "on-secondary-container": "#656464",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#e4e2e1",
+                        "surface-tint": "#006877",
+                        "on-surface-variant": "#3c494c",
+                        "secondary-fixed": "#e4e2e1",
+                        "on-secondary-fixed-variant": "#474747",
+                        "surface-container-highest": "#e4e2e1",
+                        "secondary-fixed-dim": "#c8c6c6",
+                        "outline": "#6c797d",
+                        "outline-variant": "#bbc9cc",
+                        "error": "#ba1a1a",
+                        "on-tertiary-container": "#830026",
+                        "primary-fixed-dim": "#45d8f1",
+                        "tertiary-container": "#ff8692",
+                        "surface-container-high": "#eae8e7",
+                        "surface-bright": "#fbf9f8",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "surface": "#fbf9f8",
+                        "surface-container": "#f0eded",
+                        "on-tertiary": "#ffffff",
+                        "background": "#fbf9f8",
+                        "tertiary-fixed": "#ffdadb",
+                        "inverse-on-surface": "#f2f0f0",
+                        "inverse-surface": "#303030",
+                        "tertiary-fixed-dim": "#ffb2b7",
+                        "on-tertiary-fixed-variant": "#91002b",
+                        "on-surface": "#1b1c1c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(251, 249, 248, 0.8);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- SideNavBar (Authority: JSON & Design System) -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-slate-100 dark:bg-slate-900 flex flex-col gap-2 p-6 z-40">
+<div class="mb-10 px-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-white">
+<span class="material-symbols-outlined" data-icon="token">token</span>
+</div>
+<div>
+<h1 class="text-lg font-black text-slate-900 dark:text-slate-50 uppercase tracking-widest leading-none">Prisma CRM</h1>
+<p class="text-[10px] text-slate-500 font-medium tracking-tight">Editorial Precision</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 font-medium text-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 font-medium text-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+                Master Data
+            </a>
+<!-- Active Tab: Requests -->
+<a class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400 rounded-lg shadow-sm font-bold text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="task_alt">task_alt</span>
+                Requests
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 font-medium text-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+                Users
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 font-medium text-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="code">code</span>
+                APIs &amp; Webhooks
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-transform duration-200 font-medium text-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                General Settings
+            </a>
+</nav>
+<div class="mt-auto">
+<button class="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+                New Request
+            </button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen bg-surface">
+<!-- TopNavBar (Authority: JSON) -->
+<header class="fixed top-0 left-64 right-0 z-30 flex items-center justify-between px-10 h-20 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-sm">
+<div class="flex items-center gap-4">
+<span class="text-sm font-label text-on-surface-variant/60">Directory</span>
+<span class="material-symbols-outlined text-sm text-on-surface-variant/40" data-icon="chevron_right">chevron_right</span>
+<span class="text-sm font-medium text-on-surface-variant">Requests Management</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<span class="absolute inset-y-0 left-3 flex items-center text-on-surface-variant/50">
+<span class="material-symbols-outlined text-lg" data-icon="search">search</span>
+</span>
+<input class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 w-64 transition-all" placeholder="Search requests..." type="text"/>
+</div>
+<div class="flex items-center gap-4 text-slate-500">
+<button class="hover:text-cyan-600 transition-colors"><span class="material-symbols-outlined" data-icon="notifications">notifications</span></button>
+<button class="hover:text-cyan-600 transition-colors"><span class="material-symbols-outlined" data-icon="help">help</span></button>
+<button class="hover:text-cyan-600 transition-colors"><span class="material-symbols-outlined" data-icon="settings">settings</span></button>
+</div>
+<div class="h-10 w-10 rounded-full bg-surface-container-highest overflow-hidden border-2 border-white shadow-sm">
+<img alt="User profile" data-alt="professional portrait of a male corporate executive in a modern office setting with natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2J92ftkWukwZ8PtnCkUM4sAR_3yEAxA8YLRv4rqiuzC3GBprgICbXlV0j_TuahQq7l64YUmr7JXy5aUy2PLhkXvzWdBxfTjPUys0mYRIeP-XPGs5_ZC_R0YXx_2oOplNalvhnfh9PEcDsBHYJCJdwhxzQA1H_12umLFLQwiziwJ82bzJkU4IqKKhr9JMz5Yv-yHtE6SvqRj5Z6btx11729jEqFGmOUCVkoVbQzSGbYUCgLMU2nrrmqF5JcZ3fwmI23E6E_zvBOEbo"/>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<div class="pt-28 px-10 pb-12">
+<!-- Header Section -->
+<div class="flex items-end justify-between mb-10">
+<div>
+<h2 class="text-display-lg font-headline font-extrabold tracking-tight text-on-surface mb-2" style="font-size: 3rem; line-height: 1;">Requests Queue</h2>
+<p class="text-on-surface-variant font-medium text-lg opacity-70">Monitor and moderate organizational account changes.</p>
+</div>
+<div class="flex gap-3">
+<div class="flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-lg text-sm font-medium text-on-surface-variant">
+<span class="material-symbols-outlined text-primary" data-icon="filter_list">filter_list</span>
+                        Filter
+                    </div>
+<div class="flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-lg text-sm font-medium text-on-surface-variant">
+<span class="material-symbols-outlined text-primary" data-icon="download">download</span>
+                        Export
+                    </div>
+</div>
+</div>
+<!-- Stats Overview (Asymmetric Grid) -->
+<div class="grid grid-cols-12 gap-6 mb-12">
+<div class="col-span-12 lg:col-span-8 grid grid-cols-3 gap-6">
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-4 border-primary">
+<p class="text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest mb-1">Total Pending</p>
+<h3 class="text-4xl font-headline font-extrabold text-on-surface">128</h3>
+<p class="text-[10px] text-primary font-bold mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="trending_up">trending_up</span> 12% increase
+                        </p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-4 border-tertiary">
+<p class="text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest mb-1">Urgent Tasks</p>
+<h3 class="text-4xl font-headline font-extrabold text-tertiary">14</h3>
+<p class="text-[10px] text-tertiary font-bold mt-2">Requires immediate review</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-b-4 border-secondary">
+<p class="text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest mb-1">Avg. Response</p>
+<h3 class="text-4xl font-headline font-extrabold text-on-surface">4.2h</h3>
+<p class="text-[10px] text-on-surface-variant/60 font-bold mt-2">Target: under 6.0h</p>
+</div>
+</div>
+<div class="col-span-12 lg:col-span-4 bg-primary text-white p-6 rounded-xl shadow-lg flex flex-col justify-between relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-label-sm font-bold opacity-80 uppercase tracking-widest mb-1">Efficiency Score</p>
+<h3 class="text-5xl font-headline font-black">94%</h3>
+</div>
+<div class="relative z-10 flex items-center gap-2 mt-4 text-sm font-medium">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+                        Your team is outperforming the benchmark
+                    </div>
+<!-- Decorative element -->
+<div class="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+</div>
+</div>
+<!-- Main Requests Table (Editorial Style) -->
+<div class="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden">
+<div class="px-8 py-6 flex items-center justify-between bg-surface-container-low/50">
+<h4 class="font-headline font-bold text-xl text-on-surface">Active Queue</h4>
+<div class="flex items-center gap-4">
+<div class="flex p-1 bg-surface-container-high rounded-lg">
+<button class="px-4 py-1.5 bg-surface-container-lowest text-xs font-bold rounded shadow-sm text-primary">All Tasks</button>
+<button class="px-4 py-1.5 text-xs font-bold text-on-surface-variant/60">Priority</button>
+<button class="px-4 py-1.5 text-xs font-bold text-on-surface-variant/60">Assigned</button>
+</div>
+</div>
+</div>
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/20">
+<th class="px-8 py-4 text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest">Requester</th>
+<th class="px-8 py-4 text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest">Request Type</th>
+<th class="px-8 py-4 text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest">Status</th>
+<th class="px-8 py-4 text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest">Submitted Date</th>
+<th class="px-8 py-4 text-label-sm font-bold text-on-surface-variant/60 uppercase tracking-widest text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-low">
+<!-- Item 1 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors group">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-bold text-xs">SK</div>
+<div>
+<div class="font-bold text-on-surface">Sarah Kinsley</div>
+<div class="text-xs text-on-surface-variant/60 font-medium">Global Sales Div.</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-6">
+<span class="font-medium text-sm text-on-surface">New Account</span>
+<div class="text-[10px] text-primary font-bold">Priority: High</div>
+</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 w-fit">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    Pending
+                                </span>
+</td>
+<td class="px-8 py-6">
+<div class="text-sm text-on-surface font-medium">Oct 24, 2023</div>
+<div class="text-[10px] text-on-surface-variant/60">10:42 AM</div>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="px-6 py-2 bg-surface-container-highest text-on-surface font-bold text-xs rounded-lg hover:bg-primary hover:text-white transition-all transform active:scale-95 group-hover:shadow-md">
+                                    Review
+                                </button>
+</td>
+</tr>
+<!-- Item 2 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors group">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<img alt="Requester" class="w-10 h-10 rounded-full object-cover shadow-sm" data-alt="headshot of a middle aged man with professional attire and smiling expression in a soft lit studio environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDo7ez5RKSe5n99hGQsk1iQ2IZl1ZJZNqUkcIQP_vCIer8NLVySb3MrkGmtQBWhssvsDDRa78AAWXJQBmNHYSY6JaJEi3KHa3_g9ewvNk-dSpbDLHcaZ05bH1K0iiE9cDEiHiy6Un2qJHKCavzC2VZzSlDHSsiECpWNVFL2UB9iiOlMO9-gysaePpWN8uNUZf7zltPUbv0XF0qsIW7cRQ1ENhqdMKJopDH3YMo2NDI_FCh0wY6Fk71XHCIjnUF4uxkAPLuPGjTFpSIp"/>
+<div>
+<div class="font-bold text-on-surface">Marcus Thorne</div>
+<div class="text-xs text-on-surface-variant/60 font-medium">Engineering Lead</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-6">
+<span class="font-medium text-sm text-on-surface">Data Enrichment</span>
+<div class="text-[10px] text-secondary font-bold">Standard</div>
+</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 w-fit">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                    Rejected
+                                </span>
+</td>
+<td class="px-8 py-6">
+<div class="text-sm text-on-surface font-medium">Oct 23, 2023</div>
+<div class="text-[10px] text-on-surface-variant/60">03:15 PM</div>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="px-6 py-2 bg-surface-container-highest text-on-surface font-bold text-xs rounded-lg hover:bg-primary hover:text-white transition-all transform active:scale-95 group-hover:shadow-md">
+                                    Review
+                                </button>
+</td>
+</tr>
+<!-- Item 3 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors group">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-bold text-xs">EL</div>
+<div>
+<div class="font-bold text-on-surface">Elena Rodriguez</div>
+<div class="text-xs text-on-surface-variant/60 font-medium">Market Research</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-6">
+<span class="font-medium text-sm text-on-surface">Data Update</span>
+<div class="text-[10px] text-secondary font-bold">Standard</div>
+</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 w-fit">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    Approved
+                                </span>
+</td>
+<td class="px-8 py-6">
+<div class="text-sm text-on-surface font-medium">Oct 23, 2023</div>
+<div class="text-[10px] text-on-surface-variant/60">11:00 AM</div>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="px-6 py-2 bg-surface-container-highest text-on-surface font-bold text-xs rounded-lg hover:bg-primary hover:text-white transition-all transform active:scale-95 group-hover:shadow-md">
+                                    Review
+                                </button>
+</td>
+</tr>
+<!-- Item 4 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors group">
+<td class="px-8 py-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-bold text-xs">JD</div>
+<div>
+<div class="font-bold text-on-surface">Julian Drake</div>
+<div class="text-xs text-on-surface-variant/60 font-medium">APAC Ops</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-6">
+<span class="font-medium text-sm text-on-surface">New Account</span>
+<div class="text-[10px] text-tertiary font-bold">Urgent</div>
+</td>
+<td class="px-8 py-6">
+<span class="px-3 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-black uppercase tracking-wider rounded-full flex items-center gap-1.5 w-fit">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    Pending
+                                </span>
+</td>
+<td class="px-8 py-6">
+<div class="text-sm text-on-surface font-medium">Oct 22, 2023</div>
+<div class="text-[10px] text-on-surface-variant/60">09:30 AM</div>
+</td>
+<td class="px-8 py-6 text-right">
+<button class="px-6 py-2 bg-surface-container-highest text-on-surface font-bold text-xs rounded-lg hover:bg-primary hover:text-white transition-all transform active:scale-95 group-hover:shadow-md">
+                                    Review
+                                </button>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="px-8 py-6 bg-surface-container-low/50 flex items-center justify-between">
+<p class="text-xs font-medium text-on-surface-variant/60">Showing 4 of 128 requests</p>
+<div class="flex gap-2">
+<button class="w-8 h-8 rounded bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-on-surface-variant/40 cursor-not-allowed">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="w-8 h-8 rounded bg-primary text-white flex items-center justify-center text-xs font-bold">1</button>
+<button class="w-8 h-8 rounded bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-xs font-bold text-on-surface-variant">2</button>
+<button class="w-8 h-8 rounded bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-xs font-bold text-on-surface-variant">3</button>
+<button class="w-8 h-8 rounded bg-surface-container-lowest border border-outline-variant/10 flex items-center justify-center text-on-surface-variant hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Contextual Help / Sidebar Asymmetric Column -->
+<div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="bg-surface-container-low p-8 rounded-2xl relative overflow-hidden group">
+<div class="relative z-10">
+<span class="material-symbols-outlined text-4xl text-primary mb-4" data-icon="auto_fix_high">auto_fix_high</span>
+<h4 class="text-xl font-headline font-bold text-on-surface mb-3">AI Enrichment Preview</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed mb-6">Our system has automatically cross-referenced 12 pending requests with external LinkedIn profiles to accelerate your approval workflow.</p>
+<button class="text-primary font-bold text-sm flex items-center gap-2 group-hover:gap-4 transition-all">
+                            View AI Insights <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+<!-- Aesthetic Glass Circle -->
+<div class="absolute -right-10 -top-10 w-40 h-40 bg-primary-container/20 rounded-full blur-2xl"></div>
+</div>
+<div class="bg-surface-container-low p-8 rounded-2xl border-l-4 border-tertiary">
+<span class="material-symbols-outlined text-4xl text-tertiary mb-4" data-icon="report_problem">report_problem</span>
+<h4 class="text-xl font-headline font-bold text-on-surface mb-3">System Maintenance</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">External API sync will be throttled tonight between 02:00 AM and 04:00 AM UTC for database optimization. Data enrichment tasks may experience slight delays.</p>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB Suppression: On management screens, FAB is not required as primary action is in table rows -->
+</body></html>

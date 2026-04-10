@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { CONTACT_COLUMNS } from '../config/fields'
 
 import RowMenu from './RowMenu'
+import Checkbox from './Checkbox'
 
 export default function ContactsTable({
     contacts,
@@ -38,8 +39,7 @@ export default function ContactsTable({
                 <thead>
                     <tr>
                         <th className="th-checkbox">
-                            <input
-                                type="checkbox"
+                            <Checkbox
                                 checked={allSelected}
                                 onChange={(e) => onSelectAll(e.target.checked)}
                             />
@@ -52,8 +52,7 @@ export default function ContactsTable({
                     {contacts.map((c) => (
                         <tr key={c.id}>
                             <td className="td-checkbox">
-                                <input
-                                    type="checkbox"
+                                <Checkbox
                                     checked={selectedIds.includes(c.id)}
                                     onChange={(e) => onSelect(c.id, e.target.checked)}
                                 />

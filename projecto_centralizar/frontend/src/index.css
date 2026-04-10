@@ -1024,3 +1024,24 @@ tbody td {
   background: var(--color-primary-glow);
 }
 
+/* --- Stitch UI Overrides --- */
+.glass-panel {
+  background: rgba(251, 249, 248, 0.8);
+  backdrop-filter: blur(20px);
+}
+.btn-primary-gradient {
+  background: linear-gradient(135deg, #006877 0%, #00bbd4 100%);
+}
+
+/* Custom scrollbar for editorial feel */
+::-webkit-scrollbar { 
+  width: 6px; 
+  height: 6px; 
+}
+::-webkit-scrollbar-track { 
+  background: #f5f3f3; 
+}
+::-webkit-scrollbar-thumb { 
+  background: #bbc9cc; 
+  border-radius: 10px; 
+}

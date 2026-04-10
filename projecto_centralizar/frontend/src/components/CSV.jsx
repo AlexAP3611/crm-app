@@ -56,7 +56,7 @@ export function CSVImport({ onImported }) {
     )
 }
 
-export function CSVExport({ filters, label = 'Exportar CSV' }) {
+export function CSVExport({ filters, label, children, icon, className = "", ...props }) {
     function download() {
         const url = api.exportCsvUrl(filters)
         const a = document.createElement('a')
@@ -66,8 +66,14 @@ export function CSVExport({ filters, label = 'Exportar CSV' }) {
     }
 
     return (
-        <button id="csv-export-btn" className="btn btn-secondary" onClick={download}>
-            {label}
+        <button 
+            id="csv-export-btn" 
+            className={`flex items-center gap-2 bg-transparent border-none cursor-pointer transition-all ${className}`} 
+            onClick={download}
+            {...props}
+        >
+            {icon && <span className="material-symbols-outlined text-lg">{icon}</span>}
+            {children || label || 'Exportar CSV'}
         </button>
     )
 }
