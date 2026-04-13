@@ -1,8 +1,12 @@
 const BASE_URL = '/api'
+const TOKEN_KEY = 'crm_access_token'
 
 async function request(path, options = {}) {
+    const token = localStorage.getItem(TOKEN_KEY)
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {}
+
     const res = await fetch(`${BASE_URL}${path}`, {
-        headers: { 'Content-Type': 'application/json', ...options.headers },
+        headers: { 'Content-Type': 'application/json', ...authHeaders, ...options.headers },
         credentials: 'include',
         ...options,
     })

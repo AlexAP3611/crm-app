@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getToken } from '../api/client'
 
 /* ──────────────────────────────────────────────────────────
    Service definitions — each card in External Connectivity
@@ -301,7 +302,9 @@ export default function SettingsPage() {
     // Load persisted data
     useEffect(() => {
         // Fetch CRM API key from backend
-        fetch('/api/system/api-key', { credentials: 'include' })
+        const token = getToken()
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+        fetch('/api/system/api-key', { credentials: 'include', headers })
             .then((res) => (res.ok ? res.json() : null))
             .then((data) => {
                 if (data && data.api_key) {
@@ -338,7 +341,9 @@ export default function SettingsPage() {
     const generateApiKey = async () => {
         setGenerating(true)
         try {
-            const res = await fetch('/api/system/api-key', { method: 'POST', credentials: 'include' })
+            const token = getToken()
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+            const res = await fetch('/api/system/api-key', { method: 'POST', credentials: 'include', headers })
             if (res.ok) {
                 const data = await res.json()
                 if (data.api_key) {

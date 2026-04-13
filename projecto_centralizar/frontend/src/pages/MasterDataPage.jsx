@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { masterDataApi } from "../api/masterData";
+import { api } from "../api/client";
 
 function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, deleteApi, isPrimary = false }) {
     const [items, setItems] = useState([]);
@@ -148,43 +148,44 @@ export default function MasterDataPage() {
                     title="Sectores"
                     singularTitle="Sector"
                     icon="category"
-                    fetchApi={masterDataApi.getSectors}
-                    createApi={masterDataApi.createSector}
-                    deleteApi={masterDataApi.deleteSector}
+                    fetchApi={api.listSectors}
+                    createApi={api.createSector}
+                    deleteApi={api.deleteSector}
                 />
                 <MasterDataLedger
                     title="Verticales"
                     singularTitle="Vertical"
                     icon="layers"
-                    fetchApi={masterDataApi.getVerticals}
-                    createApi={masterDataApi.createVertical}
-                    deleteApi={masterDataApi.deleteVertical}
+                    fetchApi={api.listVerticals}
+                    createApi={api.createVertical}
+                    deleteApi={api.deleteVertical}
                 />
                 <MasterDataLedger
                     title="Productos"
                     singularTitle="Producto"
                     icon="inventory_2"
-                    fetchApi={masterDataApi.getProducts}
-                    createApi={masterDataApi.createProduct}
-                    deleteApi={masterDataApi.deleteProduct}
+                    fetchApi={api.listProducts}
+                    createApi={api.createProduct}
+                    deleteApi={api.deleteProduct}
                 />
                 <MasterDataLedger
                     title="Cargos"
                     singularTitle="Cargo"
                     icon="badge"
-                    fetchApi={masterDataApi.getCargos}
-                    createApi={masterDataApi.createCargo}
-                    deleteApi={masterDataApi.deleteCargo}
+                    fetchApi={api.listCargos}
+                    createApi={api.createCargo}
+                    deleteApi={api.deleteCargo}
                 />
                 <MasterDataLedger
                     title="Campañas"
                     singularTitle="Campaña"
                     icon="campaign"
-                    fetchApi={masterDataApi.getCampaigns}
-                    createApi={masterDataApi.createCampaign}
-                    deleteApi={masterDataApi.deleteCampaign}
+                    fetchApi={api.listCampaigns}
+                    createApi={api.createCampaign}
+                    deleteApi={api.deleteCampaign}
                 />
             </div>
         </div>
     );
 }
+

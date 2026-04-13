@@ -238,13 +238,19 @@ export const api = {
         }).then((r) => r.json())
     },
 
-    // ── Lookup tables ──
+    // ── Lookup tables (Master Data) ──
     listSectors: () => request('/master-data/sectors'),
     createSector: (data) => request('/master-data/sectors', { method: 'POST', body: JSON.stringify(data) }),
+    deleteSector: (id) => request(`/master-data/sectors/${id}`, { method: 'DELETE' }),
     listVerticals: () => request('/master-data/verticals'),
     createVertical: (data) => request('/master-data/verticals', { method: 'POST', body: JSON.stringify(data) }),
+    deleteVertical: (id) => request(`/master-data/verticals/${id}`, { method: 'DELETE' }),
     listProducts: () => request('/master-data/products'),
+    createProduct: (data) => request('/master-data/products', { method: 'POST', body: JSON.stringify(data) }),
+    deleteProduct: (id) => request(`/master-data/products/${id}`, { method: 'DELETE' }),
     listCargos: () => request('/master-data/cargos'),
+    createCargo: (data) => request('/master-data/cargos', { method: 'POST', body: JSON.stringify(data) }),
+    deleteCargo: (id) => request(`/master-data/cargos/${id}`, { method: 'DELETE' }),
 
     // ── Campaigns ──
     listCampaigns: () => request('/campaigns'),
