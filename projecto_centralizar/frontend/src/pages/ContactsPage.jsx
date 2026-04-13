@@ -330,20 +330,6 @@ export default function ContactsPage() {
                     </button>
                 </div>
 
-                {/* Fila 2: Desasignar */}
-                <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => setAssignmentModal({ type: 'campaña', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">person_remove</span>
-                        Desasignar Campaña
-                        <span className="bg-transparent px-1">{actionCount}</span>
-                    </button>
-                    <button onClick={() => setAssignmentModal({ type: 'cargo', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">remove_selection</span>
-                        Desasignar Rol
-                        <span className="bg-transparent px-1">{actionCount}</span>
-                    </button>
-                </div>
-
                 {/* Fila 3: Enriquecimiento */}
                 <div className="flex flex-wrap items-center gap-3">
                     <button onClick={() => handleEnrich('Apollo')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
@@ -481,6 +467,35 @@ export default function ContactsPage() {
                     onClose={() => setAssignmentModal(null)}
                     onSave={handleBulkSave}
                 />
+            )}
+
+            {/* Contact Edit / Create Modal */}
+            {modal && (
+                <ContactModal
+                    contact={modal === 'create' ? null : modal}
+                    sectors={sectors}
+                    verticals={verticals}
+                    campaigns={campaigns}
+                    products={products}
+                    cargos={cargos}
+                    onClose={() => setModal(null)}
+                    onSaved={() => { setModal(null); refresh() }}
+                />
+            )}
+
+            {/* Confirm Delete Modal */}
+            {confirmDelete && (
+                <ConfirmDeleteModal
+                    count={confirmDelete.ids.length}
+                    loading={bulkDeleting}
+                    onConfirm={handleConfirmDelete}
+                    onCancel={() => setConfirmDelete(null)}
+                />
+            )}
+
+            {/* CSV Import Modal */}
+            {showImportModal && (
+                <CSVImport onClose={() => setShowImportModal(false)} onImported={() => { setShowImportModal(false); refresh() }} />
             )}
 
         </div>

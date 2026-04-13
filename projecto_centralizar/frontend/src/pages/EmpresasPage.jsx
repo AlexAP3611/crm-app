@@ -31,31 +31,24 @@ function EmpresaConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
     )
 }
 
-function EmpresaBulkAssignmentModal({ type, mode = 'assign', targetCount, options = [], onClose, onSave }) {
-    const [selected, setSelected] = useState([])
+function EmpresaBulkAssignmentModal({ type, targetCount, options = [], onClose, onSave }) {
+    const [selected, setSelected] = useState('__placeholder__')
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
 
-    const typeNames = {
-        sector_ids: 'sector',
-        vertical_ids: 'vertical',
-        product_ids: 'productos'
+    const config = {
+        sector_ids:   { title: 'Asignar Sector',   label: 'Sector',   icon: 'category'     },
+        vertical_ids: { title: 'Asignar Vertical',  label: 'Vertical',  icon: 'stacked_bar_chart' },
+        product_ids:  { title: 'Asignar Producto',  label: 'Producto',  icon: 'inventory_2'  },
     }
-    const typeName = typeNames[type] || 'elemento'
-    const titleText = mode === 'assign' ? `Asignar a ${typeName}` : `Desasignar de ${typeName}`
-
-    const handleToggle = (id) => {
-        setSelected(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
-    }
+    const { title, label, icon } = config[type] || { title: 'Asignar', label: 'Opción', icon: 'assignment' }
 
     const handleSave = async () => {
         setSaving(true)
         setError(null)
         try {
-            const data = mode === 'unassign'
-                ? { merge_lists: false, remove_lists: true }
-                : { merge_lists: true }
-            data[type] = selected
+            const ids = (selected === '' || selected === 'unassign') ? [] : [Number(selected)]
+            const data = { merge_lists: ids.length > 0, [type]: ids }
             await onSave(data)
         } catch (e) {
             setError(e.message)
@@ -64,37 +57,57 @@ function EmpresaBulkAssignmentModal({ type, mode = 'assign', targetCount, option
     }
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
-            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
-                <div className="modal-header">
-                    <h2 className="modal-title">{titleText}</h2>
-                    <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[100] flex justify-center items-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-stone-200/70" onClick={e => e.stopPropagation()}>
+                <div className="px-6 py-5 flex items-center justify-between border-b border-stone-100">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-stone-500 text-lg">{icon}</span>
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-stone-900 text-base leading-tight">{title}</h2>
+                            <p className="text-[11px] text-stone-400 font-medium">
+                                {targetCount} {targetCount === 1 ? 'empresa seleccionada' : 'empresas seleccionadas'}
+                            </p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition-colors">
+                        <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
                 </div>
-                <div style={{ padding: '16px 0' }}>
-                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: 16 }}>
-                        Vas a {mode === 'assign' ? 'asignar' : 'desasignar'} <strong style={{ color: 'var(--color-text)' }}>{targetCount} {targetCount === 1 ? 'empresa' : 'empresas'}</strong> a:
-                    </p>
-
-                    {error && <div className="alert alert-error" style={{ marginBottom: 16, fontSize: '0.85rem' }}>{error}</div>}
-
-                    <div className="selection-list" style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 8, backgroundColor: 'rgba(255, 255, 255, 0.45)', display: 'flex', flexDirection: 'column' }}>
-                        {options.map(opt => {
-                            const isSelected = selected.includes(opt.id)
-                            const label = opt.nombre || opt.name
-                            return (
-                                <div key={opt.id} onClick={() => handleToggle(opt.id)} style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', backgroundColor: isSelected ? 'rgba(79, 114, 239, 0.1)' : 'transparent', transition: 'all 0.15s ease' }}>
-                                    <span style={{ color: isSelected ? 'var(--color-accent)' : 'inherit', fontWeight: isSelected ? 600 : 400, fontSize: '0.9375rem' }}>{label}</span>
-                                    <Checkbox checked={isSelected} readOnly />
-                                </div>
-                            )
-                        })}
-                        {options.length === 0 && <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No hay opciones disponibles.</div>}
+                <div className="p-6 space-y-4">
+                    {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{error}</div>}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">{label}</label>
+                        <div className="relative">
+                            <select
+                                value={selected}
+                                onChange={e => setSelected(e.target.value)}
+                                className="w-full bg-stone-50 border border-stone-200 text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-stone-300 outline-none appearance-none text-stone-700 cursor-pointer transition-colors hover:border-stone-300"
+                            >
+                                <option value="__placeholder__" disabled>Elige una opción</option>
+                                <option value="unassign">Sin asignar</option>
+                                {options.map(opt => (
+                                    <option key={opt.id} value={opt.id}>{opt.name || opt.nombre}</option>
+                                ))}
+                            </select>
+                            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-lg pointer-events-none">expand_more</span>
+                        </div>
+                        {options.length === 0 && (
+                            <p className="text-xs text-stone-400 italic">No hay opciones en datos maestros.</p>
+                        )}
                     </div>
                 </div>
-                <div className="modal-footer">
-                    <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button>
-                    <button className="btn btn-primary" disabled={saving || selected.length === 0} onClick={handleSave}>
-                        {saving ? 'Guardando...' : 'Guardar cambios'}
+                <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 flex justify-end gap-3">
+                    <button className="px-4 py-2 font-medium text-stone-600 hover:bg-stone-200 rounded-lg text-sm transition-colors" onClick={onClose} disabled={saving}>
+                        Cancelar
+                    </button>
+                    <button
+                        className="px-5 py-2 font-bold text-white btn-primary-gradient rounded-lg text-sm shadow-sm hover:opacity-90 disabled:opacity-50 transition-opacity active:scale-95"
+                        onClick={handleSave}
+                        disabled={saving || selected === '__placeholder__'}
+                    >
+                        {saving ? 'Guardando...' : 'Aplicar'}
                     </button>
                 </div>
             </div>
@@ -540,24 +553,7 @@ export default function EmpresasPage() {
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                 </div>
-                {/* Fila 2: Desasignar (estilo Contactos) */}
-                <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">person_remove</span>
-                        Desasignar Sector
-                        <span className="bg-transparent px-1">{actionCount}</span>
-                    </button>
-                    <button onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">remove_selection</span>
-                        Desasignar Vertical
-                        <span className="bg-transparent px-1">{actionCount}</span>
-                    </button>
-                    <button onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">remove_selection</span>
-                        Desasignar Producto
-                        <span className="bg-transparent px-1">{actionCount}</span>
-                    </button>
-                </div>
+
             </div>
 
             {deleteError && <div className="p-3 bg-error-container text-on-error-container rounded text-sm mt-2">{deleteError}</div>}
@@ -888,7 +884,6 @@ export default function EmpresasPage() {
             {assignmentModal && (
                 <EmpresaBulkAssignmentModal
                     type={assignmentModal.type}
-                    mode={assignmentModal.mode}
                     targetCount={actionCount}
                     options={
                         assignmentModal.type === 'sector_ids' ? sectors :
