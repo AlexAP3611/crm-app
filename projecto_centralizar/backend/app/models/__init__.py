@@ -17,6 +17,7 @@ from app.models.vertical import Vertical
 from app.models.cargo import Cargo
 from app.models.product import Product
 from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
+from app.models.setting import Setting
 # ── Nuevos modelos (Parte 3) ──
 from app.models.user_request import UserRequest  # Solicitudes de acceso
 from app.models.log import Log                    # Registro de auditoría
@@ -30,6 +31,7 @@ __all__ = [
     "Cargo",
     "Product",
     "Empresa",
+    "Setting",
     # Parte 3: Persistencia de solicitudes y logs
     "UserRequest",
     "Log",

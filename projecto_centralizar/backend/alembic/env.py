@@ -48,7 +48,6 @@ def run_migrations_offline() -> None:
 
     """
     from app.config import settings
-    print(">>> Alembic usando DATABASE_URL:", settings.DATABASE_URL)
     config_section = config.get_section(config.config_ini_section, {})
     config_section["sqlalchemy.url"] = settings.DATABASE_URL
     url = settings.DATABASE_URL

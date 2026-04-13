@@ -13,11 +13,8 @@ import app.models  # noqa: F401
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # On startup: auto-create tables if they don't exist (dev convenience)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Alembic manages all schema changes. No create_all() here.
     yield
-    # On shutdown: dispose connection pool
     await engine.dispose()
 
 
