@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import AdminUser
 from app.models.sector import Sector
 from app.models.vertical import Vertical
 from app.models.product import Product
@@ -19,7 +19,7 @@ from app.schemas.master_data import (
 router = APIRouter(
     prefix="/api/master-data",
     tags=["Master Data"],
-    dependencies=[Depends(get_current_user)]
+    dependencies=[Depends(AdminUser)]
 )
 
 # Helper functions to avoid code duplication across the 4 entities

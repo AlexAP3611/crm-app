@@ -167,16 +167,17 @@ async def create_empresa(empresa: EmpresaCreate, db: AsyncSession = Depends(get_
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="La empresa ya existe")
 
-    # Extract M2M IDs from payload before creating Empresa
     payload = empresa.model_dump(exclude={"sector_ids", "vertical_ids", "product_ids"})
     db_empresa = Empresa(**payload)
+    
+    # Sync M2M BEFORE db.add() so the object is transient and avoids lazy-loading
+    await _sync_empresa_m2m(db, db_empresa, empresa.sector_ids, empresa.vertical_ids, empresa.product_ids)
+
     db.add(db_empresa)
     await db.flush()
 
-    # Sync M2M
-    await _sync_empresa_m2m(db, db_empresa, empresa.sector_ids, empresa.vertical_ids, empresa.product_ids)
-
     await db.commit()
+    await db.refresh(db_empresa, attribute_names=['created_at', 'updated_at'])
     return await _load_empresa(db, db_empresa.id)
 
 @router.put("/{id}", response_model=EmpresaCreateResponse)
@@ -210,6 +211,7 @@ async def update_empresa(id: int, empresa_in: EmpresaCreate, db: AsyncSession = 
         update_empresa_snapshot_in_contact(contacto, refreshed)
 
     await db.commit()
+    await db.refresh(empresa, attribute_names=['created_at', 'updated_at'])
     return await _load_empresa(db, id)
 
 @router.delete("/{id}")
@@ -322,7 +324,13 @@ async def update_empresas_bulk(
 
 # --- Async M2M Atomic Assign/Unassign Endpoints ---
 
-@router.post("/{id}/sectors/{sector_id}", response_model=EmpresaResponse)
+async def _propagate_snapshot(db: AsyncSession, empresa_id: int, empresa_refreshed: Empresa):
+    result = await db.execute(select(Contact).where(Contact.empresa_id == empresa_id))
+    contactos = result.scalars().all()
+    for contacto in contactos:
+        update_empresa_snapshot_in_contact(contacto, empresa_refreshed)
+
+@router.post("/{id}/sectors/{sector_id}", response_model=EmpresaCreateResponse)
 async def assign_sector(id: int, sector_id: int, db: AsyncSession = Depends(get_db)):
     empresa = await _load_empresa(db, id)
     if not empresa:
@@ -334,10 +342,13 @@ async def assign_sector(id: int, sector_id: int, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=404, detail="Sector no encontrado")
         
     empresa.sectors.append(sector)
+    await db.flush()
+    refreshed = await _load_empresa(db, id)
+    await _propagate_snapshot(db, id, refreshed)
     await db.commit()
-    return await _load_empresa(db, id)
+    return refreshed
 
-@router.delete("/{id}/sectors/{sector_id}", response_model=EmpresaResponse)
+@router.delete("/{id}/sectors/{sector_id}", response_model=EmpresaCreateResponse)
 async def unassign_sector(id: int, sector_id: int, db: AsyncSession = Depends(get_db)):
     empresa = await _load_empresa(db, id)
     if not empresa:
@@ -347,10 +358,13 @@ async def unassign_sector(id: int, sector_id: int, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=400, detail="El sector no está asignado a esta empresa")
         
     empresa.sectors.remove(sector)
+    await db.flush()
+    refreshed = await _load_empresa(db, id)
+    await _propagate_snapshot(db, id, refreshed)
     await db.commit()
-    return await _load_empresa(db, id)
+    return refreshed
 
-@router.post("/{id}/verticals/{vertical_id}", response_model=EmpresaResponse)
+@router.post("/{id}/verticals/{vertical_id}", response_model=EmpresaCreateResponse)
 async def assign_vertical(id: int, vertical_id: int, db: AsyncSession = Depends(get_db)):
     empresa = await _load_empresa(db, id)
     if not empresa:
@@ -362,10 +376,13 @@ async def assign_vertical(id: int, vertical_id: int, db: AsyncSession = Depends(
         raise HTTPException(status_code=404, detail="Vertical no encontrada")
         
     empresa.verticals.append(vertical)
+    await db.flush()
+    refreshed = await _load_empresa(db, id)
+    await _propagate_snapshot(db, id, refreshed)
     await db.commit()
-    return await _load_empresa(db, id)
+    return refreshed
 
-@router.delete("/{id}/verticals/{vertical_id}", response_model=EmpresaResponse)
+@router.delete("/{id}/verticals/{vertical_id}", response_model=EmpresaCreateResponse)
 async def unassign_vertical(id: int, vertical_id: int, db: AsyncSession = Depends(get_db)):
     empresa = await _load_empresa(db, id)
     if not empresa:
@@ -375,10 +392,13 @@ async def unassign_vertical(id: int, vertical_id: int, db: AsyncSession = Depend
         raise HTTPException(status_code=400, detail="La vertical no está asignada a esta empresa")
         
     empresa.verticals.remove(vertical)
+    await db.flush()
+    refreshed = await _load_empresa(db, id)
+    await _propagate_snapshot(db, id, refreshed)
     await db.commit()
-    return await _load_empresa(db, id)
+    return refreshed
 
-@router.post("/{id}/products/{product_id}", response_model=EmpresaResponse)
+@router.post("/{id}/products/{product_id}", response_model=EmpresaCreateResponse)
 async def assign_product(id: int, product_id: int, db: AsyncSession = Depends(get_db)):
     empresa = await _load_empresa(db, id)
     if not empresa:
@@ -390,10 +410,13 @@ async def assign_product(id: int, product_id: int, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=404, detail="Producto no encontrado")
         
     empresa.products_rel.append(product)
+    await db.flush()
+    refreshed = await _load_empresa(db, id)
+    await _propagate_snapshot(db, id, refreshed)
     await db.commit()
-    return await _load_empresa(db, id)
+    return refreshed
 
-@router.delete("/{id}/products/{product_id}", response_model=EmpresaResponse)
+@router.delete("/{id}/products/{product_id}", response_model=EmpresaCreateResponse)
 async def unassign_product(id: int, product_id: int, db: AsyncSession = Depends(get_db)):
     empresa = await _load_empresa(db, id)
     if not empresa:
@@ -403,5 +426,8 @@ async def unassign_product(id: int, product_id: int, db: AsyncSession = Depends(
         raise HTTPException(status_code=400, detail="El producto no está asignado a esta empresa")
         
     empresa.products_rel.remove(product)
+    await db.flush()
+    refreshed = await _load_empresa(db, id)
+    await _propagate_snapshot(db, id, refreshed)
     await db.commit()
-    return await _load_empresa(db, id)
+    return refreshed

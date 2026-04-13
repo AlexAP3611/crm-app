@@ -152,27 +152,27 @@ function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess 
     const unassignedOptions = availableOptions.filter(o => !items.includes(o.id));
 
     return (
-        <div style={{ background: 'var(--color-bg)', padding: '12px', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: items.length > 0 ? 12 : 6 }}>
-                {items.length === 0 && <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Ninguno asignado.</span>}
+        <div className="w-full">
+            <div className="flex flex-wrap gap-2 mb-4">
+                {items.length === 0 && <span className="text-stone-400 text-sm">Ninguno asignado.</span>}
                 {items.map(itemId => {
                     const opt = availableOptions.find(o => o.id === itemId);
                     return (
-                        <span key={itemId} className="badge badge-blue" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', padding: '4px 8px' }}>
+                        <span key={itemId} className="inline-flex items-center gap-1.5 px-3 py-1 bg-surface-container-lowest text-stone-700 text-xs font-bold rounded-lg uppercase tracking-wide border border-stone-200">
                             {opt ? (opt.name || opt.nombre) : itemId}
-                            <button type="button" onClick={() => handleUnassign(itemId)} disabled={loading} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', margin: '0', lineHeight: 1, fontSize: '1.1rem', color: 'currentcolor' }} title="Desasignar">&times;</button>
+                            <button type="button" onClick={() => handleUnassign(itemId)} disabled={loading} className="text-stone-400 hover:text-error transition-colors material-symbols-outlined text-[14px] leading-none" title="Desasignar">close</button>
                         </span>
                     );
                 })}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-                <select className="form-control" style={{ flex: 1 }} value={selectedToAssign} onChange={e => setSelectedToAssign(e.target.value)} disabled={loading || unassignedOptions.length === 0}>
-                    <option value="">{unassignedOptions.length === 0 ? "Todos los elementos ya están asignados" : "-- Seleccionar listado para asignar --"}</option>
+            <div className="flex gap-2">
+                <select className="flex-1 bg-surface-container-lowest border border-stone-200 text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none transition-colors hover:border-stone-300" value={selectedToAssign} onChange={e => setSelectedToAssign(e.target.value)} disabled={loading || unassignedOptions.length === 0}>
+                    <option value="">{unassignedOptions.length === 0 ? "Todos los elementos ya están asignados" : "-- Seleccionar para asignar --"}</option>
                     {unassignedOptions.map(o => (
                         <option key={o.id} value={o.id}>{o.name || o.nombre}</option>
                     ))}
                 </select>
-                <button type="button" className="btn btn-secondary" onClick={handleAssign} disabled={!selectedToAssign || loading}>
+                <button type="button" className="px-5 py-2.5 font-bold text-white bg-stone-800 hover:bg-primary transition-colors rounded-lg text-sm shadow-sm disabled:opacity-50 active:scale-95 flex items-center justify-center whitespace-nowrap" onClick={handleAssign} disabled={!selectedToAssign || loading}>
                     {loading ? '...' : 'Asignar'}
                 </button>
             </div>
@@ -440,6 +440,12 @@ export default function EmpresasPage() {
                 <div className="space-y-1">
                     <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Empresas</h2>
                     <p className="text-on-surface-variant font-medium">Gestionando {totalEmpresas.toLocaleString()} entidades corporativas en Prisma CRM.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button onClick={handleOpenCreate} className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-transform">
+                        <span className="material-symbols-outlined text-lg">domain_add</span>
+                        Nueva Empresa
+                    </button>
                 </div>
             </div>
 
@@ -716,14 +722,6 @@ export default function EmpresasPage() {
 
 
 
-            {/* F.A.B (Create Entry) -> Mapped from original Header button */}
-            <button 
-                onClick={handleOpenCreate}
-                className="fixed bottom-8 right-8 w-14 h-14 btn-primary-gradient text-white rounded-full flex items-center justify-center shadow-xl shadow-cyan-900/30 z-50 hover:scale-110 transition-transform active:scale-95"
-            >
-                <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'wght' 600" }}>add</span>
-            </button>
-
             {modalConfig.data && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-md animate-in fade-in duration-300" onClick={handleCloseModal}></div>
@@ -733,9 +731,9 @@ export default function EmpresasPage() {
                         <div className="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-low/50">
                             <div>
                                 <h2 className="font-headline text-2xl font-bold text-on-surface">
-                                    {modalConfig.mode === 'create' ? 'Register New Company' : 'Edit Company Profile'}
+                                    {modalConfig.mode === 'create' ? 'Registrar Nueva Empresa' : 'Editar Perfil de Empresa'}
                                 </h2>
-                                <p className="text-xs text-on-surface-variant font-medium mt-1 uppercase tracking-widest">Architectural Ledger • Enterprise Node</p>
+                                <p className="text-xs text-on-surface-variant font-medium mt-1 uppercase tracking-widest">Architectural Ledger • Perfil de Empresa</p>
                             </div>
                             <button onClick={handleCloseModal} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-highest transition-colors">
                                 <span className="material-symbols-outlined text-on-surface">close</span>
@@ -750,36 +748,36 @@ export default function EmpresasPage() {
                             <section className="space-y-6">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="material-symbols-outlined text-primary">info</span>
-                                    <h3 className="font-headline font-bold text-lg">Basic Information</h3>
+                                    <h3 className="font-headline font-bold text-lg">Información Básica</h3>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Company Name *</label>
-                                        <input required name="nombre" value={modalConfig.data.nombre} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="e.g. Acme Corp" />
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Nombre de Empresa *</label>
+                                        <input required name="nombre" value={modalConfig.data.nombre} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="ej. Acme Corp" />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Tax ID / CIF</label>
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">CIF</label>
                                         <input name="cif" value={modalConfig.data.cif} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="B12345678" />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Email Address</label>
-                                        <input type="email" name="email" value={modalConfig.data.email} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="office@company.com" />
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Correo Electrónico</label>
+                                        <input type="email" name="email" value={modalConfig.data.email} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="oficina@empresa.com" />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Website URL</label>
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web</label>
                                         <input name="web" value={modalConfig.data.web} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://..." />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Employee Count</label>
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Número de Empleados</label>
                                         <input type="number" name="numero_empleados" value={modalConfig.data.numero_empleados} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Annual Revenue (€)</label>
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facturación Anual (€)</label>
                                         <input type="number" step="0.01" name="facturacion" value={modalConfig.data.facturacion} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
                                     </div>
                                     <div className="space-y-1.5 md:col-span-2">
-                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">CNAE Code</label>
-                                        <input name="cnae" value={modalConfig.data.cnae} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="e.g. 6201" />
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">CNAE</label>
+                                        <input name="cnae" value={modalConfig.data.cnae} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="ej. 6201" />
                                     </div>
                                 </div>
                             </section>
@@ -787,11 +785,11 @@ export default function EmpresasPage() {
                             <hr className="border-outline-variant/30" />
 
                             {/* Section: Industry Taxonomy */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div className="space-y-12">
                                 <section className="space-y-4">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <span className="material-symbols-outlined text-primary">category</span>
-                                        <h3 className="font-headline font-bold text-lg">Industry Sectors</h3>
+                                        <span className="material-symbols-outlined text-stone-500">category</span>
+                                        <h3 className="font-headline font-bold text-lg text-on-surface">Sectores</h3>
                                     </div>
                                     <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/20 min-h-[140px]">
                                         {modalConfig.mode === 'create' ? (
@@ -799,7 +797,7 @@ export default function EmpresasPage() {
                                                 options={sectors}
                                                 selectedIds={modalConfig.data.sector_ids || []}
                                                 onChange={(ids) => handleChange({ target: { name: 'sector_ids', value: ids } })}
-                                                placeholder="Assign sectors..."
+                                                placeholder="Asignar sectores..."
                                             />
                                         ) : (
                                             <DynamicM2MEditor
@@ -815,8 +813,8 @@ export default function EmpresasPage() {
 
                                 <section className="space-y-4">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <span className="material-symbols-outlined text-primary">account_tree</span>
-                                        <h3 className="font-headline font-bold text-lg">Business Verticals</h3>
+                                        <span className="material-symbols-outlined text-stone-500">account_tree</span>
+                                        <h3 className="font-headline font-bold text-lg text-on-surface">Verticales de Negocio</h3>
                                     </div>
                                     <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/20 min-h-[140px]">
                                         {modalConfig.mode === 'create' ? (
@@ -824,7 +822,7 @@ export default function EmpresasPage() {
                                                 options={verticals}
                                                 selectedIds={modalConfig.data.vertical_ids || []}
                                                 onChange={(ids) => handleChange({ target: { name: 'vertical_ids', value: ids } })}
-                                                placeholder="Assign verticals..."
+                                                placeholder="Asignar verticales..."
                                             />
                                         ) : (
                                             <DynamicM2MEditor
@@ -837,23 +835,19 @@ export default function EmpresasPage() {
                                         )}
                                     </div>
                                 </section>
-                            </div>
-
-                            <hr className="border-outline-variant/30" />
-
-                            {/* Section: Product Ecosystem */}
-                            <section className="space-y-4 pb-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <span className="material-symbols-outlined text-tertiary">inventory_2</span>
-                                    <h3 className="font-headline font-bold text-lg text-tertiary">Product Licenses</h3>
-                                </div>
-                                <div className="bg-tertiary/5 p-8 rounded-3xl border border-tertiary/10">
+                                {/* Section: Product Ecosystem */}
+                                <section className="space-y-4 pb-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="material-symbols-outlined text-stone-500">inventory_2</span>
+                                        <h3 className="font-headline font-bold text-lg text-on-surface">Productos</h3>
+                                    </div>
+                                    <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/20 min-h-[140px]">
                                     {modalConfig.mode === 'create' ? (
                                         <MultiSelect
                                             options={products}
                                             selectedIds={modalConfig.data.product_ids || []}
                                             onChange={(ids) => handleChange({ target: { name: 'product_ids', value: ids } })}
-                                            placeholder="Assign product keys..."
+                                            placeholder="Asignar productos..."
                                         />
                                     ) : (
                                         <DynamicM2MEditor
@@ -866,15 +860,16 @@ export default function EmpresasPage() {
                                     )}
                                 </div>
                             </section>
+                            </div>
                         </form>
 
                         {/* Modal Footer */}
                         <div className="p-8 bg-surface-container-low border-t border-outline-variant/30 flex justify-end gap-3">
                             <button type="button" onClick={handleCloseModal} disabled={saving} className="px-6 py-3 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container-highest transition-colors">
-                                Cancel
+                                Cancelar
                             </button>
                             <button type="submit" onClick={handleSubmit} disabled={saving} className="px-8 py-3 btn-primary-gradient text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 disabled:opacity-50">
-                                {saving ? 'Syncing...' : (modalConfig.mode === 'create' ? 'Create Node' : 'Commit Changes')}
+                                {saving ? 'Guardando...' : (modalConfig.mode === 'create' ? 'Crear Empresa' : 'Guardar Cambios')}
                             </button>
                         </div>
                     </div>

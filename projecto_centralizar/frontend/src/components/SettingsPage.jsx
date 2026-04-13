@@ -34,14 +34,172 @@ const SERVICES = [
     },
 ]
 
-const AUTH_TYPES = ['Bearer Token', 'Basic Auth', 'OAuth2']
+const AUTH_TYPES = ['Ninguno', 'Bearer Token', 'Basic Auth', 'OAuth2']
+
+/* ──────────────────────────────────────────────────────────
+   AuthFields — Dynamic fields rendered per auth method
+   ────────────────────────────────────────────────────────── */
+function AuthFields({ authType, config, onChange }) {
+    const [showToken, setShowToken] = useState(false)
+    const [showSecret, setShowSecret] = useState(false)
+
+    const field = (key, value) => onChange({ ...config, [key]: value })
+
+    // Shared input style
+    const inputCls =
+        'w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm ' +
+        'focus:ring-2 focus:ring-cyan-600/20 focus:border-cyan-600/30 transition-all ' +
+        'outline-none placeholder:text-stone-400'
+
+    const labelCls =
+        'block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2'
+
+    /* ── Bearer Token ── */
+    if (authType === 'Bearer Token') {
+        return (
+            <div className="space-y-4">
+                <div>
+                    <label className={labelCls}>Token de acceso</label>
+                    <div className="relative">
+                        <input
+                            className={inputCls + ' pr-11'}
+                            type={showToken ? 'text' : 'password'}
+                            placeholder="Pega aquí tu Bearer Token"
+                            value={config.token || ''}
+                            onChange={(e) => field('token', e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                            onClick={() => setShowToken((v) => !v)}
+                            title={showToken ? 'Ocultar' : 'Mostrar'}
+                        >
+                            <span className="material-symbols-outlined text-lg">
+                                {showToken ? 'visibility_off' : 'visibility'}
+                            </span>
+                        </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Se enviará como <code className="bg-stone-100 px-1 rounded text-stone-600">Authorization: Bearer &lt;token&gt;</code>
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    /* ── Basic Auth ── */
+    if (authType === 'Basic Auth') {
+        return (
+            <div className="space-y-4">
+                <div>
+                    <label className={labelCls}>Usuario</label>
+                    <input
+                        className={inputCls}
+                        type="text"
+                        placeholder="Nombre de usuario"
+                        value={config.username || ''}
+                        onChange={(e) => field('username', e.target.value)}
+                    />
+                </div>
+                <div>
+                    <label className={labelCls}>Contraseña</label>
+                    <div className="relative">
+                        <input
+                            className={inputCls + ' pr-11'}
+                            type={showSecret ? 'text' : 'password'}
+                            placeholder="••••••••"
+                            value={config.password || ''}
+                            onChange={(e) => field('password', e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                            onClick={() => setShowSecret((v) => !v)}
+                        >
+                            <span className="material-symbols-outlined text-lg">
+                                {showSecret ? 'visibility_off' : 'visibility'}
+                            </span>
+                        </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Se enviará como <code className="bg-stone-100 px-1 rounded text-stone-600">Authorization: Basic &lt;base64&gt;</code>
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    /* ── OAuth2 ── */
+    if (authType === 'OAuth2') {
+        return (
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className={labelCls}>Client ID</label>
+                        <input
+                            className={inputCls}
+                            type="text"
+                            placeholder="client_id"
+                            value={config.clientId || ''}
+                            onChange={(e) => field('clientId', e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className={labelCls}>Client Secret</label>
+                        <div className="relative">
+                            <input
+                                className={inputCls + ' pr-11'}
+                                type={showSecret ? 'text' : 'password'}
+                                placeholder="••••••••"
+                                value={config.clientSecret || ''}
+                                onChange={(e) => field('clientSecret', e.target.value)}
+                            />
+                            <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                                onClick={() => setShowSecret((v) => !v)}
+                            >
+                                <span className="material-symbols-outlined text-lg">
+                                    {showSecret ? 'visibility_off' : 'visibility'}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label className={labelCls}>Token URL</label>
+                    <input
+                        className={inputCls}
+                        type="url"
+                        placeholder="https://api.example.com/oauth/token"
+                        value={config.tokenUrl || ''}
+                        onChange={(e) => field('tokenUrl', e.target.value)}
+                    />
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Endpoint al que se hará POST para obtener el access token.
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    return null
+}
 
 /* ──────────────────────────────────────────────────────────
    ServiceCard — A single integration tile
    ────────────────────────────────────────────────────────── */
 function ServiceCard({ service, config, onChange, onTestConnection }) {
-    const handleField = (field, value) => {
-        onChange(service.id, { ...config, [field]: value })
+    const authType = config.authType || service.defaultAuth
+
+    const handleAuthType = (newType) => {
+        // Reset auth-specific fields when switching auth type, keep other fields
+        const { token, username, password, clientId, clientSecret, tokenUrl, ...rest } = config
+        onChange(service.id, { ...rest, authType: newType })
+    }
+
+    const handleAuthFields = (updatedConfig) => {
+        onChange(service.id, updatedConfig)
     }
 
     return (
@@ -63,54 +221,52 @@ function ServiceCard({ service, config, onChange, onTestConnection }) {
 
             {/* Form fields */}
             <div className="space-y-6 flex-1">
-                {/* API Key */}
+                {/* API Key / URL del servicio */}
                 <div>
                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2">
                         Clave API del Servicio
                     </label>
                     <input
                         className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-600/20 focus:border-cyan-600/30 transition-all outline-none placeholder:text-stone-400"
-                        type="password"
+                        type="text"
                         placeholder={service.placeholder}
                         value={config.apiKey || ''}
-                        onChange={(e) => handleField('apiKey', e.target.value)}
+                        onChange={(e) => handleAuthFields({ ...config, apiKey: e.target.value })}
                     />
                 </div>
 
-                {/* Auth Type + Password */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2">
-                            Tipo de Autenticación
-                        </label>
-                        <select
-                            className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:ring-0 outline-none appearance-none cursor-pointer"
-                            value={config.authType || service.defaultAuth}
-                            onChange={(e) => handleField('authType', e.target.value)}
-                            style={{
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`,
-                                backgroundRepeat: 'no-repeat',
-                                backgroundPosition: 'right 12px center',
-                                paddingRight: '36px',
-                            }}
-                        >
-                            {AUTH_TYPES.map((t) => (
-                                <option key={t} value={t}>{t}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2">
-                            Contraseña / Secreto
-                        </label>
-                        <input
-                            className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:ring-0 outline-none placeholder:text-stone-400"
-                            type="password"
-                            placeholder="••••••••"
-                            value={config.secret || ''}
-                            onChange={(e) => handleField('secret', e.target.value)}
-                        />
-                    </div>
+                {/* Auth Type selector */}
+                <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2">
+                        Tipo de Autenticación
+                    </label>
+                    <select
+                        className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:ring-0 outline-none appearance-none cursor-pointer"
+                        value={authType}
+                        onChange={(e) => handleAuthType(e.target.value)}
+                        style={{
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'right 12px center',
+                            paddingRight: '36px',
+                        }}
+                    >
+                        {AUTH_TYPES.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Dynamic fields — change with auth type */}
+                <div
+                    key={authType}
+                    style={{ animation: 'fadeSlideIn 0.2s ease-out' }}
+                >
+                    <AuthFields
+                        authType={authType}
+                        config={config}
+                        onChange={handleAuthFields}
+                    />
                 </div>
             </div>
 
@@ -356,11 +512,15 @@ export default function SettingsPage() {
             {/* Bottom spacer */}
             <div className="h-24" />
 
-            {/* Inline keyframe for toast animation */}
+            {/* Inline keyframes */}
             <style>{`
                 @keyframes slideUp {
                     from { transform: translateY(20px); opacity: 0; }
                     to   { transform: translateY(0);    opacity: 1; }
+                }
+                @keyframes fadeSlideIn {
+                    from { opacity: 0; transform: translateY(6px); }
+                    to   { opacity: 1; transform: translateY(0); }
                 }
             `}</style>
         </div>

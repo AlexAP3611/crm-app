@@ -180,45 +180,95 @@ export default function ContactsPage() {
     const handleEnrich = async (service) => {
         setEnrichError(null)
         setEnrichMessage(null)
-        const stored = localStorage.getItem('webhooks_integrations')
-        let integrations = []
-        try { if (stored) integrations = JSON.parse(stored) } catch (e) { }
-        const integration = integrations.find(i => i.nombre_aplicacion === service)
-        if (!integration || !integration.webhook || !integration.webhook.trim()) {
-            setEnrichError('Falta la URL del webhook')
+
+        // ── Leer configuración de la pestaña APIs & Webhooks ──
+        // La clave 'external_service_configs' es la que escribe SettingsPage.jsx
+        // Formato: { apollo: { apiKey, authType, token, username, password, ... }, ... }
+        let configs = {}
+        try {
+            const stored = localStorage.getItem('external_service_configs')
+            if (stored) configs = JSON.parse(stored)
+        } catch (e) { /* ignore */ }
+
+        const serviceId = service.toLowerCase()  // 'Apollo' → 'apollo'
+        const cfg = configs[serviceId] || {}
+
+        const endpointUrl = cfg.apiKey ? cfg.apiKey.trim() : ''
+        if (!endpointUrl) {
+            setEnrichError(`Configura la URL del servicio "${service}" en la pestaña APIs & Webhooks`)
             return
         }
+
         setEnriching(service)
         try {
             const resolvedContacts = await resolveTargetData()
-            const sinDominio = resolvedContacts.some(c => !c.web || !c.web.trim())
-            if (sinDominio) {
-                setEnrichError('La web (dominio) es obligatoria para enriquecer contactos')
-                setEnriching(null)
-                return
-            }
+
+            // Construir payload con los datos de los contactos seleccionados
             const payload = {
                 contacts: resolvedContacts.map(c => ({
                     id_contacto: c.id,
                     nombre_empresa: c.company,
                     web: c.web,
                     dominio: c.web,
-                    vertical: c.verticals && c.verticals.length > 0 ? c.verticals[0].name : null
+                    vertical: c.verticals && c.verticals.length > 0 ? c.verticals[0].name : null,
+                    email: c.email_contact || c.email_generic,
+                    nombre_contacto: [c.first_name, c.last_name].filter(Boolean).join(' '),
                 }))
             }
-            const headers = { 'Content-Type': 'application/json' }
-            const type = integration.auth_type || 'Ninguno'
-            const key = integration.api_key ? integration.api_key.trim() : ''
-            if (type === 'HeaderAuth' && key) headers['Authentication'] = key
-            else if (type === 'BasicAuth' && key) headers['Authorization'] = `Basic ${btoa(key)}`
-            else if (!integration.auth_type && key) headers['Authorization'] = `Bearer ${key}`
 
-            const res = await fetch(integration.webhook, { method: 'POST', headers, body: JSON.stringify(payload) })
-            if (res.status === 401 || res.status === 403) { setEnrichError('API key inválida'); return }
-            if (!res.ok) throw new Error('Request failed')
-            setEnrichMessage(`Enriquecimiento enviado correctamente a ${service}`)
+            // ── Construir headers de autenticación según el método configurado ──
+            const headers = { 'Content-Type': 'application/json' }
+            const authType = cfg.authType || 'Ninguno'
+
+            if (authType === 'Bearer Token') {
+                const token = cfg.token ? cfg.token.trim() : ''
+                if (token) headers['Authorization'] = `Bearer ${token}`
+            } else if (authType === 'Basic Auth') {
+                const user = cfg.username ? cfg.username.trim() : ''
+                const pass = cfg.password ? cfg.password.trim() : ''
+                if (user || pass) headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`
+            } else if (authType === 'OAuth2') {
+                // Obtener access token del tokenUrl antes de enviar
+                const tokenUrl = cfg.tokenUrl ? cfg.tokenUrl.trim() : ''
+                const clientId = cfg.clientId ? cfg.clientId.trim() : ''
+                const clientSecret = cfg.clientSecret ? cfg.clientSecret.trim() : ''
+                if (tokenUrl) {
+                    const tokenRes = await fetch(tokenUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            grant_type: 'client_credentials',
+                            client_id: clientId,
+                            client_secret: clientSecret,
+                        }),
+                    })
+                    if (!tokenRes.ok) {
+                        setEnrichError(`No se pudo obtener el token OAuth2 de ${service}`)
+                        setEnriching(null)
+                        return
+                    }
+                    const tokenData = await tokenRes.json()
+                    const accessToken = tokenData.access_token || tokenData.token
+                    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`
+                }
+            }
+            // authType === 'Ninguno' → no se añade ningún header de autenticación
+
+            const res = await fetch(endpointUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload),
+            })
+
+            if (res.status === 401 || res.status === 403) {
+                setEnrichError(`Autenticación rechazada por ${service}. Revisa las credenciales.`)
+                return
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+            setEnrichMessage(`Enriquecimiento enviado correctamente a ${service} (${resolvedContacts.length} contactos)`)
         } catch (err) {
-            setEnrichError(`Error al enviar datos a ${service}`)
+            setEnrichError(`Error al enviar datos a ${service}: ${err.message}`)
         } finally {
             setEnriching(null)
         }

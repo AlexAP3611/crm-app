@@ -378,30 +378,46 @@ async def approve_request(
             detail=f"La solicitud ya fue procesada (estado: {request_obj.status})",
         )
 
-    # ── Paso 4: Verificar que el email no exista en la tabla users ──
-    # Esto evita crear usuarios duplicados si el mismo email solicitó múltiples veces
-    existing_user = await db.execute(
+    # ── Paso 4: Buscar si existe un usuario con ese email (activo o inactivo) ──
+    # La columna 'email' tiene UNIQUE constraint en la DB, por lo que no podemos
+    # hacer INSERT de un nuevo usuario con el mismo email aunque esté inactivo.
+    # Solución: si existe un usuario inactivo (borrado lógico), lo reactivamos.
+    # Si existe uno activo, bloqueamos con 409.
+    existing_result = await db.execute(
         select(User).where(User.email == request_obj.email)
     )
-    if existing_user.scalar_one_or_none() is not None:
-        logger.warning(
-            f"[approve] Email {request_obj.email} ya existe como usuario registrado"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ya existe un usuario con el email {request_obj.email}",
-        )
+    existing_user = existing_result.scalar_one_or_none()
 
-    # ── Paso 5: Crear el nuevo usuario en la tabla 'users' ──
-    # El password_hash se copia directamente de la solicitud
-    # (ya fue hasheado con bcrypt al enviar la solicitud)
-    # El rol por defecto es 'gestor' (definido en el modelo User)
-    new_user = User(
-        email=request_obj.email,
-        password_hash=request_obj.password,  # Ya es un hash bcrypt
-        # role="gestor" — ya es el server_default del modelo
-    )
-    db.add(new_user)
+    if existing_user is not None:
+        if existing_user.is_active:
+            # Usuario activo con ese email → conflicto real
+            logger.warning(
+                f"[approve] Email {request_obj.email} ya existe como usuario activo"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Ya existe un usuario activo con el email {request_obj.email}",
+            )
+        else:
+            # Usuario eliminado (soft delete) → reactivar en lugar de insertar nuevo
+            # Esto evita violar el UNIQUE constraint de la columna email
+            logger.info(
+                f"[approve] Reactivando usuario eliminado: {request_obj.email}"
+            )
+            existing_user.is_active = True
+            existing_user.password_hash = request_obj.password  # Actualiza contraseña
+            existing_user.role = "gestor"  # Resetea rol al aprobar de nuevo
+    else:
+        # ── Paso 5: Crear el nuevo usuario en la tabla 'users' ──
+        # El password_hash se copia directamente de la solicitud
+        # (ya fue hasheado con bcrypt al enviar la solicitud)
+        # El rol por defecto es 'gestor' (definido en el modelo User)
+        existing_user = User(
+            email=request_obj.email,
+            password_hash=request_obj.password,  # Ya es un hash bcrypt
+            # role="gestor" — ya es el server_default del modelo
+        )
+        db.add(existing_user)
 
     # ── Paso 6: Actualizar la solicitud a 'approved' ──
     # Marcamos la solicitud como aprobada y registramos cuándo y por quién
