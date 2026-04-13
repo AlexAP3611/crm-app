@@ -16,10 +16,12 @@ import UsersPage from './pages/UsersPage'
 import EmpresasPage from './pages/EmpresasPage'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
-import { api } from './api/client'
+import { api, setUnauthorizedHandler } from './api/client'
 import { getUserFromToken } from './auth/token'
 import { ActiveFilters } from './components/ActiveFilters'
 import ContactsPage from './pages/ContactsPage'
+import { useSessionTimeout } from './hooks/useSessionTimeout'
+import SessionTimeoutModal from './components/SessionTimeoutModal'
 
 // ---- Sidebar ----
 // Recibe userRole para mostrar/ocultar opciones según el rol del usuario.
@@ -105,10 +107,38 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
 // La protección visual complementa la protección real del backend.
 function AuthenticatedApp({ onLogout, userRole, userEmail }) {
     const [page, setPage] = useState('empresas')
+    const [extending, setExtending] = useState(false)
+
+    // ── Logout global ──
+    // Limpia el estado de autenticación y redirige a login.
+    // Usado tanto en logout manual como en automático por inactividad o 401.
+    const handleLogout = async () => {
+        await api.logout()
+        if (onLogout) onLogout()
+    }
+
+    // ── Gestión de inactividad ──
+    const { showWarning, secondsLeft, extendSession, forceLogout } = useSessionTimeout({
+        onLogout: handleLogout,
+    })
+
+    // Registrar el handler global de 401: si el backend rechaza el token,
+    // ejecutar logout automáticamente (una sola vez).
+    useEffect(() => {
+        setUnauthorizedHandler(forceLogout)
+        return () => setUnauthorizedHandler(null)
+    }, [forceLogout])
+
+    // Renovar sesión con feedback visual en el modal (spinner mientras espera)
+    const handleExtendSession = async () => {
+        setExtending(true)
+        await extendSession()
+        setExtending(false)
+    }
 
     return (
         <div className="bg-background text-on-background min-h-screen font-body flex">
-            <Sidebar page={page} setPage={setPage} userRole={userRole} onLogout={onLogout} />
+            <Sidebar page={page} setPage={setPage} userRole={userRole} onLogout={handleLogout} />
             
             <main className="ml-64 w-full min-h-screen flex flex-col relative">
                 {/* Top Nav Bar Shell */}
@@ -156,9 +186,20 @@ function AuthenticatedApp({ onLogout, userRole, userEmail }) {
                 )}
                 {page === 'user-settings' && <UserSettingsPage />}
             </main>
+
+            {/* Modal global de inactividad — montado sobre todo el contenido */}
+            {showWarning && (
+                <SessionTimeoutModal
+                    secondsLeft={secondsLeft}
+                    onExtend={handleExtendSession}
+                    onLogout={forceLogout}
+                    extending={extending}
+                />
+            )}
         </div>
     )
 }
+
 
 // ---- App Root with Routing ----
 // Gestiona el estado de autenticación y el rol del usuario.

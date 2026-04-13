@@ -46,16 +46,16 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="p-8 pb-20">
+        <div className="p-8 pb-20 space-y-8">
             {/* Header & Hero */}
-            <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="max-w-2xl">
-                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight font-headline text-on-surface mb-2">Ajustes</h1>
-                    <p className="text-secondary text-sm md:text-base leading-relaxed max-w-xl">
-                        Gestiona tu configuración personal y seguridad de tu cuenta. Mantén tu acceso seguro actualizando tus credenciales periódicamente.
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-1">
+                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Ajustes</h2>
+                    <p className="text-on-surface-variant font-medium">
+                        Gestiona tu configuración personal y seguridad de tu cuenta.
                     </p>
                 </div>
-            </header>
+            </div>
 
             <div className="max-w-3xl">
                 {/* Status Messages */}

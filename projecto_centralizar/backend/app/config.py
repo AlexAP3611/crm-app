@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "crm_jwt_secret_key_change_me_in_production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hora
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60  # Vida del token renovado (igual que el original)
 
     # ── Logs — Configuración de retención y limpieza ──
     # Número de días que se conservan los logs antes de poder eliminarlos.

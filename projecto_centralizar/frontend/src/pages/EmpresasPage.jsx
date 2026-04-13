@@ -425,7 +425,7 @@ export default function EmpresasPage() {
             {/* Header & KPIs Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Companies</h2>
+                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Empresas</h2>
                     <p className="text-on-surface-variant font-medium">Gestionando {totalEmpresas.toLocaleString()} entidades corporativas en Prisma CRM.</p>
                 </div>
             </div>
@@ -455,7 +455,7 @@ export default function EmpresasPage() {
                         />
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">CNAE (Inicia con)</label>
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">CNAE</label>
                         <input 
                             className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400" 
                             placeholder="Ej. 6201" 
@@ -497,53 +497,69 @@ export default function EmpresasPage() {
                             {products.map(p => <option key={p.id} value={p.id}>{p.name || p.nombre}</option>)}
                         </select>
                     </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Cargo</label>
+                        <select 
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
+                            value={filters.c_cargo_id}
+                            onChange={e => handleFilterChange('c_cargo_id', e.target.value)}
+                        >
+                            <option value="">Todos</option>
+                            {cargos.map(c => <option key={c.id} value={c.id}>{c.name || c.nombre}</option>)}
+                        </select>
+                    </div>
                 </div>
             </div>
 
             {/* Batch Actions Area */}
             <div className="space-y-3">
+                {/* Fila 1: Asignar + Eliminar */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'assign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                    <button onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
                         <span className="material-symbols-outlined text-lg">assignment_ind</span>
                         Asignar Sector
-                        <span className="bg-primary-fixed text-primary px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
-                    <button onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">person_remove</span>
-                        Desasignar Sector
-                        <span className="bg-error/10 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
-                    </button>
-                    <button onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'assign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                    <button onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
                         <span className="material-symbols-outlined text-lg">category</span>
                         Asignar Vertical
-                        <span className="bg-primary-fixed text-primary px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
-                    <button onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">remove_selection</span>
-                        Desasignar Vertical
-                        <span className="bg-error/10 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
-                    </button>
-                    <button onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'assign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                    <button onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
                         <span className="material-symbols-outlined text-lg">inventory_2</span>
                         Asignar Producto
-                        <span className="bg-primary-fixed text-primary px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
-                    </button>
-                    <button onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">remove_selection</span>
-                        Desasignar Producto
-                        <span className="bg-error/10 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                     <div className="flex-1"></div>
                     <button 
                         onClick={handleDeleteBulk}
-                        className="bg-error/10 text-error px-4 py-2 rounded-lg text-sm font-bold hover:bg-error/20 transition-colors flex items-center gap-2 border border-error/20 shadow-sm"
+                        className="bg-error/10 text-error px-4 py-2 rounded-lg text-sm font-bold hover:bg-error/20 transition-colors flex items-center gap-2 border border-error/20 shadow-sm active:scale-95"
                     >
                         <span className="material-symbols-outlined text-lg">delete</span>
                         Eliminar
-                        <span className="bg-error/20 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                        <span className="bg-transparent px-1">{actionCount}</span>
+                    </button>
+                </div>
+                {/* Fila 2: Desasignar (estilo Contactos) */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">person_remove</span>
+                        Desasignar Sector
+                        <span className="bg-transparent px-1">{actionCount}</span>
+                    </button>
+                    <button onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">remove_selection</span>
+                        Desasignar Vertical
+                        <span className="bg-transparent px-1">{actionCount}</span>
+                    </button>
+                    <button onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                        <span className="material-symbols-outlined text-lg">remove_selection</span>
+                        Desasignar Producto
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                 </div>
             </div>
+
             {deleteError && <div className="p-3 bg-error-container text-on-error-container rounded text-sm mt-2">{deleteError}</div>}
 
             {/* Main Data Table */}
@@ -608,24 +624,28 @@ export default function EmpresasPage() {
                                             <td className="py-5 px-6">
                                                 <div className="flex flex-wrap gap-1">
                                                     {Array.isArray(emp.sectors) && emp.sectors.length > 0 ? emp.sectors.map(x => (
-                                                        <span key={x.id} className="px-2 py-1 bg-secondary-container/50 text-on-secondary-container text-[10px] font-bold rounded uppercase tracking-wide border border-secondary-container">
+                                                        <span key={x.id} className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] font-bold rounded uppercase tracking-wide">
                                                             {x.name || x.nombre}
                                                         </span>
-                                                    )) : <span className="text-stone-400 text-sm">-</span>}
+                                                    )) : <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>}
                                                 </div>
                                             </td>
                                             <td className="py-5 px-6">
                                                 <div className="flex flex-wrap gap-1">
                                                     {Array.isArray(emp.verticals) && emp.verticals.length > 0 ? emp.verticals.map(x => (
-                                                        <span key={x.id} className="text-sm text-stone-600">{x.name || x.nombre}</span>
-                                                    )) : <span className="text-stone-400 text-sm">-</span>}
+                                                        <span key={x.id} className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] font-bold rounded uppercase tracking-wide">
+                                                            {x.name || x.nombre}
+                                                        </span>
+                                                    )) : <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>}
                                                 </div>
                                             </td>
                                             <td className="py-5 px-6">
                                                 <div className="flex flex-wrap gap-1">
                                                     {Array.isArray(emp.products_rel) && emp.products_rel.length > 0 ? emp.products_rel.map(x => (
-                                                        <span key={x.id} className="text-sm text-stone-600">{x.name || x.nombre}</span>
-                                                    )) : <span className="text-stone-400 text-sm">-</span>}
+                                                        <span key={x.id} className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] font-bold rounded uppercase tracking-wide">
+                                                            {x.name || x.nombre}
+                                                        </span>
+                                                    )) : <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>}
                                                 </div>
                                             </td>
                                             <td className="py-5 px-6"><span className="text-sm text-stone-600">{emp.numero_empleados?.toLocaleString() || '-'}</span></td>

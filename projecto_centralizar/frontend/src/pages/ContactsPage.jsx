@@ -30,25 +30,23 @@ function ConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
     )
 }
 
-function BulkAssignmentModal({ type, mode = 'assign', targetCount, options = [], onClose, onSave }) {
-    const [selected, setSelected] = useState([])
+function BulkAssignmentModal({ type, targetCount, options = [], onClose, onSave }) {
+    const [selected, setSelected] = useState('__placeholder__')
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
 
-    const titles = {
-        campaña: mode === 'assign' ? 'Asignar a campaña' : 'Desasignar de campaña',
-        cargo: mode === 'assign' ? 'Asignar a cargo' : 'Desasignar de cargo'
+    const config = {
+        'campaña': { title: 'Asignar Campaña', label: 'Campaña', icon: 'campaign', fieldKey: 'campaign_ids' },
+        'cargo':   { title: 'Asignar Cargo',   label: 'Cargo',   icon: 'work',     fieldKey: 'cargo_ids'    },
     }
-
-    const handleToggle = (id) => setSelected(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+    const { title, label, icon, fieldKey } = config[type] || { title: 'Asignar', label: 'Opción', icon: 'assignment', fieldKey: 'ids' }
 
     const handleSave = async () => {
         setSaving(true)
         setError(null)
         try {
-            const data = mode === 'unassign' ? { merge_lists: false, remove_lists: true } : { merge_lists: true }
-            if (type === 'campaña') data.campaign_ids = selected
-            else if (type === 'cargo') data.cargo_ids = selected
+            const ids = (selected === '' || selected === 'unassign') ? [] : [Number(selected)]
+            const data = { merge_lists: ids.length > 0, [fieldKey]: ids }
             await onSave(data)
         } catch (e) {
             setError(e.message)
@@ -57,32 +55,57 @@ function BulkAssignmentModal({ type, mode = 'assign', targetCount, options = [],
     }
 
     return (
-        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4" onClick={onClose}>
-            <div className="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="p-6 border-b border-stone-100 flex justify-between items-center">
-                    <h2 className="font-display text-lg font-bold text-stone-900">{titles[type] || (mode === 'assign' ? 'Asignar' : 'Desasignar')}</h2>
-                    <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><span className="material-symbols-outlined">close</span></button>
+        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[100] flex justify-center items-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-stone-200/70" onClick={e => e.stopPropagation()}>
+                <div className="px-6 py-5 flex items-center justify-between border-b border-stone-100">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-stone-500 text-lg">{icon}</span>
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-stone-900 text-base leading-tight">{title}</h2>
+                            <p className="text-[11px] text-stone-400 font-medium">
+                                {targetCount} {targetCount === 1 ? 'contacto seleccionado' : 'contactos seleccionados'}
+                            </p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition-colors">
+                        <span className="material-symbols-outlined text-lg">close</span>
+                    </button>
                 </div>
-                <div className="p-6">
-                    <p className="text-stone-600 text-sm mb-4">Vas a {mode === 'assign' ? 'asignar' : 'desasignar'} <strong className="text-stone-900">{targetCount} {targetCount === 1 ? 'contacto' : 'contactos'}</strong> a:</p>
-                    {error && <div className="bg-error-container text-on-error-container p-3 rounded-lg text-sm mb-4">{error}</div>}
-                    <div className="max-h-60 overflow-y-auto border border-stone-200 rounded-lg shadow-inner bg-stone-50/50">
-                        {options.map(opt => {
-                            const isSelected = selected.includes(opt.id)
-                            return (
-                                <div key={opt.id} onClick={() => handleToggle(opt.id)} className={`p-3 flex justify-between items-center cursor-pointer border-b border-stone-200 last:border-0 transition-colors ${isSelected ? 'bg-primary/5' : 'hover:bg-stone-100'}`}>
-                                    <span className={`text-sm ${isSelected ? 'text-primary font-semibold' : 'text-stone-700'}`}>{opt.nombre || opt.name}</span>
-                                    <Checkbox checked={isSelected} readOnly />
-                                </div>
-                            )
-                        })}
-                        {options.length === 0 && <div className="p-6 text-center text-stone-500 text-sm italic">No hay opciones disponibles.</div>}
+                <div className="p-6 space-y-4">
+                    {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">{error}</div>}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">{label}</label>
+                        <div className="relative">
+                            <select
+                                value={selected}
+                                onChange={e => setSelected(e.target.value)}
+                                className="w-full bg-stone-50 border border-stone-200 text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-stone-300 outline-none appearance-none text-stone-700 cursor-pointer transition-colors hover:border-stone-300"
+                            >
+                                <option value="__placeholder__" disabled>Selecciona un valor</option>
+                                <option value="unassign">Sin asignar</option>
+                                {options.map(opt => (
+                                    <option key={opt.id} value={opt.id}>{opt.name || opt.nombre}</option>
+                                ))}
+                            </select>
+                            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-lg pointer-events-none">expand_more</span>
+                        </div>
+                        {options.length === 0 && (
+                            <p className="text-xs text-stone-400 italic">No hay opciones en datos maestros.</p>
+                        )}
                     </div>
                 </div>
-                <div className="px-6 py-4 bg-surface-container-low flex justify-end gap-3">
-                    <button className="px-4 py-2 font-medium text-stone-600 hover:bg-stone-200 rounded-lg text-sm transition-colors" onClick={onClose} disabled={saving}>Cancelar</button>
-                    <button className="px-4 py-2 font-bold text-white bg-gradient-to-r from-primary to-primary-container rounded-lg text-sm shadow hover:opacity-90 disabled:opacity-50 transition-opacity" disabled={saving || selected.length === 0} onClick={handleSave}>
-                        {saving ? 'Guardando...' : 'Guardar cambios'}
+                <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 flex justify-end gap-3">
+                    <button className="px-4 py-2 font-medium text-stone-600 hover:bg-stone-200 rounded-lg text-sm transition-colors" onClick={onClose} disabled={saving}>
+                        Cancelar
+                    </button>
+                    <button
+                        className="px-5 py-2 font-bold text-white btn-primary-gradient rounded-lg text-sm shadow-sm hover:opacity-90 disabled:opacity-50 transition-opacity active:scale-95"
+                        onClick={handleSave}
+                        disabled={saving || selected === '__placeholder__'}
+                    >
+                        {saving ? 'Guardando...' : 'Aplicar'}
                     </button>
                 </div>
             </div>
@@ -205,6 +228,15 @@ export default function ContactsPage() {
         ['search', 'contacto_nombre', 'email', 'cnae', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id', 'empresa_nombre'].forEach((k) => updateFilter(k, ''))
     }
 
+    const handleBulkSave = async (updateData) => {
+        const targets = await resolveTargetData()
+        const ids = targets.map(c => Number(c.id))
+        await api.updateBulkContacts({ ids, data: updateData })
+        setAssignmentModal(null)
+        setSelectedIds([])
+        refresh()
+    }
+
     return (
         <div className="p-8 space-y-8">
             {/* Header & KPIs Section */}
@@ -212,6 +244,17 @@ export default function ContactsPage() {
                 <div className="space-y-1">
                     <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Contactos</h2>
                     <p className="text-on-surface-variant font-medium">Gestionando {total?.toLocaleString() || 0} contactos en el CRM.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <CSVExport filters={filters} icon="ios_share" className="text-sm font-semibold text-stone-600 hover:text-stone-900 hover:font-bold" label="Exportar CSV" />
+                    <button onClick={() => setShowImportModal(true)} className="text-sm font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-2 bg-transparent border-none cursor-pointer transition-all hover:font-bold">
+                        <span className="material-symbols-outlined text-lg">input</span>
+                        Importar CSV
+                    </button>
+                    <button onClick={() => setModal('create')} className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-transform">
+                        <span className="material-symbols-outlined text-lg">person_add</span>
+                        Nuevo Contacto
+                    </button>
                 </div>
             </div>
 
@@ -224,7 +267,7 @@ export default function ContactsPage() {
             <div className="bg-surface-container-low p-6 rounded-2xl space-y-6 border border-stone-200/50 shadow-sm">
                 <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg">tune</span> Filtros Avanzados
+                        <span className="material-symbols-outlined text-lg">tune</span> Búsqueda y Filtros
                     </h3>
                     <button onClick={clearAllFilters} className="text-[10px] font-bold text-primary uppercase tracking-tighter hover:opacity-70 bg-transparent border-none p-0 outline-none cursor-pointer">Limpiar filtros</button>
                 </div>
@@ -252,64 +295,68 @@ export default function ContactsPage() {
                         </select>
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Cargo / Rol</label>
-                        <input value={filters.cargo_id || ''} onChange={e => updateFilter('cargo_id', e.target.value)} className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-stone-300" placeholder="ej. CTO" type="text" />
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Cargo</label>
+                        <select 
+                            value={filters.cargo_id || ''} 
+                            onChange={e => updateFilter('cargo_id', e.target.value)} 
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer"
+                        >
+                            <option value="">Todos los Cargos</option>
+                            {cargos.map(c => <option key={c.id} value={c.id}>{c.name || c.nombre}</option>)}
+                        </select>
                     </div>
                 </div>
             </div>
 
             {/* Batch Actions Area */}
             <div className="space-y-3">
+                {/* Fila 1: Asignar + Eliminar */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => setAssignmentModal({ type: 'campaña', mode: 'assign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                    <button onClick={() => setAssignmentModal({ type: 'campaña', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
                         <span className="material-symbols-outlined text-lg">assignment_ind</span>
                         Asignar Campaña
-                        <span className="bg-primary-fixed text-primary px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
+                    <button onClick={() => setAssignmentModal({ type: 'cargo', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
+                        <span className="material-symbols-outlined text-lg">category</span>
+                        Asignar Rol
+                        <span className="bg-transparent px-1">{actionCount}</span>
+                    </button>
+                    <div className="flex-1"></div>
+                    <button onClick={handleDeleteBulk} className="bg-error/10 text-error px-4 py-2 rounded-lg text-sm font-bold hover:bg-error/20 transition-colors flex items-center gap-2 border border-error/20 shadow-sm active:scale-95">
+                        <span className="material-symbols-outlined text-lg">delete</span>
+                        Eliminar
+                        <span className="bg-transparent px-1">{actionCount}</span>
+                    </button>
+                </div>
+
+                {/* Fila 2: Desasignar */}
+                <div className="flex flex-wrap items-center gap-3">
                     <button onClick={() => setAssignmentModal({ type: 'campaña', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
                         <span className="material-symbols-outlined text-lg">person_remove</span>
                         Desasignar Campaña
-                        <span className="bg-error/10 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
-                    </button>
-                    <button onClick={() => setAssignmentModal({ type: 'cargo', mode: 'assign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">category</span>
-                        Asignar Rol
-                        <span className="bg-primary-fixed text-primary px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                     <button onClick={() => setAssignmentModal({ type: 'cargo', mode: 'unassign' })} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
                         <span className="material-symbols-outlined text-lg">remove_selection</span>
                         Desasignar Rol
-                        <span className="bg-error/10 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
-                    </button>
-                    <div className="flex-1"></div>
-                    <CSVExport filters={filters} icon="ios_share" className="text-sm font-semibold text-stone-600 hover:text-stone-900 hover:font-bold" label="Exportar CSV" />
-                    <button onClick={() => setShowImportModal(true)} className="text-sm font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-2 bg-transparent border-none cursor-pointer transition-all hover:font-bold">
-                        <span className="material-symbols-outlined text-lg">input</span>
-                        Importar CSV
-                    </button>
-                    <button onClick={() => setModal('create')} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm">
-                        <span className="material-symbols-outlined text-lg">person_add</span>
-                        Nuevo Contacto
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                 </div>
 
+                {/* Fila 3: Enriquecimiento */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => handleEnrich('Apollo')} className="bg-primary/5 border border-primary/20 px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-colors flex items-center gap-2">
+                    <button onClick={() => handleEnrich('Apollo')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">auto_fix_high</span>
                         Enriquecer con Apollo {enriching === 'Apollo' && '...'}
                     </button>
-                    <button onClick={() => handleEnrich('Clay')} className="bg-primary/5 border border-primary/20 px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-colors flex items-center gap-2">
+                    <button onClick={() => handleEnrich('Clay')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">search_insights</span>
                         Enriquecer con Clay {enriching === 'Clay' && '...'}
                     </button>
-                    <button onClick={() => handleEnrich('Adscore')} className="bg-primary/5 border border-primary/20 px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-colors flex items-center gap-2">
+                    <button onClick={() => handleEnrich('Adscore')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">contact_page</span>
                         Enriquecer con Adscore {enriching === 'Adscore' && '...'}
-                    </button>
-                    <button onClick={handleDeleteBulk} className="bg-error/10 border border-error/20 px-4 py-2 rounded-lg text-sm font-bold text-error hover:bg-error/20 transition-colors flex items-center gap-2 ml-auto">
-                        <span className="material-symbols-outlined text-lg">delete</span>
-                        Eliminar
-                        <span className="bg-error/20 text-error px-1.5 py-0.5 rounded text-[10px]">{actionCount}</span>
                     </button>
                 </div>
             </div>
@@ -329,6 +376,7 @@ export default function ContactsPage() {
                                         Contacto
                                     </div>
                                 </th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Empresa</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Emails</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Sector</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Vertical</th>
@@ -338,9 +386,9 @@ export default function ContactsPage() {
                         </thead>
                         <tbody className="divide-y divide-surface-container-low">
                             {loading && contacts.length === 0 ? (
-                                <tr><td colSpan="5" className="py-20 text-center text-stone-400">Cargando contactos...</td></tr>
+                                <tr><td colSpan="7" className="py-20 text-center text-stone-400">Cargando contactos...</td></tr>
                             ) : contacts.length === 0 ? (
-                                <tr><td colSpan="5" className="py-20 text-center text-stone-400">No se encontraron contactos que coincidan con los criterios.</td></tr>
+                                <tr><td colSpan="7" className="py-20 text-center text-stone-400">No se encontraron contactos que coincidan con los criterios.</td></tr>
                             ) : contacts.map(c => (
                                 <tr key={c.id} className="group hover:bg-surface-container-low transition-colors cursor-pointer" onClick={() => setModal(c)}>
                                     <td className="py-5 px-6">
@@ -349,45 +397,56 @@ export default function ContactsPage() {
                                                 checked={selectedIds.includes(c.id)}
                                                 onChange={e => handleSelect(c.id, e.target.checked)}
                                             />
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center font-bold text-primary text-xs uppercase">
+                                            <div className="flex items-center gap-3 text-sm font-bold text-on-surface whitespace-nowrap">
+                                                <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center font-bold text-primary text-xs uppercase flex-shrink-0">
                                                     {(c.first_name?.[0] || '') + (c.last_name?.[0] || '')}
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-on-surface">{c.first_name} {c.last_name}</p>
-                                                    <p className="text-[10px] text-stone-400">
-                                                        {c.cargos?.[0]?.nombre || 'Cargo Genérico'} en <span className="font-semibold">{c.company}</span>
-                                                    </p>
-                                                </div>
+                                                {c.first_name} {c.last_name}
                                             </div>
                                         </div>
                                     </td>
                                     <td className="py-5 px-6">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-semibold text-on-surface">{c.company || '-'}</span>
+                                            <span className="text-[10px] text-stone-400 font-medium">
+                                                {c.cargos?.[0]?.nombre || '-'}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="py-5 px-6">
                                         <div className="space-y-0.5">
-                                            <p className="text-xs text-stone-600 font-medium">{c.email_contact || 'Sin email personal'}</p>
+                                            <p className="text-xs text-stone-600 font-medium">{c.email_contact || '-'}</p>
                                             {c.email_generic && <p className="text-[10px] text-stone-400 italic">{c.email_generic}</p>}
                                         </div>
                                     </td>
                                     <td className="py-5 px-6">
-                                        <span className="px-2 py-0.5 bg-secondary-container text-on-secondary-container text-[10px] font-bold rounded uppercase tracking-wide inline-block w-fit">
-                                            {c.sectors?.[0]?.name || c.sectors?.[0]?.nombre || 'Sin Sector'}
-                                        </span>
+                                        {c.sectors?.[0]?.name || c.sectors?.[0]?.nombre ? (
+                                            <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] font-bold rounded uppercase tracking-wide inline-block w-fit">
+                                                {c.sectors[0].name || c.sectors[0].nombre}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>
+                                        )}
                                     </td>
                                     <td className="py-5 px-6">
-                                        <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] font-bold rounded uppercase tracking-wide inline-block w-fit">
-                                            {c.verticals?.[0]?.name || c.verticals?.[0]?.nombre || 'Sin Vertical'}
-                                        </span>
+                                        {c.verticals?.[0]?.name || c.verticals?.[0]?.nombre ? (
+                                            <span className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] font-bold rounded uppercase tracking-wide inline-block w-fit">
+                                                {c.verticals[0].name || c.verticals[0].nombre}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>
+                                        )}
                                     </td>
                                     <td className="py-5 px-6">
                                         {c.products_rel && c.products_rel.length > 0 ? (
                                             <div className="flex flex-wrap gap-1">
                                                 {c.products_rel.map(p => (
-                                                    <span key={p.id} className="px-2 py-1 bg-primary-fixed/20 text-primary text-[10px] font-bold rounded uppercase tracking-wide">
+                                                    <span key={p.id} className="px-2 py-0.5 bg-stone-100 text-stone-600 text-[10px] font-bold rounded uppercase tracking-wide">
                                                         {p.name || p.nombre}
                                                     </span>
                                                 ))}
                                             </div>
-                                        ) : <span className="text-[10px] text-stone-300">Sin Producto</span>}
+                                        ) : <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>}
                                     </td>
                                     <td className="py-5 px-6 text-right" onClick={e => e.stopPropagation()}>
                                         <RowMenu onEdit={() => setModal(c)} onDelete={() => handleDelete(c)} />
@@ -412,6 +471,17 @@ export default function ContactsPage() {
                     </div>
                 )}
             </div>
+
+            {/* Bulk Assignment Modal */}
+            {assignmentModal && (
+                <BulkAssignmentModal
+                    type={assignmentModal.type}
+                    targetCount={actionCount}
+                    options={assignmentModal.type === 'campaña' ? campaigns : cargos}
+                    onClose={() => setAssignmentModal(null)}
+                    onSave={handleBulkSave}
+                />
+            )}
 
         </div>
     )

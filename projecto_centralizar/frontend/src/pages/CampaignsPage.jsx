@@ -56,18 +56,19 @@ export default function CampaignsPage() {
 
     return (
         <>
-            <div className="top-action-bar">
-                <div style={{ flex: 1 }} />
-                <button className="btn btn-primary" onClick={() => setModal('create')}>
-                    Nueva Campaña
-                </button>
-            </div>
-
-            <div className="page-title-wrap">
-                <h1 className="page-title">Campañas</h1>
-                <p style={{ color: 'var(--color-text-muted)', marginTop: '8px' }}>
-                    Gestiona las campañas de marketing y ventas, presupuestos y responsables.
-                </p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-1">
+                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Campañas</h2>
+                    <p className="text-on-surface-variant font-medium">
+                        Gestiona las campañas de marketing y ventas, presupuestos y responsables.
+                    </p>
+                </div>
+                <div className="flex gap-3">
+                    <button className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-transform" onClick={() => setModal('create')}>
+                        <span className="material-symbols-outlined">add_circle</span>
+                        Nueva Campaña
+                    </button>
+                </div>
             </div>
 
             {error && <div className="alert alert-error" style={{ margin: '0 24px 24px' }}>{error}</div>}

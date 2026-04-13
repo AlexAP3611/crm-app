@@ -18,7 +18,6 @@
  * - NOTA: En producción, considerar httpOnly cookies para mayor seguridad
  *
  * TODO futuro:
- * - Implementar interceptor de refresh token automático
  * - Añadir retry automático en errores 5xx
  * - Cache de respuestas frecuentes
  */
@@ -64,6 +63,31 @@ export function removeToken() {
 
 
 // ══════════════════════════════════════════════════════════════════════
+// INTERCEPTOR 401 — Handler global de sesión expirada
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * Función de callback que se ejecutará cuando el backend devuelva 401.
+ * Se registra desde App.jsx para ejecutar el logout global.
+ * El flag _loggingOut previene múltiples ejecuciones si varios
+ * requests fallan simultáneamente con 401.
+ */
+let _unauthorizedHandler = null
+let _loggingOut = false
+
+/**
+ * Registra el handler global para respuestas 401.
+ * Debe llamarse una sola vez al montar AuthenticatedApp.
+ *
+ * @param {Function} handler - Función a ejecutar cuando se recibe 401
+ */
+export function setUnauthorizedHandler(handler) {
+    _unauthorizedHandler = handler
+    _loggingOut = false
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
 // FUNCIÓN REQUEST — Wrapper centralizado para fetch
 // ══════════════════════════════════════════════════════════════════════
 
@@ -104,6 +128,15 @@ async function request(path, { headers, signal, ...options } = {}) {
     // Manejo de errores HTTP
     // Extrae el detalle del error del body JSON del backend
     if (!res.ok) {
+        // ── Interceptor 401: sesión expirada o token inválido ──
+        // Si el backend rechaza la petición con 401 y hay un handler registrado,
+        // ejecutar el logout global (una sola vez, aunque varios requests fallen).
+        if (res.status === 401 && _unauthorizedHandler && !_loggingOut) {
+            _loggingOut = true
+            // Ejecutar en el siguiente tick para no bloquear este flujo de error
+            setTimeout(() => _unauthorizedHandler(), 0)
+        }
+
         const err = await res.json().catch(() => ({ detail: res.statusText }))
         const detail = err.detail
         const msg = typeof detail === 'string'
@@ -144,10 +177,27 @@ export const api = {
         // Limpiar el token JWT del almacenamiento local
         removeToken()
         // También limpiar la sesión del servidor (cookie)
-        return request('/logout', { method: 'POST' })
+        try {
+            return await request('/logout', { method: 'POST' })
+        } catch (_) {
+            // Si el logout falla (token ya expirado), ignorar el error
+            // — el token ya fue eliminado de localStorage
+        }
     },
     // GET /api/me → { id, email, role }
     me: () => request('/me'),
+
+    // ── Session keepalive ──
+    // Renueva el JWT emitiendo uno nuevo desde el backend.
+    // Solo funciona si el token actual aún no ha expirado.
+    // POST /api/refresh → { access_token, token_type }
+    refreshToken: async () => {
+        const data = await request('/refresh', { method: 'POST' })
+        if (data?.access_token) {
+            setToken(data.access_token)
+        }
+        return data
+    },
 
     // ── Contacts ──
     listContacts: (params = {}, signal = undefined) => {

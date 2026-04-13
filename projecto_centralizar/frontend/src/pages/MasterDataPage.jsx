@@ -132,13 +132,14 @@ function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, del
 
 export default function MasterDataPage() {
     return (
-        <div className="p-8 pb-20">
-            <div className="mb-12">
-                <p className="text-label-sm text-tertiary font-bold tracking-widest uppercase mb-2">Centro de Datos</p>
-                <h3 className="text-4xl md:text-5xl font-headline font-extrabold text-on-surface tracking-tight">Arquitectura de Datos</h3>
-                <p className="mt-4 text-on-surface-variant max-w-xl leading-relaxed">
-                    Organiza los cimientos de la base de datos empresarial. Administra sectores, verticales y el diccionario de datos para garantizar coherencia en todo el CRM.
-                </p>
+        <div className="p-8 pb-20 space-y-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="space-y-1">
+                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Arquitectura de Datos</h2>
+                    <p className="text-on-surface-variant font-medium">
+                        Organiza los cimientos de la base de datos empresarial. Administra sectores, verticales y el diccionario de datos.
+                    </p>
+                </div>
             </div>
 
             {/* Distributed Grid */}
@@ -150,7 +151,6 @@ export default function MasterDataPage() {
                     fetchApi={masterDataApi.getSectors}
                     createApi={masterDataApi.createSector}
                     deleteApi={masterDataApi.deleteSector}
-                    isPrimary={true}
                 />
                 <MasterDataLedger
                     title="Verticales"
