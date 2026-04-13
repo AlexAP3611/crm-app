@@ -380,7 +380,7 @@ export default function ContactsPage() {
                     </button>
                 </div>
 
-                {/* Fila 3: Enriquecimiento */}
+                {/* Fila 3: Enriquecimiento + Envío */}
                 <div className="flex flex-wrap items-center gap-3">
                     <button onClick={() => handleEnrich('Apollo')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">auto_fix_high</span>
@@ -393,6 +393,14 @@ export default function ContactsPage() {
                     <button onClick={() => handleEnrich('Adscore')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">contact_page</span>
                         Enriquecer con Adscore {enriching === 'Adscore' && '...'}
+                    </button>
+
+                    {/* Spacer — empuja "Enviar a Affino" al lado derecho */}
+                    <div className="flex-1" />
+
+                    <button onClick={() => handleEnrich('Affino')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
+                        <span className="material-symbols-outlined text-lg">send</span>
+                        Enviar a Affino {enriching === 'Affino' && '...'}
                     </button>
                 </div>
             </div>
