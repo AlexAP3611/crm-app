@@ -14,7 +14,6 @@ CONTACT_FIELD_MAP = {
     "job_title": "job_title",
     "cargo": "job_title",
     "cif": "cif",
-    "dominio": "web",
     "website": "web",
     "web": "web",
     "linkedin": "linkedin",

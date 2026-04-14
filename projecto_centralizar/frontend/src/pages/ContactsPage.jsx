@@ -209,7 +209,6 @@ export default function ContactsPage() {
                     id_contacto: c.id,
                     nombre_empresa: c.company,
                     web: c.web,
-                    dominio: c.web,
                     vertical: c.verticals && c.verticals.length > 0 ? c.verticals[0].name : null,
                     email: c.email_contact || c.email_generic,
                     nombre_contacto: [c.first_name, c.last_name].filter(Boolean).join(' '),
