@@ -251,6 +251,16 @@ export default function ContactsPage() {
                     const accessToken = tokenData.access_token || tokenData.token
                     if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`
                 }
+            } else if (authType === 'Header Auth') {
+                // Construir header personalizado: con o sin prefijo
+                // Con prefix:    Authorization: Bearer crm_xxx
+                // Sin prefix:    X-API-Key: crm_xxx
+                const headerName  = cfg.headerName  ? cfg.headerName.trim()  : ''
+                const prefix      = cfg.prefix      ? cfg.prefix.trim()      : ''
+                const headerValue = cfg.headerValue ? cfg.headerValue.trim() : ''
+                if (headerName && headerValue) {
+                    headers[headerName] = prefix ? `${prefix} ${headerValue}` : headerValue
+                }
             }
             // authType === 'Ninguno' → no se añade ningún header de autenticación
 

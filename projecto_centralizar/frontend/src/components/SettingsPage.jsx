@@ -35,7 +35,7 @@ const SERVICES = [
     },
 ]
 
-const AUTH_TYPES = ['Ninguno', 'Bearer Token', 'Basic Auth', 'OAuth2']
+const AUTH_TYPES = ['Ninguno', 'Bearer Token', 'Basic Auth', 'OAuth2', 'Header Auth']
 
 /* ──────────────────────────────────────────────────────────
    AuthFields — Dynamic fields rendered per auth method
@@ -184,6 +184,81 @@ function AuthFields({ authType, config, onChange }) {
         )
     }
 
+    /* ── Header Auth ── */
+    if (authType === 'Header Auth') {
+        const previewName  = config.headerName  ? config.headerName.trim()  : 'Header-Name'
+        const previewPfx   = config.prefix      ? config.prefix.trim()      : ''
+        const previewVal   = config.headerValue ? '••••••' : '<valor>'
+        const previewFull  = previewPfx ? `${previewName}: ${previewPfx} ${previewVal}` : `${previewName}: ${previewVal}`
+
+        return (
+            <div className="space-y-4">
+                {/* Header Name */}
+                <div>
+                    <label className={labelCls}>Nombre del Header</label>
+                    <input
+                        className={inputCls}
+                        type="text"
+                        placeholder="ej: Authorization, X-API-Key, X-Auth-Token"
+                        value={config.headerName || ''}
+                        onChange={(e) => field('headerName', e.target.value)}
+                    />
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Nombre exacto del header HTTP que se enviará en la petición.
+                    </p>
+                </div>
+
+                {/* Prefix (optional) */}
+                <div>
+                    <label className={labelCls}>
+                        Prefijo{' '}
+                        <span className="normal-case font-normal text-stone-400">(opcional)</span>
+                    </label>
+                    <input
+                        className={inputCls}
+                        type="text"
+                        placeholder="ej: Bearer, Token, ApiKey"
+                        value={config.prefix || ''}
+                        onChange={(e) => field('prefix', e.target.value)}
+                    />
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Si se rellena, se añade antes del valor: <code className="bg-stone-100 px-1 rounded text-stone-600">Prefijo valor</code>
+                    </p>
+                </div>
+
+                {/* Value */}
+                <div>
+                    <label className={labelCls}>Valor (token / clave)</label>
+                    <div className="relative">
+                        <input
+                            className={inputCls + ' pr-11'}
+                            type={showToken ? 'text' : 'password'}
+                            placeholder="Pega aquí tu token o clave secreta"
+                            value={config.headerValue || ''}
+                            onChange={(e) => field('headerValue', e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                            onClick={() => setShowToken((v) => !v)}
+                            title={showToken ? 'Ocultar' : 'Mostrar'}
+                        >
+                            <span className="material-symbols-outlined text-lg">
+                                {showToken ? 'visibility_off' : 'visibility'}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Live preview */}
+                <div className="rounded-lg bg-stone-50 border border-stone-200 px-4 py-3">
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Preview del header</p>
+                    <code className="text-xs text-cyan-700 font-mono break-all">{previewFull}</code>
+                </div>
+            </div>
+        )
+    }
+
     return null
 }
 
@@ -195,7 +270,7 @@ function ServiceCard({ service, config, onChange, onTestConnection }) {
 
     const handleAuthType = (newType) => {
         // Reset auth-specific fields when switching auth type, keep other fields
-        const { token, username, password, clientId, clientSecret, tokenUrl, ...rest } = config
+        const { token, username, password, clientId, clientSecret, tokenUrl, headerName, prefix, headerValue, ...rest } = config
         onChange(service.id, { ...rest, authType: newType })
     }
 
