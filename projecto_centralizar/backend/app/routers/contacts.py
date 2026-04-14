@@ -27,7 +27,10 @@ async def upsert_contact(
     db: AsyncSession = Depends(get_db),
 ):
     """Create or update a contact. Upsert key: CIF → web → create new."""
-    return await contact_service.upsert_contact(db, data)
+    contact = await contact_service.upsert_contact(db, data)
+    if contact is None:
+        raise HTTPException(status_code=400, detail="Cannot create or update contact without email_contact or linkedin")
+    return contact
 
 
 @router.get("", response_model=ContactListResponse)

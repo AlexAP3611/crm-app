@@ -388,30 +388,6 @@ export default function ContactsPage() {
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                 </div>
-
-                {/* Fila 3: Enriquecimiento + Envío */}
-                <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => handleEnrich('Apollo')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
-                        <span className="material-symbols-outlined text-lg">auto_fix_high</span>
-                        Enriquecer con Apollo {enriching === 'Apollo' && '...'}
-                    </button>
-                    <button onClick={() => handleEnrich('Clay')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
-                        <span className="material-symbols-outlined text-lg">search_insights</span>
-                        Enriquecer con Clay {enriching === 'Clay' && '...'}
-                    </button>
-                    <button onClick={() => handleEnrich('Adscore')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
-                        <span className="material-symbols-outlined text-lg">contact_page</span>
-                        Enriquecer con Adscore {enriching === 'Adscore' && '...'}
-                    </button>
-
-                    {/* Spacer — empuja "Enviar a Affino" al lado derecho */}
-                    <div className="flex-1" />
-
-                    <button onClick={() => handleEnrich('Affino')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
-                        <span className="material-symbols-outlined text-lg">send</span>
-                        Enviar a Affino {enriching === 'Affino' && '...'}
-                    </button>
-                </div>
             </div>
 
             {/* Main Data Table (Editorial Style) */}

@@ -34,11 +34,19 @@ async def export_csv(session: AsyncSession, filters: ContactFilterParams) -> str
 
 
 async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
-    """Parse CSV bytes and upsert each row. Returns counts."""
+    """
+    Parse CSV bytes and upsert each row via contact_service.upsert_contact.
+    
+    Deduplication is handled entirely by resolve_contact inside upsert_contact.
+    No separate matching logic here — single source of truth.
+    """
+    from app.core.resolve import resolve_contact, normalize_email, normalize_linkedin
+
     text = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
     created = 0
     updated = 0
+    skipped = 0
 
     for row in reader:
         # Strip whitespace from all values
@@ -46,9 +54,8 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
 
         company = row.get("company")
         if not company:
+            skipped += 1
             continue  # Skip rows without company
-
-        existing_count_before = None
 
         payload = {}
         for col in CORE_COLUMNS:
@@ -64,33 +71,25 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
                 except Exception:
                     pass
 
+        # Pre-check: will upsert_contact find an existing contact?
+        resolution = await resolve_contact(
+            session,
+            email_contact=normalize_email(payload.get("email_contact")),
+            linkedin=normalize_linkedin(payload.get("linkedin")),
+            first_name=payload.get("first_name"),
+            last_name=payload.get("last_name"),
+        )
+
         data = ContactCreate(**payload)
+        new_or_updated = await contact_service.upsert_contact(session, data)
 
-        # Track whether upsert created or updated
-        cif = data.cif
-        web = data.web
-        is_new = True
-
-        if cif:
-            from sqlalchemy import select
-            res = await session.execute(
-                select(Contact.id).where(Contact.cif == cif)
-            )
-            if res.scalar_one_or_none():
-                is_new = False
-        elif web:
-            from sqlalchemy import select
-            res = await session.execute(
-                select(Contact.id).where(Contact.web == web)
-            )
-            if res.scalar_one_or_none():
-                is_new = False
-
-        await contact_service.upsert_contact(session, data)
-
-        if is_new:
-            created += 1
+        if new_or_updated is None:
+            skipped += 1
         else:
-            updated += 1
+            if resolution.contact is not None or resolution.possible_match_id is not None:
+                updated += 1
+            else:
+                created += 1
 
-    return {"created": created, "updated": updated}
+    return {"created": created, "updated": updated, "skipped": skipped}
+

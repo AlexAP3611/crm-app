@@ -13,6 +13,7 @@ from app.services.merge import deep_merge
 
 from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_PROTECTED_FIELDS
 from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
+from app.core.resolve import resolve_contact, normalize_email, normalize_linkedin
 
 async def _resolve_empresa_id(session: AsyncSession, company_name: str | None, provided_id: int | None) -> int | None:
     if provided_id:
@@ -96,37 +97,105 @@ async def _sync_m2m(session: AsyncSession, contact: Contact, ModelClass, ids_lis
 
 async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
     """
-    Upsert logic:
-    1. If no match → create new contact
+    Upsert logic using hierarchical identity resolution:
+
+    1. resolve_contact identifies an existing contact (email → linkedin → fuzzy)
+    2. High-confidence match (email/linkedin) → update existing contact
+    3. Low-confidence match (fuzzy) → return existing WITHOUT auto-merge
+    4. No match → create new contact
+
     Notes are always deep-merged, never replaced.
     """
-    contact: Contact | None = None
+    payload = data.model_dump(
+        exclude={
+            "notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists",
+            "created_at", "updated_at", "sectors", "verticals", "products_rel",
+            "cargos", "campaigns", "cif", "web", "email_generic",
+            "sector_ids", "vertical_ids", "product_ids",
+        },
+        exclude_unset=True,
+    )
 
-    payload = data.model_dump(exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids"}, exclude_unset=True)
-
-    emp_id = await _resolve_empresa_id(session, payload.get("company"), payload.get("empresa_id") or getattr(data, "empresa_id", None))
+    # Resolve empresa
+    emp_id = await _resolve_empresa_id(
+        session,
+        payload.get("company"),
+        payload.get("empresa_id") or getattr(data, "empresa_id", None),
+    )
     if emp_id:
         payload["empresa_id"] = emp_id
 
+    # Normalize identity fields before resolution
+    if "email_contact" in payload and payload["email_contact"]:
+        payload["email_contact"] = normalize_email(payload["email_contact"])
+    if "linkedin" in payload and payload["linkedin"]:
+        payload["linkedin"] = normalize_linkedin(payload["linkedin"])
+
+    # ── Resolve identity ──────────────────────────────────────────
+    resolution = await resolve_contact(
+        session,
+        email_contact=payload.get("email_contact"),
+        linkedin=payload.get("linkedin"),
+        first_name=payload.get("first_name"),
+        last_name=payload.get("last_name"),
+        empresa_id=emp_id,
+    )
+
+    contact: Contact | None = None
+
+    if resolution.confidence == "high":
+        # ── Email or LinkedIn match → update existing ─────────────
+        contact = resolution.contact
+        for field, value in payload.items():
+            if value is None:
+                continue
+            # Protect email_contact: don't overwrite an existing valid email
+            if field == "email_contact" and contact.email_contact:
+                continue
+            setattr(contact, field, value)
+
+        # Deep-merge notes
+        if data.notes:
+            contact.notes = deep_merge(contact.notes, data.notes)
+
+        # Update empresa snapshot
+        if contact.empresa_rel:
+            update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
+
+    elif resolution.confidence == "low" and resolution.possible_match_id:
+        # ── Fuzzy match → Update existing, but ONLY non-critical fields ─────────────
+        contact = await _load_contact(session, resolution.possible_match_id)
+        if contact:
+            for field, value in payload.items():
+                if value is None:
+                    continue
+                # Do NOT overwrite email_contact or linkedin from a fuzzy match
+                if field in ("email_contact", "linkedin"):
+                    continue
+                setattr(contact, field, value)
+
+            # Deep-merge notes
+            if data.notes:
+                contact.notes = deep_merge(contact.notes, data.notes)
+
+            # Update empresa snapshot
+            if contact.empresa_rel:
+                update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
+
     if contact is None:
-        # Create
+        # ── No Match (or fuzzy match ID not found) ──────────
+        # Only create if it's an "active" contact (has email or linkedin)
+        if not payload.get("email_contact") and not payload.get("linkedin"):
+            return None  # Discard/Ignore
+
         contact = Contact(**payload, notes=data.notes)
         session.add(contact)
         await session.flush()
-        # Reload with all M2M relations initialized (as empty lists)
-        # so that _sync_m2m's setattr() won't trigger lazy loading.
         contact = await _load_contact(session, contact.id)
 
         # Inject datos_empresa snapshot into notes
         if contact and contact.empresa_rel:
             update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
-    else:
-        # Update — completely replace notes
-        for field, value in payload.items():
-            setattr(contact, field, value)
-        
-        if "notes" in data.model_fields_set or emp_id:
-            contact.notes = new_notes
 
     # Sync M2M associations (only cargo_ids and campaign_ids remain on Contact)
     for m2m_key, config in M2M_FIELD_MAP.items():
@@ -139,6 +208,7 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
 
     await session.commit()
     return await _load_contact(session, contact.id)  # type: ignore[return-value]
+
 
 
 async def get_contact(session: AsyncSession, contact_id: int) -> Contact | None:

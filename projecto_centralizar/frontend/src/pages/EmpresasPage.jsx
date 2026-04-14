@@ -209,6 +209,79 @@ export default function EmpresasPage() {
     const [saving, setSaving] = useState(false)
     const [formError, setFormError] = useState(null)
 
+    // Enrichment state
+    const [enriching, setEnriching] = useState(null)
+    const [enrichError, setEnrichError] = useState(null)
+    const [enrichMessage, setEnrichMessage] = useState(null)
+
+    const handleEnrich = async (tool) => {
+        setEnrichError(null)
+        setEnrichMessage(null)
+        setEnriching(tool)
+
+        try {
+            // Leer configuración de APIs & Webhooks (solo la URL)
+            let configs = {};
+            try {
+                const stored = localStorage.getItem('external_service_configs');
+                if (stored) configs = JSON.parse(stored);
+            } catch (e) { /* ignore */ }
+
+            const cfg = configs[tool.toLowerCase()] || {};
+            // Utilizamos el campo apiKey como el Webhook URL en la configuración simple
+            const endpointUrl = cfg.apiKey ? cfg.apiKey.trim() : '';
+
+            if (!endpointUrl) {
+                setEnrichError(`Configura la URL del webhook de "${tool}" en la pestaña APIs & Webhooks`);
+                return;
+            }
+
+            const targets = await resolveTargetData();
+            if (targets.length === 0) {
+                setEnrichError(`Selecciona al menos una empresa para enriquecer con ${tool}`);
+                return;
+            }
+
+            // 1. Validar que TODAS las empresas tengan un dominio (web) válido antes de enviar
+            const hasInvalidWeb = targets.some(emp => !emp.web || String(emp.web).trim() === '');
+            if (hasInvalidWeb) {
+                setEnrichError('Todas las empresas deben tener un dominio (web) para poder enriquecer');
+                return;
+            }
+
+            const payload = {
+                empresas: targets.map(empresa => ({
+                    id_empresa: empresa.id,
+                    nombre_empresa: empresa.nombre || "",
+                    web: String(empresa.web).trim(),
+                    email: empresa.email || null,
+                    cif: empresa.cif || null,
+                    cnae: empresa.cnae || null,
+                    sector: Array.isArray(empresa.sectors) ? empresa.sectors.map(s => s.name || s.nombre) : [],
+                    vertical: Array.isArray(empresa.verticals) ? empresa.verticals.map(v => v.name || v.nombre) : [],
+                    producto: Array.isArray(empresa.products_rel) ? empresa.products_rel.map(p => p.name || p.nombre) : []
+                }))
+            };
+
+            const res = await fetch(endpointUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            setEnrichMessage(`Enriquecimiento enviado correctamente a ${tool} (${targets.length} empresas)`);
+        } catch (err) {
+            console.error(err);
+            setEnrichError(`Error al enviar datos a ${tool}: ${err.message}`);
+        } finally {
+            setEnriching(null);
+        }
+    }
+
     // Option maps for chips formatting
     const lookupMaps = useMemo(() => {
         const createMap = (arr) => arr.reduce((acc, curr) => { acc[curr.id] = (curr.name || curr.nombre); return acc; }, {});
@@ -560,9 +633,33 @@ export default function EmpresasPage() {
                     </button>
                 </div>
 
+                {/* Fila 2: Enriquecimiento + Envío */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={() => handleEnrich('Apollo')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
+                        <span className="material-symbols-outlined text-lg">auto_fix_high</span>
+                        Enriquecer con Apollo {enriching === 'Apollo' && '...'}
+                    </button>
+                    <button onClick={() => handleEnrich('Clay')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
+                        <span className="material-symbols-outlined text-lg">search_insights</span>
+                        Enriquecer con Clay {enriching === 'Clay' && '...'}
+                    </button>
+                    <button onClick={() => handleEnrich('Adscore')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
+                        <span className="material-symbols-outlined text-lg">contact_page</span>
+                        Enriquecer con Adscore {enriching === 'Adscore' && '...'}
+                    </button>
+
+                    <div className="flex-1" />
+
+                    <button onClick={() => handleEnrich('Affino')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
+                        <span className="material-symbols-outlined text-lg">send</span>
+                        Enviar a Affino {enriching === 'Affino' && '...'}
+                    </button>
+                </div>
             </div>
 
             {deleteError && <div className="p-3 bg-error-container text-on-error-container rounded text-sm mt-2">{deleteError}</div>}
+            {enrichError && <div className="p-3 bg-error-container text-on-error-container rounded text-sm mt-2">{enrichError}</div>}
+            {enrichMessage && <div className="p-3 bg-teal-100 text-teal-800 rounded text-sm mt-2 border border-teal-200">{enrichMessage}</div>}
 
             {/* Main Data Table */}
             <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm border border-stone-200/40">

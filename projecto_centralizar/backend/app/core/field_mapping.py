@@ -40,7 +40,7 @@ CORE_COLUMNS = [
 
 # Campos que NO deben sobrescribirse durante enriquecimiento automático.
 # Si llega un valor nuevo, se redirige a notes[source]["_enrichment_{campo}"].
-ENRICHMENT_PROTECTED_FIELDS = {"company", "web"}
+ENRICHMENT_PROTECTED_FIELDS = {"company", "web", "email_contact"}
 
 # M2M fields that remain on Contact
 M2M_FIELD_MAP = {
