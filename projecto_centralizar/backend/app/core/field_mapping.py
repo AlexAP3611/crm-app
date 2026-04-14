@@ -4,9 +4,6 @@ Centralized Configuration for Mapping Dynamic CRM Structures.
 
 CONTACT_FIELD_MAP = {
     # payload key -> db column
-    "company": "company",
-    "nombre_empresa": "company",
-    "empresa": "company",
     "first_name": "first_name",
     "nombre": "first_name",
     "last_name": "last_name",
@@ -26,7 +23,6 @@ CONTACT_FIELD_MAP = {
 
 # The single source of truth for UI columns, CSV headers, and generic iteration
 CORE_COLUMNS = [
-    "company",
     "first_name", 
     "last_name",
     "job_title",
@@ -40,7 +36,7 @@ CORE_COLUMNS = [
 
 # Campos que NO deben sobrescribirse durante enriquecimiento automático.
 # Si llega un valor nuevo, se redirige a notes[source]["_enrichment_{campo}"].
-ENRICHMENT_PROTECTED_FIELDS = {"company", "web", "email_contact"}
+ENRICHMENT_PROTECTED_FIELDS = {"web", "email_contact"}
 
 # M2M fields that remain on Contact
 M2M_FIELD_MAP = {

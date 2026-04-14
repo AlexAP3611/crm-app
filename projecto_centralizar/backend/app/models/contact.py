@@ -21,7 +21,6 @@ class Contact(Base):
 
     # --- Required fields ---
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    company: Mapped[str] = mapped_column(String(255), nullable=False)
     empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id", ondelete="SET NULL"), nullable=True)
 
     # --- Optional identity fields ---

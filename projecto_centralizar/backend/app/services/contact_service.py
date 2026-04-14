@@ -15,25 +15,7 @@ from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_
 from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
 from app.core.resolve import resolve_contact, normalize_email, normalize_linkedin
 
-async def _resolve_empresa_id(session: AsyncSession, company_name: str | None, provided_id: int | None) -> int | None:
-    if provided_id:
-        return provided_id
-        
-    if not company_name:
-        return None
-        
-    company_name = normalize_company_name(company_name)
-        
-    result = await session.execute(select(Empresa).where(func.lower(Empresa.nombre) == company_name.lower()))
-    empresa = result.scalar_one_or_none()
-    
-    if empresa:
-        return empresa.id
-        
-    empresa = Empresa(nombre=company_name)
-    session.add(empresa)
-    await session.flush()
-    return empresa.id
+
 
 
 
@@ -117,11 +99,7 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
     )
 
     # Resolve empresa
-    emp_id = await _resolve_empresa_id(
-        session,
-        payload.get("company"),
-        payload.get("empresa_id") or getattr(data, "empresa_id", None),
-    )
+    emp_id = payload.get("empresa_id") or getattr(data, "empresa_id", None)
     if emp_id:
         payload["empresa_id"] = emp_id
 
@@ -227,10 +205,7 @@ async def update_contact(
         exclude_unset=True
     )
 
-    if "company" in payload:
-        resolved_emp_id = await _resolve_empresa_id(session, payload["company"], payload.get("empresa_id"))
-        if resolved_emp_id:
-            payload["empresa_id"] = resolved_emp_id
+
 
     base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
 
@@ -308,10 +283,7 @@ async def bulk_update_contacts(
         exclude_unset=True
     )
 
-    if "company" in payload:
-        resolved_emp_id = await _resolve_empresa_id(session, payload["company"], payload.get("empresa_id"))
-        if resolved_emp_id:
-            payload["empresa_id"] = resolved_emp_id
+
 
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
@@ -394,7 +366,7 @@ async def list_contacts(
         query = query.where(Contact.empresa_id == filters.empresa_id)
 
     if filters.empresa_nombre:
-        query = query.where(Contact.company.ilike(f"%{filters.empresa_nombre}%"))
+        query = query.where(Contact.empresa_rel.has(Empresa.nombre.ilike(f"%{filters.empresa_nombre}%")))
 
     if filters.contacto_nombre:
         term = f"%{filters.contacto_nombre}%"
@@ -461,7 +433,7 @@ async def list_contacts(
         term = f"%{filters.search}%"
         query = query.where(
             or_(
-                Contact.company.ilike(term),
+                Contact.empresa_rel.has(Empresa.nombre.ilike(term)),
                 Contact.first_name.ilike(term),
                 Contact.last_name.ilike(term),
                 Contact.empresa_rel.has(Empresa.email.ilike(term)),

@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 
 class ContactCreate(BaseModel):
-    company: str
     empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
@@ -25,7 +24,6 @@ class ContactCreate(BaseModel):
 
 
 class ContactUpdate(BaseModel):
-    company: str | None = None
     empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
@@ -90,9 +88,16 @@ class CargoRef(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class EmpresaRef(BaseModel):
+    id: int
+    nombre: str
+
+    model_config = {"from_attributes": True}
+
+
 class ContactResponse(BaseModel):
     id: int
-    company: str
+    empresa_rel: EmpresaRef | None = None
     first_name: str | None
     last_name: str | None
     job_title: str | None

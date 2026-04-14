@@ -60,8 +60,8 @@ export default function ContactsTable({
                             {CONTACT_COLUMNS.filter(col => !col.modalOnly).map(col => {
                                 if (col.type === 'string') {
                                     return <td key={col.key}>
-                                        {col.key === 'company' ? (
-                                            <><strong>{c.company}</strong><div className="td-muted">#{c.id}</div></>
+                                        {col.key === 'empresa' ? (
+                                            <><strong>{c.empresa_rel?.nombre || '-'}</strong><div className="td-muted">#{c.id}</div></>
                                         ) : col.key.includes('email') ? (
                                             c[col.key] ? c[col.key] : <span className="td-muted">—</span>
                                         ) : c[col.key] ? c[col.key] : <span className="td-muted">—</span>}

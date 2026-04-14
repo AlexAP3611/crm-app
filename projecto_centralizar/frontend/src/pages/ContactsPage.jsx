@@ -143,7 +143,7 @@ export default function ContactsPage() {
     const totalPages = Math.ceil(total / filters.page_size)
 
     async function handleDelete(contact) {
-        setConfirmDelete({ ids: [contact.id], single: true, label: contact.company })
+        setConfirmDelete({ ids: [contact.id], single: true, label: contact.empresa_rel?.nombre })
     }
 
     const handleSelect = (id, checked) => setSelectedIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id))
@@ -207,7 +207,7 @@ export default function ContactsPage() {
             const payload = {
                 contacts: resolvedContacts.map(c => ({
                     id_contacto: c.id,
-                    nombre_empresa: c.company,
+                    nombre_empresa: c.empresa_rel?.nombre,
                     web: c.web,
                     vertical: c.verticals && c.verticals.length > 0 ? c.verticals[0].name : null,
                     email: c.email_contact || c.email_generic,
@@ -436,7 +436,7 @@ export default function ContactsPage() {
                                     </td>
                                     <td className="py-5 px-6">
                                         <div className="flex flex-col">
-                                            <span className="text-sm font-semibold text-on-surface">{c.company || '-'}</span>
+                                            <span className="text-sm font-semibold text-on-surface">{c.empresa_rel?.nombre || '-'}</span>
                                             <span className="text-[10px] text-stone-400 font-medium">
                                                 {c.cargos?.[0]?.nombre || '-'}
                                             </span>

@@ -12,10 +12,10 @@ from app.core.field_mapping import CORE_COLUMNS, M2M_FIELD_MAP, EMPRESA_M2M_FIEL
 
 # Combine both maps for CSV export/import purposes
 _ALL_M2M = {**M2M_FIELD_MAP, **EMPRESA_M2M_FIELD_MAP}
-CSV_FIELDS = ["id"] + CORE_COLUMNS + list(_ALL_M2M.keys())
+CSV_FIELDS = ["id", "empresa_id"] + CORE_COLUMNS + list(_ALL_M2M.keys())
 
 def _contact_to_row(contact: Contact) -> dict[str, Any]:
-    row = {field: getattr(contact, field, None) for field in ["id"] + CORE_COLUMNS}
+    row = {field: getattr(contact, field, None) for field in ["id", "empresa_id"] + CORE_COLUMNS}
     for m2m_key, config in _ALL_M2M.items():
         rel_list = getattr(contact, config["relation_name"], [])
         row[m2m_key] = ",".join(str(item.id) for item in rel_list)
@@ -52,12 +52,17 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
         # Strip whitespace from all values
         row = {k.strip(): (v.strip() if v else None) for k, v in row.items()}
 
-        company = row.get("company")
-        if not company:
+        empresa_id_raw = row.get("empresa_id")
+        if not empresa_id_raw:
             skipped += 1
-            continue  # Skip rows without company
+            continue  # Skip rows without empresa_id
+        try:
+            empresa_id = int(empresa_id_raw)
+        except ValueError:
+            skipped += 1
+            continue
 
-        payload = {}
+        payload = {"empresa_id": empresa_id}
         for col in CORE_COLUMNS:
             val = row.get(col)
             if val:

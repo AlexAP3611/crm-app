@@ -49,7 +49,7 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
 
     async function handleSubmit(e) {
         e.preventDefault()
-        if (!form.company.trim()) { setError('La empresa es obligatoria'); return }
+        if (!form.empresa_id) { setError('La empresa es obligatoria'); return }
         setSaving(true)
         setError(null)
         try {
@@ -114,15 +114,15 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                 <div className="modal-grid">
                     {CONTACT_COLUMNS.map((col) => {
                         if (col.type === 'string' || col.type === 'link') {
-                            if (col.key === 'company') {
+                            if (col.key === 'empresa') {
                                 return (
                                     <div key={col.key} className="form-group full">
                                         <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
                                         <CompanyAutocomplete
-                                            value={form.company || ''}
+                                            value={form.empresa_rel?.nombre || ''}
                                             onChange={(name, id, emp) => {
                                                 setForm(prev => {
-                                                    const next = { ...prev, company: name, empresa_id: id };
+                                                    const next = { ...prev, empresa_rel: { nombre: name }, empresa_id: id };
                                                     return next;
                                                 });
                                             }}

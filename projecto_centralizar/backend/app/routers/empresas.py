@@ -114,7 +114,6 @@ async def list_empresas(
             term = f"%{c_search}%"
             query = query.where(
                 or_(
-                    Contact.company.ilike(term),
                     Contact.first_name.ilike(term),
                     Contact.last_name.ilike(term),
                     Empresa.email.ilike(term),
