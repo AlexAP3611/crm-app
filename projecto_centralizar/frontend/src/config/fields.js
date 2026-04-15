@@ -1,7 +1,7 @@
 // The single source of truth globally governing Modals, Tables, and Data-entry.
 export const CONTACT_COLUMNS = [
     { key: "cif", label: "CIF", type: "string", readonly: true },
-    { key: "company", label: "Empresa", type: "string", required: true },
+    { key: "empresa", label: "Empresa", type: "string", required: true },
     { key: "first_name", label: "Nombre", type: "string" },
     { key: "last_name", label: "Apellido", type: "string" },
     { key: "cargos", label: "Cargo", type: "m2m", id_key: "cargo_ids" },

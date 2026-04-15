@@ -75,7 +75,8 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                 payload.notes = null
             }
 
-            // Remove legacy products field (no longer used in form)
+            // Remove legacy fields (no longer used in backend/form)
+            delete payload.company
             delete payload.products
 
             // Remove M2M relationship objects — backend uses *_ids fields only
@@ -119,10 +120,15 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                                     <div key={col.key} className="form-group full">
                                         <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
                                         <CompanyAutocomplete
-                                            value={form.empresa_rel?.nombre || ''}
+                                            value={form.empresa_rel?.nombre || form.empresa || ''}
                                             onChange={(name, id, emp) => {
                                                 setForm(prev => {
-                                                    const next = { ...prev, empresa_rel: { nombre: name }, empresa_id: id };
+                                                    const next = { 
+                                                        ...prev, 
+                                                        empresa_rel: { nombre: name }, 
+                                                        empresa_id: id,
+                                                        empresa: name // Keeping it in sync for consistency with fields.js
+                                                    };
                                                     return next;
                                                 });
                                             }}
