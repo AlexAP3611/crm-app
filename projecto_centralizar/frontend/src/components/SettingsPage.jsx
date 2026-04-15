@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getToken } from '../api/client'
+import { getToken, api } from '../api/client'
+import { settingsService } from '../api/settingsService'
 
 /* ──────────────────────────────────────────────────────────
    Service definitions — each card in External Connectivity
@@ -265,17 +266,43 @@ function AuthFields({ authType, config, onChange }) {
 /* ──────────────────────────────────────────────────────────
    ServiceCard — A single integration tile
    ────────────────────────────────────────────────────────── */
-function ServiceCard({ service, config, onChange, onTestConnection }) {
-    const authType = config.authType || service.defaultAuth
+function ServiceCard({ service, config, onSave }) {
+    const [draftConfig, setDraftConfig] = useState(config || {})
+    const [isDirty, setIsDirty] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+
+    // Sync draft when config loads from backend, only if NOT editing
+    useEffect(() => {
+        if (!isDirty) {
+            setDraftConfig(config || {})
+        }
+    }, [config])
+
+    const authType = draftConfig.authType || service.defaultAuth
 
     const handleAuthType = (newType) => {
         // Reset auth-specific fields when switching auth type, keep other fields
-        const { token, username, password, clientId, clientSecret, tokenUrl, headerName, prefix, headerValue, ...rest } = config
-        onChange(service.id, { ...rest, authType: newType })
+        const { token, username, password, clientId, clientSecret, tokenUrl, headerName, prefix, headerValue, ...rest } = draftConfig
+        setDraftConfig({ ...rest, authType: newType })
+        setIsDirty(true)
     }
 
     const handleAuthFields = (updatedConfig) => {
-        onChange(service.id, updatedConfig)
+        setDraftConfig(updatedConfig)
+        setIsDirty(true)
+    }
+
+    const handleSave = async () => {
+        try {
+            setIsSaving(true)
+            const savedConfig = await onSave(service.id, draftConfig)
+            if (savedConfig) {
+                setDraftConfig(savedConfig)
+            }
+            setIsDirty(false)
+        } finally {
+            setIsSaving(false)
+        }
     }
 
     return (
@@ -306,8 +333,8 @@ function ServiceCard({ service, config, onChange, onTestConnection }) {
                         className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-600/20 focus:border-cyan-600/30 transition-all outline-none placeholder:text-stone-400"
                         type="text"
                         placeholder={service.placeholder}
-                        value={config.apiKey || ''}
-                        onChange={(e) => handleAuthFields({ ...config, apiKey: e.target.value })}
+                        value={draftConfig.apiKey || ''}
+                        onChange={(e) => handleAuthFields({ ...draftConfig, apiKey: e.target.value })}
                     />
                 </div>
 
@@ -340,7 +367,7 @@ function ServiceCard({ service, config, onChange, onTestConnection }) {
                 >
                     <AuthFields
                         authType={authType}
-                        config={config}
+                        config={draftConfig}
                         onChange={handleAuthFields}
                     />
                 </div>
@@ -349,10 +376,10 @@ function ServiceCard({ service, config, onChange, onTestConnection }) {
             {/* Test Connection */}
             <div className="mt-8 flex justify-end">
                 <button
-                    className="text-cyan-700 font-bold text-sm px-4 py-2 hover:bg-white rounded-lg transition-colors active:scale-95"
-                    onClick={() => onTestConnection(service.id)}
+                    className="bg-primary/10 text-primary font-bold text-sm px-4 py-2 hover:bg-primary/20 rounded-lg transition-all active:scale-95 border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    onClick={() => onSave(service.id, draftConfig)}
                 >
-                    Probar Conexión
+                    Guardar
                 </button>
             </div>
         </div>
@@ -362,6 +389,8 @@ function ServiceCard({ service, config, onChange, onTestConnection }) {
 /* ──────────────────────────────────────────────────────────
    Main Page Component — APIs & Webhooks
    ────────────────────────────────────────────────────────── */
+
+
 export default function SettingsPage() {
     // Prisma CRM API Key state
     const [crmApiKey, setCrmApiKey] = useState('')
@@ -389,21 +418,13 @@ export default function SettingsPage() {
             })
             .catch((err) => console.error('Could not fetch API key:', err))
 
-        // Load service configs from localStorage
-        const stored = localStorage.getItem('external_service_configs')
-        if (stored) {
-            try {
-                setServiceConfigs(JSON.parse(stored))
-            } catch (e) { /* ignore */ }
-        }
+        // Fetch external configs from DB via service (singleton/cache)
+        settingsService.getExternalConfigs()
+            .then(configs => {
+                setServiceConfigs(configs)
+            })
+            .catch(err => console.error("Could not fetch external configs:", err))
     }, [])
-
-    // Persist service configs on change
-    useEffect(() => {
-        if (Object.keys(serviceConfigs).length > 0) {
-            localStorage.setItem('external_service_configs', JSON.stringify(serviceConfigs))
-        }
-    }, [serviceConfigs])
 
     const handleCopyKey = () => {
         if (!crmApiKey) return
@@ -434,19 +455,27 @@ export default function SettingsPage() {
         }
     }
 
-    const handleServiceChange = (serviceId, config) => {
-        setServiceConfigs((prev) => ({ ...prev, [serviceId]: config }))
-    }
-
-    const handleTestConnection = async (serviceId) => {
+    const handleSaveConnection = async (serviceId, draftConfig) => {
         setTestingService(serviceId)
         setTestResult(null)
-        // Simulate connection test
-        setTimeout(() => {
+        try {
+            const res = await api.updateSystemSetting(`ext_config_${serviceId}`, draftConfig)
+            // Invalidar caché y obtener nuevas configs sincronizadas
+            const updatedConfigs = await settingsService.refreshSettings()
+            const savedValue = updatedConfigs[serviceId]
+            
+            setServiceConfigs(updatedConfigs)
             setTestResult({ serviceId, success: true })
+            
+            return savedValue
+        } catch (err) {
+            console.error(err)
+            alert("Error al guardar la configuración")
+            return null
+        } finally {
             setTestingService(null)
             setTimeout(() => setTestResult(null), 3000)
-        }, 1500)
+        }
     }
 
     // Count active services (those with an API key)
@@ -508,7 +537,7 @@ export default function SettingsPage() {
                             <div className="shrink-0">
                                 <button
                                     id="generate-new-key"
-                                    className="btn-primary-gradient text-white px-8 py-4 rounded-lg font-bold text-sm hover:scale-[1.02] active:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="btn-primary-gradient text-white px-8 py-4 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 font-bold text-sm border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
                                     onClick={() => {
                                         if (crmApiKey) {
                                             if (window.confirm('¿Regenerar la API key? La clave anterior dejará de funcionar.')) {
@@ -554,14 +583,13 @@ export default function SettingsPage() {
                         <ServiceCard
                             key={service.id}
                             service={service}
-                            config={serviceConfigs[service.id] || {}}
-                            onChange={handleServiceChange}
-                            onTestConnection={handleTestConnection}
+                            config={serviceConfigs[service.id]}
+                            onSave={handleSaveConnection}
                         />
                     ))}
                 </div>
 
-                {/* Connection test feedback toast */}
+                {/* Connection save feedback toast */}
                 {(testingService || testResult) && (
                     <div
                         className="fixed bottom-8 right-8 z-50 bg-white rounded-xl shadow-xl border border-stone-200 px-6 py-4 flex items-center gap-3 animate-in"
@@ -573,7 +601,7 @@ export default function SettingsPage() {
                             <>
                                 <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
                                 <span className="text-sm font-medium text-stone-700">
-                                    Probando {SERVICES.find((s) => s.id === testingService)?.name}…
+                                    Guardando {SERVICES.find((s) => s.id === testingService)?.name}…
                                 </span>
                             </>
                         )}
@@ -581,7 +609,7 @@ export default function SettingsPage() {
                             <>
                                 <span className="material-symbols-outlined text-emerald-500">check_circle</span>
                                 <span className="text-sm font-medium text-stone-700">
-                                    {SERVICES.find((s) => s.id === testResult.serviceId)?.name}: Conexión exitosa
+                                    {SERVICES.find((s) => s.id === testResult.serviceId)?.name}: Configuración guardada
                                 </span>
                             </>
                         )}

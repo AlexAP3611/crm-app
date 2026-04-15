@@ -210,7 +210,7 @@ export default function UsersPage({ currentUserEmail }) {
                                         {user.email !== currentUserEmail ? (
                                             <button
                                                 onClick={() => setDeleteTarget({ id: user.id, email: user.email })}
-                                                className="px-3 py-1.5 text-xs font-bold text-error hover:bg-error/10 rounded-lg transition-colors flex items-center gap-1 ml-auto"
+                                                className="bg-error/10 text-error px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-error/20 transition-all flex items-center gap-1 ml-auto active:scale-95 border border-error/20 shadow-sm outline-none focus:outline-none focus:ring-2 focus:ring-error/40"
                                             >
                                                 <span className="material-symbols-outlined text-[16px]">person_remove</span>
                                                 Eliminar

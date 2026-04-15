@@ -5,8 +5,9 @@ import { CSVImport, CSVExport } from '../components/CSV'
 import { api } from '../api/client'
 import RowMenu from '../components/RowMenu'
 import Checkbox from '../components/Checkbox'
+import { settingsService } from '../api/settingsService'
 
-// Modals are locally defined or can be imported if extracted later. We'll duplicate them here to keep it simple, or write simple versions using standard HTML dialog.
+
 function ConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
     return (
         <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4" onClick={onCancel}>
@@ -181,14 +182,14 @@ export default function ContactsPage() {
         setEnrichError(null)
         setEnrichMessage(null)
 
-        // ── Leer configuración de la pestaña APIs & Webhooks ──
-        // La clave 'external_service_configs' es la que escribe SettingsPage.jsx
-        // Formato: { apollo: { apiKey, authType, token, username, password, ... }, ... }
+        // ── Leer configuración desde el servicio centralizado (con caché) ──
         let configs = {}
         try {
-            const stored = localStorage.getItem('external_service_configs')
-            if (stored) configs = JSON.parse(stored)
-        } catch (e) { /* ignore */ }
+            configs = await settingsService.getExternalConfigs()
+        } catch (e) {
+            setEnrichError(`Error al obtener configuraciones: ${e.message}`)
+            return
+        }
 
         const serviceId = service.toLowerCase()  // 'Apollo' → 'apollo'
         const cfg = configs[serviceId] || {}
@@ -310,7 +311,10 @@ export default function ContactsPage() {
                         <span className="material-symbols-outlined text-lg">input</span>
                         Importar CSV
                     </button>
-                    <button onClick={() => setModal('create')} className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-transform">
+                    <button 
+                        onClick={() => setModal('create')} 
+                        className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
+                    >
                         <span className="material-symbols-outlined text-lg">person_add</span>
                         Nuevo Contacto
                     </button>
@@ -328,7 +332,13 @@ export default function ContactsPage() {
                     <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
                         <span className="material-symbols-outlined text-lg">tune</span> Búsqueda y Filtros
                     </h3>
-                    <button onClick={clearAllFilters} className="text-[10px] font-bold text-primary uppercase tracking-tighter hover:opacity-70 bg-transparent border-none p-0 outline-none cursor-pointer">Limpiar filtros</button>
+                    <button 
+                        onClick={clearAllFilters} 
+                        className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 flex items-center gap-1.5 border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 whitespace-nowrap"
+                    >
+                        <span className="material-symbols-outlined text-[14px]">filter_alt_off</span>
+                        Limpiar filtros
+                    </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div className="space-y-1.5">
@@ -373,7 +383,7 @@ export default function ContactsPage() {
                 <div className="flex flex-wrap items-center gap-3">
                     <button 
                         onClick={() => setAssignmentModal({ type: 'campaña', mode: 'assign' })} 
-                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">assignment_ind</span>
                         Asignar a campaña
@@ -381,7 +391,7 @@ export default function ContactsPage() {
                     </button>
                     <button 
                         onClick={() => setAssignmentModal({ type: 'cargo', mode: 'assign' })} 
-                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">category</span>
                         Asignar a cargo

@@ -61,35 +61,36 @@ function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, del
         }
     };
 
-    const chipClass = isPrimary 
-        ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" 
+    const chipClass = isPrimary
+        ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
         : "bg-surface-container-highest text-on-surface border-outline-variant/30 hover:border-primary/40";
 
     return (
-        <section className="space-y-4">
-            <div className="flex items-center justify-between mb-4 px-2">
+        <section className="bg-surface-container-low p-6 rounded-2xl border border-stone-200/50 shadow-sm space-y-4">
+            <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary">{icon}</span>
                     <h4 className="font-headline font-bold text-lg text-on-surface">{title}</h4>
                 </div>
-                <button 
-                    onClick={() => setIsAdding(true)} 
-                    className="text-xs font-bold text-primary hover:underline bg-transparent border-none p-0 outline-none cursor-pointer"
+                <button
+                    onClick={() => setIsAdding(true)}
+                    className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 flex items-center justify-center gap-1.5 border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 w-[160px] whitespace-nowrap"
                 >
+                    <span className="material-symbols-outlined text-[14px]">add_circle</span>
                     Añadir {singularTitle || title}
                 </button>
             </div>
 
             <div className="flex flex-wrap gap-2">
                 {loading ? (
-                    <div className="text-xs text-stone-400 italic px-2">Cargando...</div>
+                    <div className="text-xs text-stone-400 italic">Cargando...</div>
                 ) : items.map((item) => (
-                    <div 
-                        key={item.id} 
+                    <div
+                        key={item.id}
                         className={`group relative flex items-center gap-2 px-3 py-1.5 border rounded-full text-sm font-medium transition-all cursor-default ${chipClass}`}
                     >
                         <span>{item.name || item.nombre}</span>
-                        <button 
+                        <button
                             onClick={() => handleDelete(item.id)}
                             className={`material-symbols-outlined text-base hover:text-error transition-colors bg-transparent border-none p-0 outline-none cursor-pointer ${!isPrimary ? 'text-on-surface-variant' : ''}`}
                         >
@@ -97,7 +98,7 @@ function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, del
                         </button>
                     </div>
                 ))}
-                
+
                 {isAdding && (
                     <form onSubmit={handleAdd} className="flex items-center gap-2">
                         <input
@@ -125,7 +126,7 @@ function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, del
                     </form>
                 )}
             </div>
-            {error && <p className="text-[10px] text-error px-2">{error}</p>}
+            {error && <p className="text-[10px] text-error">{error}</p>}
         </section>
     );
 }

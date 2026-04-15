@@ -313,4 +313,8 @@ export const api = {
                 new_password: newPassword,
             }),
         }),
+
+    // ── System ──
+    getSettingsByPrefix: (prefix) => request(`/system/settings?prefix=${prefix}`),
+    updateSystemSetting: (key, value) => request(`/system/settings/${key}`, { method: 'POST', body: JSON.stringify({ value }) }),
 }

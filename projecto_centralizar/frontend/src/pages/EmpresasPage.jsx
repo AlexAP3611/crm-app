@@ -8,6 +8,8 @@ import { ActiveFilters } from '../components/ActiveFilters'
 import MultiSelect from '../components/MultiSelect'
 import ContactModal from '../components/ContactModal'
 import Checkbox from '../components/Checkbox'
+import { settingsService } from '../api/settingsService'
+
 
 function EmpresaConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
     return (
@@ -220,12 +222,14 @@ export default function EmpresasPage() {
         setEnriching(tool)
 
         try {
-            // Leer configuración de APIs & Webhooks (solo la URL)
-            let configs = {};
+            // Leer configuración desde el servicio centralizado (con caché)
+            let configs = {}
             try {
-                const stored = localStorage.getItem('external_service_configs');
-                if (stored) configs = JSON.parse(stored);
-            } catch (e) { /* ignore */ }
+                configs = await settingsService.getExternalConfigs()
+            } catch (e) {
+                setEnrichError(`Error al obtener configuraciones: ${e.message}`)
+                return
+            }
 
             const cfg = configs[tool.toLowerCase()] || {};
             // Utilizamos el campo apiKey como el Webhook URL en la configuración simple
@@ -517,7 +521,10 @@ export default function EmpresasPage() {
                     <p className="text-on-surface-variant font-medium">Gestionando {totalEmpresas.toLocaleString()} entidades corporativas en Prisma CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button onClick={handleOpenCreate} className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-transform">
+                    <button 
+                        onClick={handleOpenCreate} 
+                        className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
+                    >
                         <span className="material-symbols-outlined text-lg">domain_add</span>
                         Nueva Empresa
                     </button>
@@ -534,7 +541,13 @@ export default function EmpresasPage() {
                     <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
                         <span className="material-symbols-outlined text-lg">tune</span> Búsqueda y Filtros
                     </h3>
-                    <button className="text-[10px] font-bold text-primary uppercase tracking-tighter hover:opacity-70 bg-transparent border-none p-0 outline-none cursor-pointer" onClick={resetFilters}>Limpiar filtros</button>
+                    <button 
+                        onClick={resetFilters} 
+                        className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 flex items-center gap-1.5 border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 whitespace-nowrap"
+                    >
+                        <span className="material-symbols-outlined text-[14px]">filter_alt_off</span>
+                        Limpiar filtros
+                    </button>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -609,17 +622,26 @@ export default function EmpresasPage() {
             <div className="space-y-3">
                 {/* Fila 1: Asignar + Eliminar */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
+                    <button 
+                        onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'assign' })} 
+                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
+                    >
                         <span className="material-symbols-outlined text-lg">assignment_ind</span>
                         Asignar Sector
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
-                    <button onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
+                    <button 
+                        onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'assign' })} 
+                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
+                    >
                         <span className="material-symbols-outlined text-lg">category</span>
                         Asignar Vertical
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
-                    <button onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
+                    <button 
+                        onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'assign' })} 
+                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
+                    >
                         <span className="material-symbols-outlined text-lg">inventory_2</span>
                         Asignar Producto
                         <span className="bg-transparent px-1">{actionCount}</span>
@@ -971,7 +993,12 @@ export default function EmpresasPage() {
                             <button type="button" onClick={handleCloseModal} disabled={saving} className="px-6 py-3 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container-highest transition-colors">
                                 Cancelar
                             </button>
-                            <button type="submit" onClick={handleSubmit} disabled={saving} className="px-8 py-3 btn-primary-gradient text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 disabled:opacity-50">
+                             <button 
+                                type="submit" 
+                                onClick={handleSubmit} 
+                                disabled={saving} 
+                                className="px-8 py-3 btn-primary-gradient text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
+                            >
                                 {saving ? 'Guardando...' : (modalConfig.mode === 'create' ? 'Crear Empresa' : 'Guardar Cambios')}
                             </button>
                         </div>

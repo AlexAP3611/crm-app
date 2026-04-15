@@ -111,20 +111,22 @@ export default function RequestsPage() {
             {/* Main Requests Table */}
             <div className="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden border border-stone-200/50">
                 <div className="px-6 py-4 flex items-center justify-between bg-surface-container-low/50">
-                    <div className="flex p-1 bg-surface-container-high rounded-lg shadow-inner">
+                    <div className="flex gap-4">
                         <button 
                             onClick={() => setShowAll(false)}
-                            className={`px-4 py-1.5 text-xs font-bold rounded shadow-sm transition-colors ${!showAll ? 'bg-surface-container-lowest text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+                            className={`px-5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm border-0 active:scale-95 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 ${!showAll ? 'bg-primary text-white shadow-primary/20' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'}`}
                         >
+                            <span className="material-symbols-outlined text-lg">pending_actions</span>
                             Pendientes
-                            <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] ${!showAll ? 'bg-primary/10 text-primary' : 'bg-stone-200 text-stone-500'}`}>{pendingCount}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${!showAll ? 'bg-white/20 text-white' : 'bg-stone-200/50 text-stone-500'}`}>{pendingCount}</span>
                         </button>
                         <button 
                             onClick={() => setShowAll(true)}
-                            className={`px-4 py-1.5 text-xs font-bold rounded shadow-sm transition-colors ${showAll ? 'bg-surface-container-lowest text-primary' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+                            className={`px-5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm border-0 active:scale-95 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 ${showAll ? 'bg-primary text-white shadow-primary/20' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'}`}
                         >
+                            <span className="material-symbols-outlined text-lg">history</span>
                             Historial
-                            <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] ${showAll ? 'bg-primary/10 text-primary' : 'bg-stone-200 text-stone-500'}`}>{totalCount}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${showAll ? 'bg-white/20 text-white' : 'bg-stone-200/50 text-stone-500'}`}>{totalCount}</span>
                         </button>
                     </div>
                 </div>

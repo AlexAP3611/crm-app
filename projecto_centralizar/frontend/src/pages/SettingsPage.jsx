@@ -139,7 +139,7 @@ export default function SettingsPage() {
                             <button
                                 id="change-password-btn"
                                 type="submit"
-                                className="inline-flex items-center gap-2 px-8 py-3 btn-primary-gradient text-white rounded-xl shadow-md transition-all active:scale-95 font-bold text-sm disabled:opacity-50"
+                                className="inline-flex items-center gap-2 px-8 py-3 btn-primary-gradient text-white rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 font-bold text-sm border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110 disabled:opacity-50"
                                 disabled={loading}
                             >
                                 {loading ? (
