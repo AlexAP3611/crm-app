@@ -1,4 +1,5 @@
 from typing import Any
+from datetime import datetime, timezone
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,7 +78,7 @@ async def _sync_m2m(session: AsyncSession, contact: Contact, ModelClass, ids_lis
         setattr(contact, relation_name, db_items)
 
 
-async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
+async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrichment: bool = False) -> Contact:
     """
     Upsert logic using hierarchical identity resolution:
 
@@ -93,7 +94,7 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
             "notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists",
             "created_at", "updated_at", "sectors", "verticals", "products_rel",
             "cargos", "campaigns", "cif", "web", "email_generic",
-            "sector_ids", "vertical_ids", "product_ids",
+            "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at",
         },
         exclude_unset=True,
     )
@@ -127,8 +128,10 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
         for field, value in payload.items():
             if value is None:
                 continue
-            # Protect email_contact: don't overwrite an existing valid email
+            # Protect email_contact and phone_contact: don't overwrite an existing valid value
             if field == "email_contact" and contact.email_contact:
+                continue
+            if field == "phone_contact" and contact.phone_contact:
                 continue
             setattr(contact, field, value)
 
@@ -139,6 +142,10 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
         # Update empresa snapshot
         if contact.empresa_rel:
             update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
+            
+        if from_enrichment:
+            contact.enriched = True
+            contact.enriched_at = datetime.now(timezone.utc)
 
     elif resolution.confidence == "low" and resolution.possible_match_id:
         # ── Fuzzy match → Update existing, but ONLY non-critical fields ─────────────
@@ -147,8 +154,8 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
             for field, value in payload.items():
                 if value is None:
                     continue
-                # Do NOT overwrite email_contact or linkedin from a fuzzy match
-                if field in ("email_contact", "linkedin"):
+                # Do NOT overwrite email_contact, phone_contact or linkedin from a fuzzy match
+                if field in ("email_contact", "linkedin", "phone_contact"):
                     continue
                 setattr(contact, field, value)
 
@@ -159,6 +166,10 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
             # Update empresa snapshot
             if contact.empresa_rel:
                 update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
+                
+            if from_enrichment:
+                contact.enriched = True
+                contact.enriched_at = datetime.now(timezone.utc)
 
     if contact is None:
         # ── No Match (or fuzzy match ID not found) ──────────
@@ -174,6 +185,13 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
         # Inject datos_empresa snapshot into notes
         if contact and contact.empresa_rel:
             update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
+
+        if from_enrichment:
+            contact.enriched = True
+            contact.enriched_at = datetime.now(timezone.utc)
+        else:
+            contact.enriched = False
+            contact.enriched_at = None
 
     # Sync M2M associations (only cargo_ids and campaign_ids remain on Contact)
     for m2m_key, config in M2M_FIELD_MAP.items():
@@ -201,7 +219,7 @@ async def update_contact(
         return None
 
     payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids"}, 
+        exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at"}, 
         exclude_unset=True
     )
 
@@ -279,7 +297,7 @@ async def bulk_update_contacts(
     contacts = result.scalars().all()
 
     payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids"}, 
+        exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at"}, 
         exclude_unset=True
     )
 

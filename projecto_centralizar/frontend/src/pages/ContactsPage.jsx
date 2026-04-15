@@ -371,14 +371,20 @@ export default function ContactsPage() {
             <div className="space-y-3">
                 {/* Fila 1: Asignar + Eliminar */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => setAssignmentModal({ type: 'campaña', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
+                    <button 
+                        onClick={() => setAssignmentModal({ type: 'campaña', mode: 'assign' })} 
+                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
                         <span className="material-symbols-outlined text-lg">assignment_ind</span>
-                        Asignar Campaña
+                        Asignar a campaña
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
-                    <button onClick={() => setAssignmentModal({ type: 'cargo', mode: 'assign' })} className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
+                    <button 
+                        onClick={() => setAssignmentModal({ type: 'cargo', mode: 'assign' })} 
+                        className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
                         <span className="material-symbols-outlined text-lg">category</span>
-                        Asignar Rol
+                        Asignar a cargo
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                     <div className="flex-1"></div>
@@ -410,14 +416,16 @@ export default function ContactsPage() {
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Sector</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Vertical</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Producto</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Enriquecido</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Fecha Enriquecimiento</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-surface-container-low">
                             {loading && contacts.length === 0 ? (
-                                <tr><td colSpan="7" className="py-20 text-center text-stone-400">Cargando contactos...</td></tr>
+                                <tr><td colSpan="9" className="py-20 text-center text-stone-400">Cargando contactos...</td></tr>
                             ) : contacts.length === 0 ? (
-                                <tr><td colSpan="7" className="py-20 text-center text-stone-400">No se encontraron contactos que coincidan con los criterios.</td></tr>
+                                <tr><td colSpan="9" className="py-20 text-center text-stone-400">No se encontraron contactos que coincidan con los criterios.</td></tr>
                             ) : contacts.map(c => (
                                 <tr key={c.id} className="group hover:bg-surface-container-low transition-colors cursor-pointer" onClick={() => setModal(c)}>
                                     <td className="py-5 px-6">
@@ -476,6 +484,26 @@ export default function ContactsPage() {
                                                 ))}
                                             </div>
                                         ) : <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>}
+                                    </td>
+                                    <td className="py-5 px-6">
+                                        {c.enriched ? (
+                                            <span className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 text-[10px] font-bold rounded-lg uppercase tracking-wide inline-flex items-center gap-1.5 whitespace-nowrap">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Sí
+                                            </span>
+                                        ) : (
+                                            <span className="px-2 py-1 bg-stone-50 text-stone-600 border border-stone-200 text-[10px] font-bold rounded-lg uppercase tracking-wide inline-flex items-center gap-1.5 whitespace-nowrap">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-stone-400"></span> No
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="py-5 px-6">
+                                        {c.enriched_at ? (
+                                            <span className="text-[11px] text-stone-600 font-medium whitespace-nowrap">
+                                                {new Date(c.enriched_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wide">-</span>
+                                        )}
                                     </td>
                                     <td className="py-5 px-6 text-right" onClick={e => e.stopPropagation()}>
                                         <RowMenu onEdit={() => setModal(c)} onDelete={() => handleDelete(c)} />

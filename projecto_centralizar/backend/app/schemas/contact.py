@@ -10,7 +10,7 @@ class ContactCreate(BaseModel):
     last_name: str | None = None
     job_title: str | None = None
     email_contact: str | None = None
-    phone: str | None = None
+    phone_contact: str | None = None
     linkedin: str | None = None
     products: list[str] | None = None  # legacy JSONB
     cargo_ids: list[int] = []
@@ -29,7 +29,7 @@ class ContactUpdate(BaseModel):
     last_name: str | None = None
     job_title: str | None = None
     email_contact: str | None = None
-    phone: str | None = None
+    phone_contact: str | None = None
     linkedin: str | None = None
     products: list[str] | None = None  # legacy JSONB
     cargo_ids: list[int] | None = None
@@ -105,12 +105,15 @@ class ContactResponse(BaseModel):
     web: str | None
     email_generic: str | None
     email_contact: str | None
-    phone: str | None
+    phone_generic: str | None
+    phone_contact: str | None
     linkedin: str | None
     products: list[str] | None
     notes: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
+    enriched: bool
+    enriched_at: datetime | None
     sectors: list[SectorRef]
     verticals: list[VerticalRef]
     products_rel: list[ProductRef]

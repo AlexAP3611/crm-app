@@ -243,7 +243,7 @@ async def ingest_enrichment(
                 )
                 exists_before = (resolution.contact is not None) or (resolution.possible_match_id is not None)
 
-                res = await contact_service.upsert_contact(db, contact_data)
+                res = await contact_service.upsert_contact(db, contact_data, from_enrichment=True)
                 
                 if res is None:
                     contact_skipped += 1

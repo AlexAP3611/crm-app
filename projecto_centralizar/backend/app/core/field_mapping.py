@@ -17,8 +17,8 @@ CONTACT_FIELD_MAP = {
     "email_generic": "email_generic",
     "email_contact": "email_contact",
     "email": "email_contact",
-    "phone": "phone",
-    "telefono": "phone"
+    "phone_contact": "phone_contact",
+    "phone": "phone_contact",
 }
 
 # The single source of truth for UI columns, CSV headers, and generic iteration
@@ -31,12 +31,12 @@ CORE_COLUMNS = [
     "linkedin",
     "email_generic",
     "email_contact",
-    "phone"
+    "phone_contact"
 ]
 
 # Campos que NO deben sobrescribirse durante enriquecimiento automático.
 # Si llega un valor nuevo, se redirige a notes[source]["_enrichment_{campo}"].
-ENRICHMENT_PROTECTED_FIELDS = {"web", "email_contact"}
+ENRICHMENT_PROTECTED_FIELDS = {"web", "email_contact", "phone_contact"}
 
 # M2M fields that remain on Contact
 M2M_FIELD_MAP = {

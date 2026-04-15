@@ -36,6 +36,7 @@ class Empresa(Base):
     nombre: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     web: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     cif: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     numero_empleados: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     facturacion: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

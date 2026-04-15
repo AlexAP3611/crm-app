@@ -115,7 +115,7 @@ function EmpresaBulkAssignmentModal({ type, targetCount, options = [], onClose, 
     )
 }
 
-const EMPTY_FORM = { nombre: '', cif: '', email: '', web: '', sector_ids: [], vertical_ids: [], product_ids: [], cargo_ids: [], campaign_ids: [], numero_empleados: '', facturacion: '', cnae: '' }
+const EMPTY_FORM = { nombre: '', cif: '', email: '', phone: '', web: '', sector_ids: [], vertical_ids: [], product_ids: [], cargo_ids: [], campaign_ids: [], numero_empleados: '', facturacion: '', cnae: '' }
 const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', c_search: '', c_cargo_id: '', c_campaign_id: '', page: 1, page_size: 50 }
 
 function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess }) {
@@ -379,6 +379,7 @@ export default function EmpresasPage() {
                 nombre: formData.nombre,
                 cif: formData.cif || null,
                 email: formData.email || null,
+                phone: formData.phone || null,
                 web: formData.web || null,
                 sector_ids: formData.sector_ids || [],
                 vertical_ids: formData.vertical_ids || [],
@@ -425,6 +426,7 @@ export default function EmpresasPage() {
                 nombre: empresa.nombre || '',
                 cif: empresa.cif || '',
                 email: empresa.email || '',
+                phone: empresa.phone || '',
                 web: empresa.web || '',
                 numero_empleados: empresa.numero_empleados || '',
                 facturacion: empresa.facturacion || '',
@@ -859,6 +861,10 @@ export default function EmpresasPage() {
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Correo Electrónico</label>
                                         <input type="email" name="email" value={modalConfig.data.email} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="oficina@empresa.com" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Teléfono</label>
+                                        <input type="tel" name="phone" value={modalConfig.data.phone || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="+34 900 000 000" />
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web</label>

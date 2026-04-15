@@ -4,6 +4,7 @@ from typing import Any
 from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func, Table, Column, BigInteger, Integer
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean
 
 from app.database import Base
 from app.models.campaign import contact_campaigns
@@ -41,6 +42,10 @@ class Contact(Base):
     def email_generic(self) -> str | None:
         return self.empresa_rel.email if self.empresa_rel else None
 
+    @property
+    def phone_generic(self) -> str | None:
+        return self.empresa_rel.phone if self.empresa_rel else None
+
     # --- Delegated M2M properties (sectors/verticals/products now live on Empresa) ---
     @property
     def sectors(self) -> list:
@@ -56,7 +61,7 @@ class Contact(Base):
 
     # --- Contact channels ---
     email_contact: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
-    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    phone_contact: Mapped[str | None] = mapped_column(String(50), nullable=True)
     linkedin: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # --- Business context ---
@@ -91,3 +96,7 @@ class Contact(Base):
     campaigns: Mapped[list["Campaign"]] = relationship(  # noqa: F821
         secondary=contact_campaigns, back_populates="contacts", lazy="selectin"
     )
+
+    # --- Enrichment tracking ---
+    enriched: Mapped[bool] = mapped_column(Boolean, default=False, server_default= "false", nullable=False)
+    enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -9,6 +9,7 @@ class EmpresaBase(BaseModel):
     nombre: str
     web: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     cif: Optional[str] = None
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
@@ -24,6 +25,7 @@ class EmpresaUpdate(BaseModel):
     nombre: Optional[str] = None
     web: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     cif: Optional[str] = None
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
@@ -46,6 +48,7 @@ class EmpresaCreateResponse(BaseModel):
     nombre: str
     web: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
     cif: Optional[str] = None
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
