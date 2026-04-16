@@ -809,7 +809,7 @@ export default function EmpresasPage() {
                                                                         {emp.contactos.map(c => (
                                                                             <tr key={c.id} className="hover:bg-stone-50 transition-colors">
                                                                                 <td className="py-2 px-4 text-sm font-semibold text-stone-800">{c.first_name} {c.last_name}</td>
-                                                                                <td className="py-2 px-4 text-sm text-stone-600">{c.job_title || '-'}</td>
+                                                                                <td className="py-2 px-4 text-sm text-stone-600">{c.cargo?.name || '-'}</td>
                                                                                 <td className="py-2 px-4 text-sm text-stone-600">{c.email_contact || c.email_generic || '-'}</td>
                                                                                 <td className="py-2 px-4 text-sm text-cyan-600">{c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer" className="hover:underline">Perfil</a> : '-'}</td>
                                                                                 <td className="py-2 px-4 text-right">
