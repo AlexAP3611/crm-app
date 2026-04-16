@@ -38,7 +38,7 @@ function BulkAssignmentModal({ type, targetCount, options = [], onClose, onSave 
 
     const config = {
         'campaña': { title: 'Asignar Campaña', label: 'Campaña', icon: 'campaign', fieldKey: 'campaign_ids' },
-        'cargo':   { title: 'Asignar Cargo',   label: 'Cargo',   icon: 'work',     fieldKey: 'cargo_ids'    },
+        'cargo':   { title: 'Asignar Cargo',   label: 'Cargo',   icon: 'work',     fieldKey: 'cargo_id'    },
     }
     const { title, label, icon, fieldKey } = config[type] || { title: 'Asignar', label: 'Opción', icon: 'assignment', fieldKey: 'ids' }
 
@@ -46,8 +46,15 @@ function BulkAssignmentModal({ type, targetCount, options = [], onClose, onSave 
         setSaving(true)
         setError(null)
         try {
-            const ids = (selected === '' || selected === 'unassign') ? [] : [Number(selected)]
-            const data = { merge_lists: ids.length > 0, [fieldKey]: ids }
+            const ids = (selected === '' || selected === 'unassign' || selected === '__placeholder__') ? [] : [Number(selected)]
+            
+            let data;
+            if (fieldKey === 'cargo_id') {
+                data = { [fieldKey]: ids.length > 0 ? ids[0] : null }
+            } else {
+                data = { merge_lists: ids.length > 0, [fieldKey]: ids }
+            }
+            
             await onSave(data)
         } catch (e) {
             setError(e.message)
@@ -456,7 +463,7 @@ export default function ContactsPage() {
                                         <div className="flex flex-col">
                                             <span className="text-sm font-semibold text-on-surface">{c.empresa_rel?.nombre || '-'}</span>
                                             <span className="text-[10px] text-stone-400 font-medium">
-                                                {c.cargos?.[0]?.nombre || '-'}
+                                                {c.cargo?.name || c.cargo?.nombre || '-'}
                                             </span>
                                         </div>
                                     </td>

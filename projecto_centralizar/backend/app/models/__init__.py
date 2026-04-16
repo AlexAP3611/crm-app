@@ -10,7 +10,7 @@ Al añadir un nuevo modelo, importarlo aquí y añadirlo a __all__.
 """
 
 from app.models.campaign import Campaign, contact_campaigns
-from app.models.contact import Contact, contact_cargos
+from app.models.contact import Contact
 from app.models.sector import Sector
 from app.models.user import User
 from app.models.vertical import Vertical

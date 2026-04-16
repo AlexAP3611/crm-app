@@ -9,20 +9,13 @@ from sqlalchemy import Boolean
 from app.database import Base
 from app.models.campaign import contact_campaigns
 
-contact_cargos = Table(
-    "contact_cargos",
-    Base.metadata,
-    Column("contact_id", ForeignKey("contacts.id", ondelete="CASCADE"), primary_key=True),
-    Column("cargo_id", ForeignKey("cargos.id", ondelete="CASCADE"), primary_key=True),
-)
-
-
 class Contact(Base):
     __tablename__ = "contacts"
 
     # --- Required fields ---
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     empresa_id: Mapped[int | None] = mapped_column(ForeignKey("empresas.id", ondelete="SET NULL"), nullable=True)
+    cargo_id: Mapped[int | None] = mapped_column(ForeignKey("cargos.id", ondelete="SET NULL"), nullable=True)
 
     # --- Optional identity fields ---
     first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -90,8 +83,8 @@ class Contact(Base):
     empresa_rel: Mapped[Any] = relationship(
         "Empresa", lazy="selectin"
     )
-    cargos: Mapped[list["Cargo"]] = relationship(  # noqa: F821
-        secondary=contact_cargos, back_populates="contacts", lazy="selectin"
+    cargo: Mapped["Cargo"] = relationship(  # noqa: F821
+        back_populates="contacts", lazy="selectin"
     )
     campaigns: Mapped[list["Campaign"]] = relationship(  # noqa: F821
         secondary=contact_campaigns, back_populates="contacts", lazy="selectin"

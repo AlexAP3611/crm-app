@@ -4,7 +4,7 @@ export const CONTACT_COLUMNS = [
     { key: "empresa", label: "Empresa", type: "string", required: true },
     { key: "first_name", label: "Nombre", type: "string" },
     { key: "last_name", label: "Apellido", type: "string" },
-    { key: "cargos", label: "Cargo", type: "m2m", id_key: "cargo_ids" },
+    { key: "cargo", label: "Cargo", type: "fk", id_key: "cargo_id" },
     //{ key: "job_title", label: "Título de Trabajo", type: "string" },
     { key: "web", label: "Web", type: "link", readonly: true },
     { key: "linkedin", label: "LinkedIn", type: "link" },

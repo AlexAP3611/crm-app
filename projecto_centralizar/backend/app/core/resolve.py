@@ -106,7 +106,7 @@ def _contact_query():
     return (
         select(Contact)
         .options(
-            selectinload(Contact.cargos),
+            selectinload(Contact.cargo),
             selectinload(Contact.campaigns),
             selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
             selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),

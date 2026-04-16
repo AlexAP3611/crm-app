@@ -15,16 +15,20 @@ from app.core.field_mapping import CORE_COLUMNS, M2M_FIELD_MAP, EMPRESA_M2M_FIEL
 
 # Combine both maps for CSV export/import purposes
 _ALL_M2M = {**M2M_FIELD_MAP, **EMPRESA_M2M_FIELD_MAP}
-CSV_FIELDS = ["id", "empresa_id"] + CORE_COLUMNS + list(_ALL_M2M.keys())
+CSV_FIELDS = ["id", "empresa_id", "cargo_id"] + CORE_COLUMNS + list(_ALL_M2M.keys())
 
 EMPRESA_CORE_COLUMNS = ["nombre", "web", "email", "phone", "cif", "numero_empleados", "facturacion", "cnae"]
 EMPRESA_CSV_FIELDS = ["id"] + EMPRESA_CORE_COLUMNS + list(EMPRESA_M2M_FIELD_MAP.keys())
 
 def _contact_to_row(contact: Contact) -> dict[str, Any]:
-    row = {field: getattr(contact, field, None) for field in ["id", "empresa_id"] + CORE_COLUMNS}
+    row = {field: getattr(contact, field, None) for field in ["id", "empresa_id", "cargo_id"] + CORE_COLUMNS}
     for m2m_key, config in _ALL_M2M.items():
-        rel_list = getattr(contact, config["relation_name"], [])
-        row[m2m_key] = ",".join(str(item.id) for item in rel_list)
+        # Check if attribute exists on contact (it might be on Empresa instead)
+        rel_list = getattr(contact, config["relation_name"], None)
+        if rel_list is not None:
+            row[m2m_key] = ",".join(str(item.id) for item in rel_list)
+        else:
+            row[m2m_key] = ""
     return row
 
 
@@ -77,6 +81,13 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
             continue
 
         payload = {"empresa_id": empresa_id}
+        
+        # Handle cargo_id
+        cargo_id_raw = row.get("cargo_id")
+        if cargo_id_raw:
+            try: payload["cargo_id"] = int(cargo_id_raw)
+            except: pass
+
         for col in CORE_COLUMNS:
             val = row.get(col)
             if val:

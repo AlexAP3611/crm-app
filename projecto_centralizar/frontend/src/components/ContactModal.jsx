@@ -9,6 +9,8 @@ const EMPTY = { notes: '' }
 CONTACT_COLUMNS.forEach(col => {
     if (col.type === 'm2m') {
         EMPTY[col.id_key] = []
+    } else if (col.type === 'fk') {
+        EMPTY[col.id_key] = ''
     } else {
         EMPTY[col.key] = ''
     }
@@ -26,10 +28,10 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
         sector_ids: contact.sectors?.map((x) => x.id) ?? [],
         vertical_ids: contact.verticals?.map((x) => x.id) ?? [],
         product_ids: contact.products_rel?.map((x) => x.id) ?? [],
-        cargo_ids: contact.cargos?.map((x) => x.id) ?? [],
+        cargo_id: contact.cargo?.id || '',
         campaign_ids: contact.campaigns?.map((c) => c.id) ?? [],
         notes: initialNotes,
-    } : { ...EMPTY, sector_ids: [], vertical_ids: [], product_ids: [], cargo_ids: [], campaign_ids: [] })
+    } : { ...EMPTY, sector_ids: [], vertical_ids: [], product_ids: [], cargo_id: '', campaign_ids: [] })
 
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
@@ -83,7 +85,7 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
             delete payload.sectors
             delete payload.verticals
             delete payload.products_rel
-            delete payload.cargos
+            delete payload.cargo
             delete payload.campaigns
 
 
@@ -162,6 +164,25 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                                         onChange={(e) => set(col.key, e.target.value)}
                                         required={col.required}
                                     />
+                                </div>
+                            )
+                        } else if (col.type === 'fk') {
+                            const listData = col.key === 'cargo' ? cargos : []
+                            if (!listData || listData.length === 0) return null;
+                            
+                            return (
+                                <div key={col.key} className="form-group full">
+                                    <label className="form-label">{col.label}</label>
+                                    <select 
+                                        className="form-control"
+                                        value={form[col.id_key] || ''}
+                                        onChange={(e) => set(col.id_key, e.target.value === '' ? null : Number(e.target.value))}
+                                    >
+                                        <option value="">Selecciona un {col.label.toLowerCase()}...</option>
+                                        {listData.map(opt => (
+                                            <option key={opt.id} value={opt.id}>{opt.name || opt.nombre}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             )
                         } else if (col.type === 'm2m') {

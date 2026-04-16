@@ -40,7 +40,6 @@ ENRICHMENT_PROTECTED_FIELDS = {"web", "email_contact", "phone_contact"}
 
 # M2M fields that remain on Contact
 M2M_FIELD_MAP = {
-    "cargo_ids": {"relation_name": "cargos", "model": "Cargo"},
     "campaign_ids": {"relation_name": "campaigns", "model": "Campaign"}
 }
 

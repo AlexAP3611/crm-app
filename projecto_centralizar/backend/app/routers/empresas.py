@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload, contains_eager
 
-from app.models.contact import contact_cargos as ccargo_table
+
 from app.models.campaign import contact_campaigns as ccamp_table
 
 from app.database import get_db
@@ -107,7 +107,7 @@ async def list_empresas(
         query = query.join(Contact, Contact.empresa_id == Empresa.id)
         
         if c_cargo_id is not None:
-            query = query.join(ccargo_table, Contact.id == ccargo_table.c.contact_id).where(ccargo_table.c.cargo_id == c_cargo_id)
+            query = query.where(Contact.cargo_id == c_cargo_id)
         if c_campaign_id is not None:
             query = query.join(ccamp_table, Contact.id == ccamp_table.c.contact_id).where(ccamp_table.c.campaign_id == c_campaign_id)
         if c_search:
@@ -122,12 +122,12 @@ async def list_empresas(
             )
 
         query = query.options(
-            contains_eager(Empresa.contactos).selectinload(Contact.cargos),
+            contains_eager(Empresa.contactos).selectinload(Contact.cargo),
             contains_eager(Empresa.contactos).selectinload(Contact.campaigns),
         )
     else:
         query = query.options(
-            selectinload(Empresa.contactos).selectinload(Contact.cargos),
+            selectinload(Empresa.contactos).selectinload(Contact.cargo),
             selectinload(Empresa.contactos).selectinload(Contact.campaigns),
         )
 

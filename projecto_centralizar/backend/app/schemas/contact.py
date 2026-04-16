@@ -13,7 +13,7 @@ class ContactCreate(BaseModel):
     phone_contact: str | None = None
     linkedin: str | None = None
     products: list[str] | None = None  # legacy JSONB
-    cargo_ids: list[int] = []
+    cargo_id: int | None = None
     notes: dict[str, Any] | None = None
     campaign_ids: list[int] = []
     # Timestamps — declared so Pydantic coerces ISO strings to datetime
@@ -32,7 +32,7 @@ class ContactUpdate(BaseModel):
     phone_contact: str | None = None
     linkedin: str | None = None
     products: list[str] | None = None  # legacy JSONB
-    cargo_ids: list[int] | None = None
+    cargo_id: int | None = None
     notes: dict[str, Any] | None = None
     merge_lists: bool = True
     remove_lists: bool = False
@@ -117,7 +117,7 @@ class ContactResponse(BaseModel):
     sectors: list[SectorRef]
     verticals: list[VerticalRef]
     products_rel: list[ProductRef]
-    cargos: list[CargoRef]
+    cargo: CargoRef | None = None
     campaigns: list[CampaignRef]
 
     model_config = {"from_attributes": True}

@@ -11,6 +11,7 @@ from app.models.cargo import Cargo
 from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
 from app.schemas.contact import ContactCreate, ContactFilterParams, ContactUpdate
 from app.services.merge import deep_merge
+from app.services import cargo_service
 
 from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_PROTECTED_FIELDS
 from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
@@ -37,7 +38,7 @@ async def _load_contact(session: AsyncSession, contact_id: int) -> Contact | Non
     result = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.cargos),
+            selectinload(Contact.cargo),
             selectinload(Contact.campaigns),
             selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
             selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
@@ -91,9 +92,9 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
     """
     payload = data.model_dump(
         exclude={
-            "notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists",
+            "notes", "campaign_ids", "cargo_id", "merge_lists", "remove_lists",
             "created_at", "updated_at", "sectors", "verticals", "products_rel",
-            "cargos", "campaigns", "cif", "web", "email_generic",
+            "cargo", "campaigns", "cif", "web", "email_generic",
             "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at",
         },
         exclude_unset=True,
@@ -109,6 +110,13 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
         payload["email_contact"] = normalize_email(payload["email_contact"])
     if "linkedin" in payload and payload["linkedin"]:
         payload["linkedin"] = normalize_linkedin(payload["linkedin"])
+
+    # --- Cargo Resolution ---
+    job_title = payload.get("job_title") or getattr(data, "job_title", None)
+    if job_title:
+        resolved_cargo = await cargo_service.resolve_cargo(session, job_title)
+        if resolved_cargo:
+            payload["cargo_id"] = resolved_cargo.id
 
     # ── Resolve identity ──────────────────────────────────────────
     resolution = await resolve_contact(
@@ -193,7 +201,7 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
             contact.enriched = False
             contact.enriched_at = None
 
-    # Sync M2M associations (only cargo_ids and campaign_ids remain on Contact)
+    # Sync M2M associations (only cargo_id and campaign_ids remain on Contact)
     for m2m_key, config in M2M_FIELD_MAP.items():
         ids_list = getattr(data, m2m_key, None)
         if ids_list is None and data.model_extra:
@@ -202,8 +210,9 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
         model_class = globals()[config["model"]]
         await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], False, False)
 
+    final_id = contact.id
     await session.commit()
-    return await _load_contact(session, contact.id)  # type: ignore[return-value]
+    return await _load_contact(session, final_id)  # type: ignore[return-value]
 
 
 
@@ -219,7 +228,7 @@ async def update_contact(
         return None
 
     payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at"}, 
+        exclude={"notes", "campaign_ids", "cargo_id", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargo", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at"}, 
         exclude_unset=True
     )
 
@@ -229,6 +238,12 @@ async def update_contact(
 
     for field, value in payload.items():
         setattr(contact, field, value)
+
+    # --- Cargo Resolution (on Update) ---
+    if "job_title" in payload and payload["job_title"]:
+        resolved_cargo = await cargo_service.resolve_cargo(session, payload["job_title"])
+        if resolved_cargo:
+            contact.cargo_id = resolved_cargo.id
 
     # Set notes from user input (or keep existing)
     contact.notes = base_notes
@@ -242,7 +257,7 @@ async def update_contact(
             await session.refresh(empresa_obj, ["sectors", "verticals", "products_rel"])
             update_empresa_snapshot_in_contact(contact, empresa_obj)
 
-    # Sync M2M if provided (only cargo_ids and campaign_ids remain on Contact)
+    # Sync M2M if provided (only cargo_id and campaign_ids remain on Contact)
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
     
@@ -286,7 +301,7 @@ async def bulk_update_contacts(
     result = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.cargos),
+            selectinload(Contact.cargo),
             selectinload(Contact.campaigns),
             selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
             selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
@@ -297,7 +312,7 @@ async def bulk_update_contacts(
     contacts = result.scalars().all()
 
     payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "cargo_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at"}, 
+        exclude={"notes", "campaign_ids", "cargo_id", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargo", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at"}, 
         exclude_unset=True
     )
 
@@ -373,7 +388,7 @@ async def list_contacts(
     session: AsyncSession, filters: ContactFilterParams
 ) -> dict[str, Any]:
     query = select(Contact).options(
-        selectinload(Contact.cargos),
+        selectinload(Contact.cargo),
         selectinload(Contact.campaigns),
         selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
         selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
@@ -428,10 +443,7 @@ async def list_contacts(
             ).where(empresa_products.c.product_id == filters.product_id)
 
     if filters.cargo_id is not None:
-        from app.models.contact import contact_cargos as ccargo_table
-        query = query.join(ccargo_table, Contact.id == ccargo_table.c.contact_id).where(
-            ccargo_table.c.cargo_id == filters.cargo_id
-        )
+        query = query.where(Contact.cargo_id == filters.cargo_id)
     if filters.campaign_id is not None:
         from app.models.campaign import contact_campaigns as ccamp_table
         query = query.join(ccamp_table, Contact.id == ccamp_table.c.contact_id).where(
