@@ -9,6 +9,7 @@ import MultiSelect from '../components/MultiSelect'
 import ContactModal from '../components/ContactModal'
 import Checkbox from '../components/Checkbox'
 import { settingsService } from '../api/settingsService'
+import { EmpresaCSVImport, EmpresaCSVExport } from '../components/CSV'
 
 
 function EmpresaConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
@@ -210,6 +211,8 @@ export default function EmpresasPage() {
 
     const [saving, setSaving] = useState(false)
     const [formError, setFormError] = useState(null)
+
+    const [showImportModal, setShowImportModal] = useState(false)
 
     // Enrichment state
     const [enriching, setEnriching] = useState(null)
@@ -521,6 +524,11 @@ export default function EmpresasPage() {
                     <p className="text-on-surface-variant font-medium">Gestionando {totalEmpresas.toLocaleString()} entidades corporativas en Prisma CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <EmpresaCSVExport filters={filters} icon="ios_share" className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer" label="Exportar empresas" />
+                    <button onClick={() => setShowImportModal(true)} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
+                        <span className="material-symbols-outlined text-lg">input</span>
+                        Importar empresas
+                    </button>
                     <button 
                         onClick={handleOpenCreate} 
                         className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
@@ -1055,6 +1063,26 @@ export default function EmpresasPage() {
                         loadEmpresas(debouncedFilters)
                     }}
                 />
+            )}
+            
+            {/* CSV Import Modal */}
+            {showImportModal && (
+                <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[100] flex justify-center items-center p-4" onClick={() => setShowImportModal(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-stone-200/70" onClick={e => e.stopPropagation()}>
+                        <div className="px-6 py-5 flex items-center justify-between border-b border-stone-100">
+                            <h2 className="font-bold text-stone-900 text-lg">Importar empresas</h2>
+                            <button onClick={() => setShowImportModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100 transition-colors">
+                                <span className="material-symbols-outlined text-lg">close</span>
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <EmpresaCSVImport onImported={() => { 
+                                setShowImportModal(false);
+                                loadEmpresas(debouncedFilters);
+                            }} />
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

@@ -306,10 +306,10 @@ export default function ContactsPage() {
                     <p className="text-on-surface-variant font-medium">Gestionando {total?.toLocaleString() || 0} contactos en el CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <CSVExport filters={filters} icon="ios_share" className="text-sm font-semibold text-stone-600 hover:text-stone-900 hover:font-bold" label="Exportar CSV" />
-                    <button onClick={() => setShowImportModal(true)} className="text-sm font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-2 bg-transparent border-none cursor-pointer transition-all hover:font-bold">
+                    <CSVExport filters={filters} icon="ios_share" className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer" label="Exportar contactos" />
+                    <button onClick={() => setShowImportModal(true)} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
                         <span className="material-symbols-outlined text-lg">input</span>
-                        Importar CSV
+                        Importar contactos
                     </button>
                     <button 
                         onClick={() => setModal('create')} 

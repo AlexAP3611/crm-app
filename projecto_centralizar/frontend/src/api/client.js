@@ -218,7 +218,7 @@ export const api = {
         const qs = new URLSearchParams(
             Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
         ).toString()
-        return `${BASE_URL}/csv/export${qs ? `?${qs}` : ''}`
+        return `${BASE_URL}/csv/contacts/export${qs ? `?${qs}` : ''}`
     },
     importCsv: (file) => {
         const form = new FormData()
@@ -230,7 +230,28 @@ export const api = {
         if (token) {
             importHeaders['Authorization'] = `Bearer ${token}`
         }
-        return fetch(`${BASE_URL}/csv/import`, {
+        return fetch(`${BASE_URL}/csv/contacts/import`, {
+            method: 'POST',
+            body: form,
+            credentials: 'include',
+            headers: importHeaders,
+        }).then((r) => r.json())
+    },
+    exportEmpresasCsvUrl: (params = {}) => {
+        const qs = new URLSearchParams(
+            Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+        ).toString()
+        return `${BASE_URL}/csv/empresas/export${qs ? `?${qs}` : ''}`
+    },
+    importEmpresasCsv: (file) => {
+        const form = new FormData()
+        form.append('file', file)
+        const importHeaders = {}
+        const token = getToken()
+        if (token) {
+            importHeaders['Authorization'] = `Bearer ${token}`
+        }
+        return fetch(`${BASE_URL}/csv/empresas/import`, {
             method: 'POST',
             body: form,
             credentials: 'include',

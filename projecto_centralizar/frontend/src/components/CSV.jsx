@@ -68,12 +68,90 @@ export function CSVExport({ filters, label, children, icon, className = "", ...p
     return (
         <button 
             id="csv-export-btn" 
-            className={`flex items-center gap-2 bg-transparent border-none cursor-pointer transition-all ${className}`} 
+            className={`flex items-center gap-2 ${className}`} 
             onClick={download}
             {...props}
         >
             {icon && <span className="material-symbols-outlined text-lg">{icon}</span>}
             {children || label || 'Exportar CSV'}
+        </button>
+    )
+}
+
+// ── Company CSV Components ──
+
+export function EmpresaCSVImport({ onImported }) {
+    const [dragging, setDragging] = useState(false)
+    const [result, setResult] = useState(null)
+    const [error, setError] = useState(null)
+    const [loading, setLoading] = useState(false)
+    const inputRef = useRef()
+
+    async function handleFile(file) {
+        if (!file) return
+        setLoading(true)
+        setResult(null)
+        setError(null)
+        try {
+            const res = await api.importEmpresasCsv(file)
+            setResult(res)
+            onImported?.()
+        } catch (e) {
+            setError(e.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    function onDrop(e) {
+        e.preventDefault()
+        setDragging(false)
+        handleFile(e.dataTransfer.files[0])
+    }
+
+    return (
+        <div>
+            <div
+                id="empresa-csv-drop-zone"
+                className={`drop-zone${dragging ? ' dragging' : ''}`}
+                onClick={() => inputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+            >
+                <div className="drop-zone-icon">🏢</div>
+                <p style={{ fontWeight: 500 }}>{loading ? 'Importando empresas…' : 'Arrastra un archivo CSV de empresas aquí o haz clic'}</p>
+                <p className="text-xs text-muted mt-1 italic">Columnas sugeridas: nombre, web, email, phone, cif, numero_empleados, facturacion, cnae</p>
+            </div>
+            <input id="empresa-csv-file-input" ref={inputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
+            {result && (
+                <div className="alert alert-success mt-2">
+                    ✓ Importado: <strong>{result.created}</strong> creadas, <strong>{result.updated}</strong> actualizadas
+                </div>
+            )}
+            {error && <div className="alert alert-error mt-2">✗ Error: {error}</div>}
+        </div>
+    )
+}
+
+export function EmpresaCSVExport({ filters, label, children, icon, className = "", ...props }) {
+    function download() {
+        const url = api.exportEmpresasCsvUrl(filters)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'empresas.csv'
+        a.click()
+    }
+
+    return (
+        <button 
+            id="empresa-csv-export-btn" 
+            className={`flex items-center gap-2 ${className}`} 
+            onClick={download}
+            {...props}
+        >
+            {icon && <span className="material-symbols-outlined text-lg">{icon}</span>}
+            {children || label || 'Exportar empresas'}
         </button>
     )
 }

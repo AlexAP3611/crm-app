@@ -1,20 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
 import io
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas.contact import ContactFilterParams
 from app.services import csv_service
-from app.auth import get_current_user
 
-router = APIRouter(
-    prefix="/api/csv", 
-    tags=["CSV"],
-    dependencies=[Depends(get_current_user)]
-)
-
+router = APIRouter()
 
 @router.get("/export")
 async def export_csv(
