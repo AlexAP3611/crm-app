@@ -10,7 +10,7 @@ CONTACT_COLUMNS.forEach(col => {
     if (col.type === 'm2m') {
         EMPTY[col.id_key] = []
     } else if (col.type === 'fk') {
-        EMPTY[col.id_key] = ''
+        EMPTY[col.id_key] = null
     } else {
         EMPTY[col.key] = ''
     }
@@ -28,10 +28,10 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
         sector_ids: contact.sectors?.map((x) => x.id) ?? [],
         vertical_ids: contact.verticals?.map((x) => x.id) ?? [],
         product_ids: contact.products_rel?.map((x) => x.id) ?? [],
-        cargo_id: contact.cargo?.id || '',
+        cargo_id: contact.cargo?.id || null,
         campaign_ids: contact.campaigns?.map((c) => c.id) ?? [],
         notes: initialNotes,
-    } : { ...EMPTY, sector_ids: [], vertical_ids: [], product_ids: [], cargo_id: '', campaign_ids: [] })
+    } : { ...EMPTY, sector_ids: [], vertical_ids: [], product_ids: [], cargo_id: null, campaign_ids: [] })
 
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
@@ -51,21 +51,28 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
 
     async function handleSubmit(e) {
         e.preventDefault()
-        if (!form.empresa_id) { setError('La empresa es obligatoria'); return }
+        if (!form.empresa_id && !form.empresa_nombre) { 
+            setError('La empresa es obligatoria')
+            return 
+        }
         setSaving(true)
         setError(null)
         try {
             const payload = { ...form }
-            // Strip out readonly properties and convert empty strings to null
+            
+            // Saneamiento controlado: solo para campos FK
+            const FK_FIELDS = ["empresa_id", "cargo_id"]
+            FK_FIELDS.forEach((field) => {
+                if (payload[field] === "") {
+                    payload[field] = null
+                }
+            })
+
+            // Strip readonly fields (delegated to Empresa, not editable)
             CONTACT_COLUMNS.forEach((col) => {
                 if (col.readonly) {
                     delete payload[col.key]
-                    // Also strip readonly M2M id_keys (sectors/verticals/products now managed by Empresa)
-                    if (col.id_key) {
-                        delete payload[col.id_key]
-                    }
-                } else if ((col.type === 'string' || col.type === 'link') && payload[col.key] === '') {
-                    payload[col.key] = null
+                    if (col.id_key) delete payload[col.id_key]
                 }
             })
 
@@ -77,9 +84,16 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                 payload.notes = null
             }
 
-            // Remove legacy fields (no longer used in backend/form)
+            // Remove legacy and UI-only fields that don't belong in the API payload
             delete payload.company
             delete payload.products
+            delete payload.empresa
+            delete payload.empresa_rel
+            delete payload.id
+            delete payload.enriched
+            delete payload.enriched_at
+            delete payload.created_at
+            delete payload.updated_at
 
             // Remove M2M relationship objects — backend uses *_ids fields only
             delete payload.sectors
@@ -87,8 +101,6 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
             delete payload.products_rel
             delete payload.cargo
             delete payload.campaigns
-
-
 
             if (isEdit) {
                 payload.merge_lists = false
@@ -122,14 +134,14 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                                     <div key={col.key} className="form-group full">
                                         <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
                                         <CompanyAutocomplete
-                                            value={form.empresa_rel?.nombre || form.empresa || ''}
+                                            value={form.empresa_rel?.nombre || form.empresa_nombre || ''}
                                             onChange={(name, id, emp) => {
                                                 setForm(prev => {
                                                     const next = { 
                                                         ...prev, 
                                                         empresa_rel: { nombre: name }, 
                                                         empresa_id: id,
-                                                        empresa: name // Keeping it in sync for consistency with fields.js
+                                                        empresa_nombre: name 
                                                     };
                                                     return next;
                                                 });
