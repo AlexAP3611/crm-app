@@ -81,7 +81,7 @@ async def _sync_m2m(session: AsyncSession, contact: Contact, ModelClass, ids_lis
         setattr(contact, relation_name, db_items)
 
 
-async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrichment: bool = False) -> Contact:
+async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrichment: bool = False, strict_identity: bool = False) -> Contact:
     """
     Upsert logic using hierarchical identity resolution:
 
@@ -122,8 +122,8 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
         session,
         email=norm_email,
         linkedin=norm_linkedin,
-        first_name=kwargs.get("first_name"),
-        last_name=kwargs.get("last_name"),
+        first_name=kwargs.get("first_name") if not strict_identity else None,
+        last_name=kwargs.get("last_name") if not strict_identity else None,
         empresa_id=emp_id,
     )
 

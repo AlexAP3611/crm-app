@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import logging
+
 from app.database import get_db
 from app.models.empresa import Empresa
 from app.models.sector import Sector
@@ -14,6 +16,8 @@ from app.schemas.contact import ContactCreate
 from app.services import enrichment_service, contact_service
 from app.core.resolve import resolve_contact
 from app.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/enrichment",
@@ -63,7 +67,6 @@ async def bulk_enrich(
 ):
     """
     Enrich multiple contacts:
-    - nombre_empresa -> company column
     - web -> web column
     - vertical -> M2M relationship
     - everything else -> notes[source] as strings
@@ -135,7 +138,6 @@ class IngestContactInput(BaseModel):
 
 class IngestEmpresaInput(BaseModel):
     empresa_id: int
-    nombre_empresa: str
     web: str
     email: str | None = None
     cif: str | None = None
@@ -152,12 +154,70 @@ class IngestRequest(BaseModel):
 
 class IngestResponse(BaseModel):
     status: str
-    empresa_count: int
+    empresa_processed: int
+    empresa_skipped: int
     contact_created: int
     contact_updated: int
     contact_skipped: int
 
-@router.post("/ingest", response_model=IngestResponse)
+async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[IngestContactInput]):
+    created = 0
+    updated = 0
+    skipped = 0
+    for contact_in in contactos:
+        # 1 & 2 Normalization and Identity Pre-check
+        email = contact_in.email if contact_in.email != "" else None
+        linkedin = contact_in.linkedin if contact_in.linkedin != "" else None
+
+        if not email and not linkedin:
+            logger.warning(f"SKIP Contacto: Ni email ni linkedin. Payload: {contact_in.model_dump()}")
+            skipped += 1
+            continue
+
+        contact_data = ContactCreate(
+            empresa_id=empresa_id,
+            first_name=contact_in.first_name,
+            last_name=contact_in.last_name,
+            email=email,
+            linkedin=linkedin,
+            job_title=contact_in.job_title,
+            phone=contact_in.phone
+        )
+        try:
+            # Enforce exact identity. Explicitly disable fuzzy matcher by sending None for first/last name
+            resolution = await resolve_contact(
+                db,
+                email=email,
+                linkedin=linkedin,
+                first_name=None,
+                last_name=None,
+                empresa_id=empresa_id
+            )
+            exists_before = (resolution.contact is not None)
+            
+            # Send strict control flag to upsert
+            res = await contact_service.upsert_contact(
+                db, 
+                contact_data, 
+                from_enrichment=True,
+                strict_identity=True
+            )
+            if res is None:
+                skipped += 1
+            else:
+                if exists_before:
+                    updated += 1
+                else:
+                    created += 1
+        except Exception as e:
+            logger.error(f"Error ingesting contact {contact_in.first_name} {contact_in.last_name}: {e}\nPayload: {contact_in.model_dump()}")
+            skipped += 1
+    return created, updated, skipped
+
+async def validate_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
+    return await db.get(Empresa, empresa_id)
+
+@router.post("/ingest")
 @router.post("/{contact_id}")
 async def ingest_enrichment(
     body: IngestRequest,
@@ -167,42 +227,27 @@ async def ingest_enrichment(
     Ingest bulk enrichment from n8n.
     Protected strictly by router-level Depends(get_current_user).
     """
-    empresa_count = 0
+    empresa_processed = 0
+    empresa_skipped = 0
     contact_created = 0
     contact_updated = 0
     contact_skipped = 0
 
     for emp_in in body.empresas:
-        # Lookup Empresa using empresa_id (Priority 1)
-        empresa = await db.get(Empresa, emp_in.empresa_id)
+        empresa = await validate_empresa(db, emp_in.empresa_id)
         
-        # Fallback to nombre_empresa (Exact String Match, NO lower, NO fuzzy)
         if not empresa:
-            result = await db.execute(select(Empresa).where(Empresa.nombre == emp_in.nombre_empresa))
-            empresa = result.scalar_one_or_none()
+            logger.warning(f"SKIP Empresa: ID {emp_in.empresa_id} no existe en DB. Payload: {emp_in.model_dump()}")
+            empresa_skipped += 1
+            continue
             
-        if not empresa:
-            # Create new if doesn't exist
-            empresa = Empresa(
-                nombre=emp_in.nombre_empresa,
-                web=emp_in.web,
-                email=emp_in.email,
-                cif=emp_in.cif,
-                cnae=emp_in.cnae,
-                numero_empleados=emp_in.numero_empleados,
-                facturacion=emp_in.facturacion
-            )
-            db.add(empresa)
-            await db.flush()
-        else:
-            # Update fields selectively, only if not None
-            if emp_in.nombre_empresa is not None: empresa.nombre = emp_in.nombre_empresa
-            if emp_in.web is not None: empresa.web = emp_in.web
-            if emp_in.email is not None: empresa.email = emp_in.email
-            if emp_in.cif is not None: empresa.cif = emp_in.cif
-            if emp_in.cnae is not None: empresa.cnae = emp_in.cnae
-            if emp_in.numero_empleados is not None: empresa.numero_empleados = emp_in.numero_empleados
-            if emp_in.facturacion is not None: empresa.facturacion = emp_in.facturacion
+        # Update fields selectively, only if not None and not empty string
+        if emp_in.web not in (None, ""): empresa.web = emp_in.web
+        if emp_in.email not in (None, ""): empresa.email = emp_in.email
+        if emp_in.cif not in (None, ""): empresa.cif = emp_in.cif
+        if emp_in.cnae not in (None, ""): empresa.cnae = emp_in.cnae
+        if emp_in.numero_empleados not in (None, ""): empresa.numero_empleados = emp_in.numero_empleados
+        if emp_in.facturacion not in (None, ""): empresa.facturacion = emp_in.facturacion
         
         # M2M relationships (Update only if present in input)
         if emp_in.sector:
@@ -218,49 +263,19 @@ async def ingest_enrichment(
             empresa.products_rel = list(res_prod.scalars().all())
 
         await db.flush()
-        empresa_count += 1
+        empresa_processed += 1
         
-        # Upsert Contacts
-        for contact_in in emp_in.contactos:
-            contact_data = ContactCreate(
-                empresa_id=empresa.id,
-                first_name=contact_in.first_name,
-                last_name=contact_in.last_name,
-                email=contact_in.email,
-                linkedin=contact_in.linkedin,
-                job_title=contact_in.job_title,
-                phone=contact_in.phone
-            )
-            try:
-                # Pre-lookup to accurately measure created vs updated
-                resolution = await resolve_contact(
-                    db,
-                    email=contact_in.email,
-                    linkedin=contact_in.linkedin,
-                    first_name=contact_in.first_name,
-                    last_name=contact_in.last_name,
-                    empresa_id=empresa.id
-                )
-                exists_before = (resolution.contact is not None) or (resolution.possible_match_id is not None)
-
-                res = await contact_service.upsert_contact(db, contact_data, from_enrichment=True)
-                
-                if res is None:
-                    contact_skipped += 1
-                else:
-                    if exists_before:
-                        contact_updated += 1
-                    else:
-                        contact_created += 1
-            except Exception as e:
-                print(f"DEBUG: Error ingesting contact {contact_in.first_name} {contact_in.last_name}: {e}")
-                contact_skipped += 1
+        created, updated, skipped = await process_contacts(db, empresa.id, emp_in.contactos)
+        contact_created += created
+        contact_updated += updated
+        contact_skipped += skipped
 
     await db.commit()
 
     return IngestResponse(
         status="success",
-        empresa_count=empresa_count,
+        empresa_processed=empresa_processed,
+        empresa_skipped=empresa_skipped,
         contact_created=contact_created,
         contact_updated=contact_updated,
         contact_skipped=contact_skipped

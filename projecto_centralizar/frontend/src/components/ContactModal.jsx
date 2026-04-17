@@ -26,14 +26,13 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
         ...EMPTY,
         ...contact,
         empresa_id: contact.empresa_rel?.id || null,
-        empresa_nombre: contact.empresa_rel?.nombre || null,
         sector_ids: contact.sectors?.map((x) => x.id) ?? [],
         vertical_ids: contact.verticals?.map((x) => x.id) ?? [],
         product_ids: contact.products_rel?.map((x) => x.id) ?? [],
         cargo_id: contact.cargo?.id || null,
         campaign_ids: contact.campaigns?.map((c) => c.id) ?? [],
         notes: initialNotes,
-    } : { ...EMPTY, empresa_id: null, empresa_nombre: null, sector_ids: [], vertical_ids: [], product_ids: [], cargo_id: null, campaign_ids: [] })
+    } : { ...EMPTY, empresa_id: null, sector_ids: [], vertical_ids: [], product_ids: [], cargo_id: null, campaign_ids: [] })
 
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
@@ -87,7 +86,6 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
             delete payload.products
             delete payload.empresa
             delete payload.empresa_rel
-            delete payload.empresa_nombre
             delete payload.id
             delete payload.enriched
             delete payload.enriched_at

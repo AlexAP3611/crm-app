@@ -19,11 +19,18 @@ export default function CompanyAutocomplete({ value, onChange }) {
         function handleClickOutside(event) {
             if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
                 setIsOpen(false);
+                // Revert query to current validated value if clicked outside
+                setQuery(value || '');
             }
         }
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    }, [value]);
+
+    // Keep query synced with external value changes
+    useEffect(() => {
+        setQuery(value || '');
+    }, [value]);
 
     // Debounce typing
     useEffect(() => {
@@ -75,14 +82,18 @@ export default function CompanyAutocomplete({ value, onChange }) {
         const val = e.target.value;
         setQuery(val);
         setIsOpen(true);
-        // Reset ID when user types manually
-        onChange(null, null); 
     };
 
     const handleSelect = (empresa) => {
-        setQuery(empresa.nombre);
-        setIsOpen(false);
-        onChange(empresa.id, empresa);
+        if (!empresa || empresa.id === null) {
+            setQuery('');
+            setIsOpen(false);
+            onChange(null, null);
+        } else {
+            setQuery(empresa.nombre);
+            setIsOpen(false);
+            onChange(empresa.id, empresa);
+        }
     };
 
     const handleInputClick = () => {
@@ -99,8 +110,7 @@ export default function CompanyAutocomplete({ value, onChange }) {
                 onChange={handleInputChange}
                 onClick={handleInputClick}
                 onFocus={handleInputClick}
-                placeholder="Selecciona o escribe una empresa..."
-                required
+                placeholder="Buscar empresa..."
             />
             {isOpen && (
                 <ul
@@ -108,6 +118,13 @@ export default function CompanyAutocomplete({ value, onChange }) {
                     className="autocomplete-dropdown"
                     onScroll={handleScroll}
                 >
+                    <li
+                        className="autocomplete-item autocomplete-item-clear"
+                        onClick={() => handleSelect({ id: null, nombre: '' })}
+                        style={{ fontStyle: 'italic', borderBottom: '1px solid #eee' }}
+                    >
+                        — Sin empresa —
+                    </li>
                     {options.length === 0 && !loading && (
                         <li className="autocomplete-item" style={{ color: 'var(--color-text-muted, #666)' }}>
                             No se encontraron empresas.
