@@ -128,7 +128,7 @@ async def enrich_contact(
 class IngestContactInput(BaseModel):
     first_name: str
     last_name: str
-    email_contact: str | None = None
+    email: str | None = None
     linkedin: str | None = None
     job_title: str | None = None
     phone: str | None = None
@@ -226,7 +226,7 @@ async def ingest_enrichment(
                 empresa_id=empresa.id,
                 first_name=contact_in.first_name,
                 last_name=contact_in.last_name,
-                email_contact=contact_in.email_contact,
+                email=contact_in.email,
                 linkedin=contact_in.linkedin,
                 job_title=contact_in.job_title,
                 phone=contact_in.phone
@@ -235,7 +235,7 @@ async def ingest_enrichment(
                 # Pre-lookup to accurately measure created vs updated
                 resolution = await resolve_contact(
                     db,
-                    email_contact=contact_in.email_contact,
+                    email=contact_in.email,
                     linkedin=contact_in.linkedin,
                     first_name=contact_in.first_name,
                     last_name=contact_in.last_name,
@@ -253,7 +253,7 @@ async def ingest_enrichment(
                     else:
                         contact_created += 1
             except Exception as e:
-                # Log error or simply skip
+                print(f"DEBUG: Error ingesting contact {contact_in.first_name} {contact_in.last_name}: {e}")
                 contact_skipped += 1
 
     await db.commit()

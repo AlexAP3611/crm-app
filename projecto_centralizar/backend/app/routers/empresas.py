@@ -117,7 +117,7 @@ async def list_empresas(
                     Contact.first_name.ilike(term),
                     Contact.last_name.ilike(term),
                     Empresa.email.ilike(term),
-                    Contact.email_contact.ilike(term),
+                    Contact.email.ilike(term),
                 )
             )
 

@@ -76,13 +76,13 @@ export default function CompanyAutocomplete({ value, onChange }) {
         setQuery(val);
         setIsOpen(true);
         // Reset ID when user types manually
-        onChange(val, null, null); 
+        onChange(null, null); 
     };
 
     const handleSelect = (empresa) => {
         setQuery(empresa.nombre);
         setIsOpen(false);
-        onChange(empresa.nombre, empresa.id, empresa);
+        onChange(empresa.id, empresa);
     };
 
     const handleInputClick = () => {

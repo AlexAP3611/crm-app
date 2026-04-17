@@ -17,7 +17,6 @@ const FILTER_LABELS = {
   product_id: 'Producto',
   cargo_id: 'Cargo',
   empresa_id: 'Empresa',
-  empresa_nombre: 'Empresa',
   empresa_sector: 'Sector de Empresa',
   empresa_numero_empleados_min: 'Min. Empleados de Empresa',
   empresa_numero_empleados_max: 'Max. Empleados de Empresa',
@@ -34,7 +33,7 @@ const formatValue = (key, value, optionsMap) => {
 
 export const ActiveFilters = ({ filters, onRemove, optionsMap = {} }) => {
   const activeKeys = Object.keys(filters).filter(
-    (key) => filters[key] !== null && filters[key] !== undefined && filters[key] !== '' && key !== 'page' && key !== 'page_size' && key !== 'limit' && key !== 'offset' && key !== 'empresa_nombre'
+    (key) => filters[key] !== null && filters[key] !== undefined && filters[key] !== '' && key !== 'page' && key !== 'page_size' && key !== 'limit' && key !== 'offset'
   );
 
   if (activeKeys.length === 0) {
@@ -49,8 +48,8 @@ export const ActiveFilters = ({ filters, onRemove, optionsMap = {} }) => {
         let displayValue = formatValue(key, value, optionsMap) || value;
         const label = FILTER_LABELS[key] || key;
 
-        if (key === 'empresa_id' && filters.empresa_nombre) {
-             displayValue = filters.empresa_nombre;
+        if (key === 'empresa_id') {
+             displayValue = `ID: ${filters.empresa_id}`;
         }
 
         return (
@@ -65,7 +64,6 @@ export const ActiveFilters = ({ filters, onRemove, optionsMap = {} }) => {
             <button
               onClick={() => {
                   onRemove(key);
-                  if (key === 'empresa_id') onRemove('empresa_nombre');
               }}
               style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 2, borderRadius: '50%' }}
               aria-label={`Remove ${label} filter`}

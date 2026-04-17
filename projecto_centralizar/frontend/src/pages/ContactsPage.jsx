@@ -218,7 +218,7 @@ export default function ContactsPage() {
                     nombre_empresa: c.empresa_rel?.nombre,
                     web: c.web,
                     vertical: c.verticals && c.verticals.length > 0 ? c.verticals[0].name : null,
-                    email: c.email_contact || c.email_generic,
+                    email: c.email || c.email_generic,
                     nombre_contacto: [c.first_name, c.last_name].filter(Boolean).join(' '),
                 }))
             }
@@ -292,7 +292,7 @@ export default function ContactsPage() {
     }
 
     const clearAllFilters = () => {
-        ['search', 'contacto_nombre', 'email', 'cnae', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id', 'empresa_nombre'].forEach((k) => updateFilter(k, ''))
+        ['search', 'contacto_nombre', 'email', 'cnae', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id'].forEach((k) => updateFilter(k, ''))
     }
 
     const handleBulkSave = async (updateData) => {
@@ -469,7 +469,7 @@ export default function ContactsPage() {
                                     </td>
                                     <td className="py-5 px-6">
                                         <div className="space-y-0.5">
-                                            <p className="text-xs text-stone-600 font-medium">{c.email_contact || '-'}</p>
+                                            <p className="text-xs text-stone-600 font-medium">{c.email || '-'}</p>
                                             {c.email_generic && <p className="text-[10px] text-stone-400 italic">{c.email_generic}</p>}
                                         </div>
                                     </td>

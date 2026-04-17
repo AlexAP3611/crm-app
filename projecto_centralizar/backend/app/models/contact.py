@@ -53,8 +53,8 @@ class Contact(Base):
         return self.empresa_rel.products_rel if self.empresa_rel else []
 
     # --- Contact channels ---
-    email_contact: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
-    phone_contact: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     linkedin: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # --- Business context ---

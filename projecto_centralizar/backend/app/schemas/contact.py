@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ContactCreate(BaseModel):
@@ -9,8 +9,8 @@ class ContactCreate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     job_title: str | None = None
-    email_contact: str | None = None
-    phone_contact: str | None = None
+    email: str | None = None
+    phone: str | None = None
     linkedin: str | None = None
     products: list[str] | None = None  # legacy JSONB
     cargo_id: int | None = None
@@ -22,14 +22,19 @@ class ContactCreate(BaseModel):
 
     model_config = {"extra": "allow"}
 
+    @field_validator("empresa_id", "cargo_id", mode="before")
+    @classmethod
+    def convert_empty_strings(cls, v):
+        return None if v == "" else v
+
 
 class ContactUpdate(BaseModel):
     empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
     job_title: str | None = None
-    email_contact: str | None = None
-    phone_contact: str | None = None
+    email: str | None = None
+    phone: str | None = None
     linkedin: str | None = None
     products: list[str] | None = None  # legacy JSONB
     cargo_id: int | None = None
@@ -42,6 +47,11 @@ class ContactUpdate(BaseModel):
     updated_at: datetime | None = None
 
     model_config = {"extra": "allow"}
+
+    @field_validator("empresa_id", "cargo_id", mode="before")
+    @classmethod
+    def convert_empty_strings(cls, v):
+        return None if v == "" else v
 
 
 class ContactBulkDelete(BaseModel):
@@ -100,13 +110,9 @@ class ContactResponse(BaseModel):
     empresa_rel: EmpresaRef | None = None
     first_name: str | None
     last_name: str | None
-    job_title: str | None
-    cif: str | None
-    web: str | None
-    email_generic: str | None
-    email_contact: str | None
-    phone_generic: str | None
-    phone_contact: str | None
+    # job_title removed for UI (use cargo.name instead)
+    email: str | None
+    phone: str | None
     linkedin: str | None
     products: list[str] | None
     notes: dict[str, Any] | None
@@ -140,7 +146,6 @@ class ContactFilterParams(BaseModel):
     contacto_nombre: str | None = None
     email: str | None = None
     empresa_id: int | None = None
-    empresa_nombre: str | None = None
     cnae: str | None = None
     empresa_numero_empleados_min: int | None = None
     empresa_numero_empleados_max: int | None = None

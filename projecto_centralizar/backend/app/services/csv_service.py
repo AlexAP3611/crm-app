@@ -104,7 +104,7 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
         # Pre-check: will upsert_contact find an existing contact?
         resolution = await resolve_contact(
             session,
-            email_contact=normalize_email(payload.get("email_contact")),
+            email=normalize_email(payload.get("email")),
             linkedin=normalize_linkedin(payload.get("linkedin")),
             first_name=payload.get("first_name"),
             last_name=payload.get("last_name"),

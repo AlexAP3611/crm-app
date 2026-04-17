@@ -38,7 +38,7 @@ async def test_resolution():
         data = ContactCreate(
             first_name="Test",
             last_name="Resolution",
-            email_contact="test_res@example.com",
+            email="test_res@example.com",
             empresa_id=empresa.id,
             job_title="CTO"
         )

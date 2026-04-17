@@ -20,17 +20,7 @@ export default function FilterPanel({ filters, onFilterChange, onClearFilters, s
                         />
                     </div>
                 </div>
-                <div className="form-group">
-                    <div className="search-box">
-                        <input
-                            type="text"
-                            className="form-control"
-                            placeholder="Filtrar por empresa..."
-                            value={filters.empresa_nombre || ''}
-                            onChange={(e) => onFilterChange('empresa_nombre', e.target.value)}
-                        />
-                    </div>
-                </div>
+
                 <div className="form-group">
                     <div className="search-box">
                         <input
@@ -90,7 +80,7 @@ export default function FilterPanel({ filters, onFilterChange, onClearFilters, s
                     id="filter-reset"
                     className="btn btn-secondary"
                     onClick={() => onClearFilters ? onClearFilters() : 
-                        ['search', 'contacto_nombre', 'email', 'cnae', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id', 'empresa_nombre', 'empresa_sector', 'empresa_numero_empleados_min', 'empresa_numero_empleados_max'].forEach((k) =>
+                        ['search', 'contacto_nombre', 'email', 'cnae', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id', 'empresa_sector', 'empresa_numero_empleados_min', 'empresa_numero_empleados_max'].forEach((k) =>
                             onFilterChange(k, '')
                         )
                     }

@@ -118,7 +118,7 @@ def _contact_query():
 async def resolve_contact(
     session: AsyncSession,
     *,
-    email_contact: str | None = None,
+    email: str | None = None,
     linkedin: str | None = None,
     first_name: str | None = None,
     last_name: str | None = None,
@@ -135,11 +135,11 @@ async def resolve_contact(
     """
 
     # ── 1. EMAIL MATCH (highest priority) ──────────────────────────
-    norm_email = normalize_email(email_contact)
+    norm_email = normalize_email(email)
     if norm_email:
         result = await session.execute(
             _contact_query().where(
-                func.lower(Contact.email_contact) == norm_email
+                func.lower(Contact.email) == norm_email
             )
         )
         contact = result.scalar_one_or_none()

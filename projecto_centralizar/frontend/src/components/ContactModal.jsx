@@ -25,13 +25,15 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
     const [form, setForm] = useState(isEdit ? {
         ...EMPTY,
         ...contact,
+        empresa_id: contact.empresa_rel?.id || null,
+        empresa_nombre: contact.empresa_rel?.nombre || null,
         sector_ids: contact.sectors?.map((x) => x.id) ?? [],
         vertical_ids: contact.verticals?.map((x) => x.id) ?? [],
         product_ids: contact.products_rel?.map((x) => x.id) ?? [],
         cargo_id: contact.cargo?.id || null,
         campaign_ids: contact.campaigns?.map((c) => c.id) ?? [],
         notes: initialNotes,
-    } : { ...EMPTY, sector_ids: [], vertical_ids: [], product_ids: [], cargo_id: null, campaign_ids: [] })
+    } : { ...EMPTY, empresa_id: null, empresa_nombre: null, sector_ids: [], vertical_ids: [], product_ids: [], cargo_id: null, campaign_ids: [] })
 
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
@@ -51,10 +53,6 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
 
     async function handleSubmit(e) {
         e.preventDefault()
-        if (!form.empresa_id && !form.empresa_nombre) { 
-            setError('La empresa es obligatoria')
-            return 
-        }
         setSaving(true)
         setError(null)
         try {
@@ -89,6 +87,7 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
             delete payload.products
             delete payload.empresa
             delete payload.empresa_rel
+            delete payload.empresa_nombre
             delete payload.id
             delete payload.enriched
             delete payload.enriched_at
@@ -134,14 +133,13 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                                     <div key={col.key} className="form-group full">
                                         <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
                                         <CompanyAutocomplete
-                                            value={form.empresa_rel?.nombre || form.empresa_nombre || ''}
-                                            onChange={(name, id, emp) => {
+                                            value={form.empresa_rel?.nombre || ''}
+                                            onChange={(id, emp) => {
                                                 setForm(prev => {
                                                     const next = { 
                                                         ...prev, 
-                                                        empresa_rel: { nombre: name }, 
-                                                        empresa_id: id,
-                                                        empresa_nombre: name 
+                                                        empresa_rel: emp ? { nombre: emp.nombre } : null,
+                                                        empresa_id: id
                                                     };
                                                     return next;
                                                 });

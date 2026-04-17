@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
 
 from app.models.campaign import Campaign
 from app.models.contact import Contact
@@ -11,7 +12,8 @@ from app.models.cargo import Cargo
 from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
 from app.schemas.contact import ContactCreate, ContactFilterParams, ContactUpdate
 from app.services.merge import deep_merge
-from app.services import cargo_service
+from app.services import cargo_service, empresa_service
+from app.services.contact_mapper import build_contact_kwargs
 
 from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_PROTECTED_FIELDS
 from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
@@ -90,41 +92,38 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
 
     Notes are always deep-merged, never replaced.
     """
-    payload = data.model_dump(
-        exclude={
-            "notes", "campaign_ids", "cargo_id", "merge_lists", "remove_lists",
-            "created_at", "updated_at", "sectors", "verticals", "products_rel",
-            "cargo", "campaigns", "cif", "web", "email_generic",
-            "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at",
-        },
-        exclude_unset=True,
-    )
+    # ── 1. Resolve dependencies (cargo, normalize identity) ──
+    emp_id = data.empresa_id
 
-    # Resolve empresa
-    emp_id = payload.get("empresa_id") or getattr(data, "empresa_id", None)
-    if emp_id:
-        payload["empresa_id"] = emp_id
+    norm_email = normalize_email(data.email) if data.email else None
+    norm_linkedin = normalize_linkedin(data.linkedin) if data.linkedin else None
 
-    # Normalize identity fields before resolution
-    if "email_contact" in payload and payload["email_contact"]:
-        payload["email_contact"] = normalize_email(payload["email_contact"])
-    if "linkedin" in payload and payload["linkedin"]:
-        payload["linkedin"] = normalize_linkedin(payload["linkedin"])
-
-    # --- Cargo Resolution ---
-    job_title = payload.get("job_title") or getattr(data, "job_title", None)
+    cargo_id = data.cargo_id
+    job_title = data.job_title
     if job_title:
         resolved_cargo = await cargo_service.resolve_cargo(session, job_title)
         if resolved_cargo:
-            payload["cargo_id"] = resolved_cargo.id
+            cargo_id = resolved_cargo.id
 
-    # ── Resolve identity ──────────────────────────────────────────
+    # ── 2. Build ORM-safe kwargs via mapper ──
+    kwargs = build_contact_kwargs(data)
+    # Override with resolved/normalized values
+    if emp_id:
+        kwargs["empresa_id"] = emp_id
+    if norm_email:
+        kwargs["email"] = norm_email
+    if norm_linkedin:
+        kwargs["linkedin"] = norm_linkedin
+    if cargo_id:
+        kwargs["cargo_id"] = cargo_id
+
+    # ── 3. Resolve identity ──
     resolution = await resolve_contact(
         session,
-        email_contact=payload.get("email_contact"),
-        linkedin=payload.get("linkedin"),
-        first_name=payload.get("first_name"),
-        last_name=payload.get("last_name"),
+        email=norm_email,
+        linkedin=norm_linkedin,
+        first_name=kwargs.get("first_name"),
+        last_name=kwargs.get("last_name"),
         empresa_id=emp_id,
     )
 
@@ -133,13 +132,13 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
     if resolution.confidence == "high":
         # ── Email or LinkedIn match → update existing ─────────────
         contact = resolution.contact
-        for field, value in payload.items():
+        for field, value in kwargs.items():
             if value is None:
                 continue
-            # Protect email_contact and phone_contact: don't overwrite an existing valid value
-            if field == "email_contact" and contact.email_contact:
+            # Protect email and phone: don't overwrite an existing valid value
+            if field == "email" and contact.email:
                 continue
-            if field == "phone_contact" and contact.phone_contact:
+            if field == "phone" and contact.phone:
                 continue
             setattr(contact, field, value)
 
@@ -159,11 +158,11 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
         # ── Fuzzy match → Update existing, but ONLY non-critical fields ─────────────
         contact = await _load_contact(session, resolution.possible_match_id)
         if contact:
-            for field, value in payload.items():
+            for field, value in kwargs.items():
                 if value is None:
                     continue
-                # Do NOT overwrite email_contact, phone_contact or linkedin from a fuzzy match
-                if field in ("email_contact", "linkedin", "phone_contact"):
+                # Do NOT overwrite email, phone or linkedin from a fuzzy match
+                if field in ("email", "linkedin", "phone"):
                     continue
                 setattr(contact, field, value)
 
@@ -179,40 +178,84 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
                 contact.enriched = True
                 contact.enriched_at = datetime.now(timezone.utc)
 
-    if contact is None:
-        # ── No Match (or fuzzy match ID not found) ──────────
-        # Only create if it's an "active" contact (has email or linkedin)
-        if not payload.get("email_contact") and not payload.get("linkedin"):
-            return None  # Discard/Ignore
+    try:
+        if contact is None:
+            # ── No Match (or fuzzy match ID not found) ──────────
+            # Only create if it's an "active" contact (has email or linkedin)
+            if not norm_email and not norm_linkedin:
+                return None  # Discard/Ignore
 
-        contact = Contact(**payload, notes=data.notes)
-        session.add(contact)
-        await session.flush()
-        contact = await _load_contact(session, contact.id)
+            contact = Contact(**kwargs, notes=data.notes)
+            session.add(contact)
+            await session.flush()
+            contact = await _load_contact(session, contact.id)
 
-        # Inject datos_empresa snapshot into notes
-        if contact and contact.empresa_rel:
-            update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
+            # Inject datos_empresa snapshot into notes
+            if contact and contact.empresa_rel:
+                update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
 
-        if from_enrichment:
-            contact.enriched = True
-            contact.enriched_at = datetime.now(timezone.utc)
-        else:
-            contact.enriched = False
-            contact.enriched_at = None
+            if from_enrichment:
+                contact.enriched = True
+                contact.enriched_at = datetime.now(timezone.utc)
+            else:
+                contact.enriched = False
+                contact.enriched_at = None
 
-    # Sync M2M associations (only cargo_id and campaign_ids remain on Contact)
-    for m2m_key, config in M2M_FIELD_MAP.items():
-        ids_list = getattr(data, m2m_key, None)
-        if ids_list is None and data.model_extra:
-            ids_list = data.model_extra.get(m2m_key, None)
+        # Sync M2M associations (only cargo_id and campaign_ids remain on Contact)
+        for m2m_key, config in M2M_FIELD_MAP.items():
+            ids_list = getattr(data, m2m_key, None)
+            if ids_list is None and data.model_extra:
+                ids_list = data.model_extra.get(m2m_key, None)
+                
+            model_class = globals()[config["model"]]
+            await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], False, False)
+
+        final_id = contact.id
+        await session.commit()
+        return await _load_contact(session, final_id)  # type: ignore[return-value]
+    except IntegrityError:
+        await session.rollback()
+        
+        # Fallback to retrieving the existing contact by normalized email
+        if norm_email:
+            result = await session.execute(select(Contact).where(Contact.email == norm_email))
+            existing_contact = result.scalar_one_or_none()
             
-        model_class = globals()[config["model"]]
-        await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], False, False)
+            if existing_contact:
+                # Update existing contact
+                for field, value in kwargs.items():
+                    if value is None:
+                        continue
+                    if field == "email" and existing_contact.email:
+                        continue
+                    if field == "phone" and existing_contact.phone:
+                        continue
+                    setattr(existing_contact, field, value)
+                
+                if data.notes:
+                    existing_contact.notes = deep_merge(existing_contact.notes, data.notes)
+                
+                if existing_contact.empresa_rel:
+                    update_empresa_snapshot_in_contact(existing_contact, existing_contact.empresa_rel)
+                    
+                if from_enrichment:
+                    existing_contact.enriched = True
+                    existing_contact.enriched_at = datetime.now(timezone.utc)
+                    
+                for m2m_key, config in M2M_FIELD_MAP.items():
+                    ids_list = getattr(data, m2m_key, None)
+                    if ids_list is None and data.model_extra:
+                        ids_list = data.model_extra.get(m2m_key, None)
+                        
+                    model_class = globals()[config["model"]]
+                    await _sync_m2m(session, existing_contact, model_class, ids_list, config["relation_name"], False, False)
+                    
+                final_id = existing_contact.id
+                await session.commit()
+                return await _load_contact(session, final_id)
+                
+        raise # Re-raise if we couldn't resolve the conflict
 
-    final_id = contact.id
-    await session.commit()
-    return await _load_contact(session, final_id)  # type: ignore[return-value]
 
 
 
@@ -227,21 +270,18 @@ async def update_contact(
     if contact is None:
         return None
 
-    payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "cargo_id", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargo", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at"}, 
-        exclude_unset=True
-    )
-
-
+    # ── Build ORM-safe kwargs via mapper ──
+    kwargs = build_contact_kwargs(data)
 
     base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
 
-    for field, value in payload.items():
+    # Apply only valid ORM fields to the contact
+    for field, value in kwargs.items():
         setattr(contact, field, value)
 
     # --- Cargo Resolution (on Update) ---
-    if "job_title" in payload and payload["job_title"]:
-        resolved_cargo = await cargo_service.resolve_cargo(session, payload["job_title"])
+    if data.job_title:
+        resolved_cargo = await cargo_service.resolve_cargo(session, data.job_title)
         if resolved_cargo:
             contact.cargo_id = resolved_cargo.id
 
@@ -249,7 +289,7 @@ async def update_contact(
     contact.notes = base_notes
 
     # Inject/update datos_empresa snapshot
-    final_emp_id = payload.get("empresa_id") or contact.empresa_id
+    final_emp_id = kwargs.get("empresa_id") or contact.empresa_id
     if final_emp_id:
         empresa_obj = await session.get(Empresa, final_emp_id)
         if empresa_obj:
@@ -311,23 +351,18 @@ async def bulk_update_contacts(
     )
     contacts = result.scalars().all()
 
-    payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "cargo_id", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargo", "campaigns", "cif", "web", "email_generic", "sector_ids", "vertical_ids", "product_ids", "enriched", "enriched_at"}, 
-        exclude_unset=True
-    )
-
-
+    # ── Build ORM-safe kwargs via mapper (once for all contacts) ──
+    kwargs = build_contact_kwargs(data)
 
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
 
     for contact in contacts:
         base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
-        emp_id = payload.get("empresa_id") or contact.empresa_id
-        
-        contact_payload = payload.copy()
-        
-        for field, value in contact_payload.items():
+        emp_id = kwargs.get("empresa_id") or contact.empresa_id
+
+        # Apply only valid ORM fields
+        for field, value in kwargs.items():
             setattr(contact, field, value)
 
         contact.notes = base_notes
@@ -398,9 +433,6 @@ async def list_contacts(
     if filters.empresa_id is not None:
         query = query.where(Contact.empresa_id == filters.empresa_id)
 
-    if filters.empresa_nombre:
-        query = query.where(Contact.empresa_rel.has(Empresa.nombre.ilike(f"%{filters.empresa_nombre}%")))
-
     if filters.contacto_nombre:
         term = f"%{filters.contacto_nombre}%"
         query = query.where(
@@ -454,7 +486,7 @@ async def list_contacts(
         term = f"%{filters.email}%"
         query = query.where(
             or_(
-                Contact.email_contact.ilike(term),
+                Contact.email.ilike(term),
                 Contact.empresa_rel.has(Empresa.email.ilike(term))
             )
         )
@@ -467,7 +499,7 @@ async def list_contacts(
                 Contact.first_name.ilike(term),
                 Contact.last_name.ilike(term),
                 Contact.empresa_rel.has(Empresa.email.ilike(term)),
-                Contact.email_contact.ilike(term),
+                Contact.email.ilike(term),
             )
         )
 

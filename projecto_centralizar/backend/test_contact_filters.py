@@ -13,7 +13,6 @@ async def test():
             cargo_id=1,
             campaign_id=1,
             search='test',
-            empresa_nombre='test_company',
             empresa_numero_empleados_min=10,
             page=1,
             page_size=50
