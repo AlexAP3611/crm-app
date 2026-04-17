@@ -110,7 +110,15 @@ async def list_cargos(db: AsyncSession = Depends(get_db)):
 
 @router.post("/cargos", response_model=MasterDataResponse)
 async def create_cargo(data: MasterDataCreate, db: AsyncSession = Depends(get_db)):
-    return await create_entity(db, Cargo, data)
+    from app.services.cargo_service import resolve_cargo
+    cargo = await resolve_cargo(db, data.name)
+    if cargo is None:
+        raise HTTPException(status_code=400, detail="Nombre de cargo inválido")
+    if data.description:
+        cargo.description = data.description
+        await db.commit()
+        await db.refresh(cargo)
+    return cargo
 
 @router.delete("/cargos/{item_id}", status_code=204)
 async def delete_cargo(item_id: int, db: AsyncSession = Depends(get_db)):

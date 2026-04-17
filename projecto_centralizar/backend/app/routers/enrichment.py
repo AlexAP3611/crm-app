@@ -160,9 +160,18 @@ class IngestResponse(BaseModel):
     contact_skipped: int
 
 async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[IngestContactInput]):
+    from app.services import cargo_service
     created = 0
     updated = 0
     skipped = 0
+
+    unique_titles = {c.job_title for c in contactos if c.job_title}
+    title_to_cargo_id = {}
+    for title in unique_titles:
+        cargo = await cargo_service.resolve_cargo(db, title)
+        if cargo:
+            title_to_cargo_id[title] = cargo.id
+
     for contact_in in contactos:
         # Normalize empty strings to None
         email = contact_in.email if contact_in.email != "" else None
@@ -180,6 +189,7 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
             email=email,
             linkedin=linkedin,
             job_title=contact_in.job_title,
+            cargo_id=title_to_cargo_id.get(contact_in.job_title),
             phone=contact_in.phone
         )
         try:
