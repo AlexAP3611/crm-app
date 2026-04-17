@@ -81,13 +81,21 @@ async def _sync_m2m(session: AsyncSession, contact: Contact, ModelClass, ids_lis
         setattr(contact, relation_name, db_items)
 
 
-async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrichment: bool = False, strict_identity: bool = False) -> Contact:
+async def upsert_contact(
+    session: AsyncSession,
+    data: ContactCreate,
+    from_enrichment: bool = False,
+    strict_identity: bool = False,
+    auto_commit: bool = True,
+) -> tuple[Contact | None, str]:
     """
-    Upsert logic using hierarchical identity resolution:
+    Upsert logic using hierarchical identity resolution.
+
+    Returns (contact, action) where action is "created", "updated", or "skipped".
 
     1. resolve_contact identifies an existing contact (email → linkedin → fuzzy)
     2. High-confidence match (email/linkedin) → update existing contact
-    3. Low-confidence match (fuzzy) → return existing WITHOUT auto-merge
+    3. Low-confidence match (fuzzy) → update non-critical fields only
     4. No match → create new contact
 
     Notes are always deep-merged, never replaced.
@@ -128,6 +136,7 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
     )
 
     contact: Contact | None = None
+    action = "skipped"
 
     if resolution.confidence == "high":
         # ── Email or LinkedIn match → update existing ─────────────
@@ -141,6 +150,8 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
             if field == "phone" and contact.phone:
                 continue
             setattr(contact, field, value)
+
+        action = "updated"
 
         # Deep-merge notes
         if data.notes:
@@ -166,6 +177,8 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
                     continue
                 setattr(contact, field, value)
 
+            action = "updated"
+
             # Deep-merge notes
             if data.notes:
                 contact.notes = deep_merge(contact.notes, data.notes)
@@ -183,12 +196,13 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
             # ── No Match (or fuzzy match ID not found) ──────────
             # Only create if it's an "active" contact (has email or linkedin)
             if not norm_email and not norm_linkedin:
-                return None  # Discard/Ignore
+                return None, "skipped"
 
             contact = Contact(**kwargs, notes=data.notes)
             session.add(contact)
             await session.flush()
             contact = await _load_contact(session, contact.id)
+            action = "created"
 
             # Inject datos_empresa snapshot into notes
             if contact and contact.empresa_rel:
@@ -211,8 +225,11 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
             await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], False, False)
 
         final_id = contact.id
-        await session.commit()
-        return await _load_contact(session, final_id)  # type: ignore[return-value]
+        if auto_commit:
+            await session.commit()
+        else:
+            await session.flush()
+        return await _load_contact(session, final_id), action  # type: ignore[return-value]
     except IntegrityError:
         await session.rollback()
         
@@ -251,10 +268,13 @@ async def upsert_contact(session: AsyncSession, data: ContactCreate, from_enrich
                     await _sync_m2m(session, existing_contact, model_class, ids_list, config["relation_name"], False, False)
                     
                 final_id = existing_contact.id
-                await session.commit()
-                return await _load_contact(session, final_id)
+                if auto_commit:
+                    await session.commit()
+                else:
+                    await session.flush()
+                return await _load_contact(session, final_id), "updated"
                 
-        raise # Re-raise if we couldn't resolve the conflict
+        raise  # Re-raise if we couldn't resolve the conflict
 
 
 

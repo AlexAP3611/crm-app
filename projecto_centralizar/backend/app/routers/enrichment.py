@@ -14,7 +14,6 @@ from app.models.vertical import Vertical
 from app.models.product import Product
 from app.schemas.contact import ContactCreate
 from app.services import enrichment_service, contact_service
-from app.core.resolve import resolve_contact
 from app.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -165,7 +164,7 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
     updated = 0
     skipped = 0
     for contact_in in contactos:
-        # 1 & 2 Normalization and Identity Pre-check
+        # Normalize empty strings to None
         email = contact_in.email if contact_in.email != "" else None
         linkedin = contact_in.linkedin if contact_in.linkedin != "" else None
 
@@ -184,31 +183,19 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
             phone=contact_in.phone
         )
         try:
-            # Enforce exact identity. Explicitly disable fuzzy matcher by sending None for first/last name
-            resolution = await resolve_contact(
+            contact, action = await contact_service.upsert_contact(
                 db,
-                email=email,
-                linkedin=linkedin,
-                first_name=None,
-                last_name=None,
-                empresa_id=empresa_id
-            )
-            exists_before = (resolution.contact is not None)
-            
-            # Send strict control flag to upsert
-            res = await contact_service.upsert_contact(
-                db, 
-                contact_data, 
+                contact_data,
                 from_enrichment=True,
-                strict_identity=True
+                strict_identity=True,
+                auto_commit=False,
             )
-            if res is None:
-                skipped += 1
+            if action == "created":
+                created += 1
+            elif action == "updated":
+                updated += 1
             else:
-                if exists_before:
-                    updated += 1
-                else:
-                    created += 1
+                skipped += 1
         except Exception as e:
             logger.error(f"Error ingesting contact {contact_in.first_name} {contact_in.last_name}: {e}\nPayload: {contact_in.model_dump()}")
             skipped += 1
@@ -249,18 +236,30 @@ async def ingest_enrichment(
         if emp_in.numero_empleados not in (None, ""): empresa.numero_empleados = emp_in.numero_empleados
         if emp_in.facturacion not in (None, ""): empresa.facturacion = emp_in.facturacion
         
-        # M2M relationships (Update only if present in input)
+        # M2M relationships — merge-append only, never replace existing
         if emp_in.sector:
             res_sec = await db.execute(select(Sector).where(Sector.name.in_(emp_in.sector)))
-            empresa.sectors = list(res_sec.scalars().all())
+            new_sectors = list(res_sec.scalars().all())
+            existing_ids = {s.id for s in empresa.sectors}
+            for s in new_sectors:
+                if s.id not in existing_ids:
+                    empresa.sectors.append(s)
             
         if emp_in.vertical:
             res_ver = await db.execute(select(Vertical).where(Vertical.name.in_(emp_in.vertical)))
-            empresa.verticals = list(res_ver.scalars().all())
+            new_verticals = list(res_ver.scalars().all())
+            existing_ids = {v.id for v in empresa.verticals}
+            for v in new_verticals:
+                if v.id not in existing_ids:
+                    empresa.verticals.append(v)
             
         if emp_in.producto:
             res_prod = await db.execute(select(Product).where(Product.name.in_(emp_in.producto)))
-            empresa.products_rel = list(res_prod.scalars().all())
+            new_products = list(res_prod.scalars().all())
+            existing_ids = {p.id for p in empresa.products_rel}
+            for p in new_products:
+                if p.id not in existing_ids:
+                    empresa.products_rel.append(p)
 
         await db.flush()
         empresa_processed += 1

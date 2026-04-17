@@ -58,8 +58,6 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
     Deduplication is handled entirely by resolve_contact inside upsert_contact.
     No separate matching logic here — single source of truth.
     """
-    from app.core.resolve import resolve_contact, normalize_email, normalize_linkedin
-
     text = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
     created = 0
@@ -101,25 +99,15 @@ async def import_csv(session: AsyncSession, content: bytes) -> dict[str, int]:
                 except Exception:
                     pass
 
-        # Pre-check: will upsert_contact find an existing contact?
-        resolution = await resolve_contact(
-            session,
-            email=normalize_email(payload.get("email")),
-            linkedin=normalize_linkedin(payload.get("linkedin")),
-            first_name=payload.get("first_name"),
-            last_name=payload.get("last_name"),
-        )
-
         data = ContactCreate(**payload)
-        new_or_updated = await contact_service.upsert_contact(session, data)
+        contact, action = await contact_service.upsert_contact(session, data)
 
-        if new_or_updated is None:
-            skipped += 1
+        if action == "created":
+            created += 1
+        elif action == "updated":
+            updated += 1
         else:
-            if resolution.contact is not None or resolution.possible_match_id is not None:
-                updated += 1
-            else:
-                created += 1
+            skipped += 1
 
     return {"created": created, "updated": updated, "skipped": skipped}
 

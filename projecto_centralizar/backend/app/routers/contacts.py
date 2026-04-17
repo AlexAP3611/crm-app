@@ -27,7 +27,7 @@ async def upsert_contact(
     db: AsyncSession = Depends(get_db),
 ):
     """Create or update a contact. Upsert key: CIF → web → create new."""
-    contact = await contact_service.upsert_contact(db, data)
+    contact, _ = await contact_service.upsert_contact(db, data)
     if not data.email and not data.linkedin:
         raise HTTPException(status_code=400, detail="Cannot create or update contact without email or linkedin")
     return contact
