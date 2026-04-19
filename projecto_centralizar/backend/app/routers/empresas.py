@@ -1,11 +1,10 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
-from sqlalchemy.orm import selectinload, contains_eager
+from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 
 
-from app.models.campaign import contact_campaigns as ccamp_table
 
 from app.database import get_db
 from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
@@ -13,7 +12,9 @@ from app.models.contact import Contact
 from app.models.sector import Sector
 from app.models.vertical import Vertical
 from app.models.product import Product
-from app.schemas.empresa import EmpresaListResponse, EmpresaCreate, EmpresaResponse, EmpresaCreateResponse, EmpresaBulkUpdate, EmpresaBulkDelete
+from app.schemas.empresa import EmpresaListResponse, EmpresaCreate, EmpresaResponse, EmpresaCreateResponse, EmpresaBulkUpdate, EmpresaBulkDelete, EmpresaFilterParams
+from app.schemas.contact import ContactListResponse
+from app.services import empresa_service
 from app.auth import get_current_user
 from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
 
@@ -55,103 +56,37 @@ async def _load_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
 
 @router.get("", response_model=EmpresaListResponse)
 async def list_empresas(
-    sector_id: Optional[int] = Query(None, description="Filtrar por sector (M2M ID)"),
-    vertical_id: Optional[int] = Query(None, description="Filtrar por vertical (M2M ID)"),
-    product_id: Optional[int] = Query(None, description="Filtrar por producto (M2M ID)"),
-    numero_empleados_min: Optional[int] = Query(None, description="Mínimo de empleados"),
-    numero_empleados_max: Optional[int] = Query(None, description="Máximo de empleados"),
-    facturacion_min: Optional[float] = Query(None, description="Mínimo de facturación"),
-    facturacion_max: Optional[float] = Query(None, description="Máximo de facturación"),
-    cnae: Optional[str] = Query(None, description="Filtrar por CNAE"),
-    c_cargo_id: Optional[int] = Query(None, description="Filtro contacto: cargo"),
-    c_campaign_id: Optional[int] = Query(None, description="Filtro contacto: campaña"),
-    c_search: Optional[str] = Query(None, description="Filtro contacto: búsqueda"),
-    q: Optional[str] = Query(None, description="Búsqueda por nombre de empresa (autocompletado)"),
-    limit: int = Query(50, description="Límite de paginación"),
+    filters: EmpresaFilterParams = Depends(),
+    limit: int = Query(50, description="Límite de paginación", ge=1, le=1000),
+    offset: int = Query(0, description="Desplazamiento de paginación", ge=0),
+    db: AsyncSession = Depends(get_db)
+):
+    return await empresa_service.list_empresas(db, filters, limit, offset)
+
+@router.get("/{empresa_id}/contactos", response_model=ContactListResponse)
+async def list_empresa_contactos(
+    empresa_id: int,
+    limit: int = Query(50, description="Límite de paginación", ge=1, le=1000),
     offset: int = Query(0, description="Desplazamiento de paginación"),
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(Empresa)
+    # Validar que la empresa existe (opcional pero buena práctica)
+    empresa = await db.scalar(select(Empresa).where(Empresa.id == empresa_id))
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
 
-    if q:
-        query = query.where(Empresa.nombre.ilike(f"%{q}%"))
-
-    # Empresa M2M filters (now via association tables)
-    if sector_id is not None:
-        query = query.join(empresa_sectors, Empresa.id == empresa_sectors.c.empresa_id).where(
-            empresa_sectors.c.sector_id == sector_id
-        )
-    if vertical_id is not None:
-        query = query.join(empresa_verticals, Empresa.id == empresa_verticals.c.empresa_id).where(
-            empresa_verticals.c.vertical_id == vertical_id
-        )
-    if product_id is not None:
-        query = query.join(empresa_products, Empresa.id == empresa_products.c.empresa_id).where(
-            empresa_products.c.product_id == product_id
-        )
-
-    if numero_empleados_min is not None:
-        query = query.where(Empresa.numero_empleados >= numero_empleados_min)
-    if numero_empleados_max is not None:
-        query = query.where(Empresa.numero_empleados <= numero_empleados_max)
-    if facturacion_min is not None:
-        query = query.where(Empresa.facturacion >= facturacion_min)
-    if facturacion_max is not None:
-        query = query.where(Empresa.facturacion <= facturacion_max)
-    if cnae:
-        query = query.where(Empresa.cnae.startswith(cnae))
-
-    has_contact_filters = any(x is not None and x != "" for x in [c_cargo_id, c_campaign_id, c_search])
-    
-    if has_contact_filters:
-        query = query.join(Contact, Contact.empresa_id == Empresa.id)
-        
-        if c_cargo_id is not None:
-            query = query.where(Contact.cargo_id == c_cargo_id)
-        if c_campaign_id is not None:
-            query = query.join(ccamp_table, Contact.id == ccamp_table.c.contact_id).where(ccamp_table.c.campaign_id == c_campaign_id)
-        if c_search:
-            term = f"%{c_search}%"
-            query = query.where(
-                or_(
-                    Contact.first_name.ilike(term),
-                    Contact.last_name.ilike(term),
-                    Empresa.email.ilike(term),
-                    Contact.email.ilike(term),
-                )
-            )
-
-        query = query.options(
-            contains_eager(Empresa.contactos).selectinload(Contact.cargo),
-            contains_eager(Empresa.contactos).selectinload(Contact.campaigns),
-        )
-    else:
-        query = query.options(
-            selectinload(Empresa.contactos).selectinload(Contact.cargo),
-            selectinload(Empresa.contactos).selectinload(Contact.campaigns),
-        )
-
-    # Always eagerly load Empresa's own M2M
-    query = query.options(
-        selectinload(Empresa.sectors),
-        selectinload(Empresa.verticals),
-        selectinload(Empresa.products_rel),
+    q = select(Contact).where(Contact.empresa_id == empresa_id).options(
+        selectinload(Contact.cargo)
     )
-        
-    query = query.order_by(Empresa.nombre)
     
-    # Extract count before pagination
-    count_query = select(func.count()).select_from(query.with_only_columns(Empresa.id).subquery())
-    count_result = await db.execute(count_query)
-    total = count_result.scalar_one()
+    count_query = select(func.count()).select_from(q.with_only_columns(Contact.id).subquery())
+    total = await db.scalar(count_query)
 
-    # Apply pagination
-    query = query.limit(limit).offset(offset)
-    
-    result = await db.execute(query)
-    items = result.scalars().unique().all()
-    
-    return EmpresaListResponse(
+    q = q.order_by(Contact.first_name, Contact.last_name).limit(limit).offset(offset)
+    result = await db.execute(q)
+    items = result.scalars().all()
+
+    return ContactListResponse(
         total=total,
         items=list(items)
     )

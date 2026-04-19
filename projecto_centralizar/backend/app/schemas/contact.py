@@ -146,8 +146,5 @@ class ContactFilterParams(BaseModel):
     contacto_nombre: str | None = None
     email: str | None = None
     empresa_id: int | None = None
-    cnae: str | None = None
-    empresa_numero_empleados_min: int | None = None
-    empresa_numero_empleados_max: int | None = None
     page: int = 1
     page_size: int = 50

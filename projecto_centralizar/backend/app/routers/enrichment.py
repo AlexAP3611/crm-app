@@ -1,20 +1,18 @@
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-
 import logging
 
 from app.database import get_db
-from app.models.empresa import Empresa
-from app.models.sector import Sector
-from app.models.vertical import Vertical
-from app.models.product import Product
-from app.schemas.contact import ContactCreate
-from app.services import enrichment_service, contact_service
 from app.auth import get_current_user
+from app.services import enrichment_service, enrichment_ingest_service
+from app.schemas.enrichment import (
+    EnrichRequest,
+    BulkEnrichRequest,
+    BulkEnrichmentResponse,
+    BulkEnrichmentResultItem,
+    IngestRequest,
+    IngestResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,41 +21,6 @@ router = APIRouter(
     tags=["Enrichment"],
     dependencies=[Depends(get_current_user)]
 )
-
-
-class EnrichRequest(BaseModel):
-    source: str
-    data: dict[str, Any]
-
-
-class BulkContactItem(BaseModel):
-    """
-    Only id_contacto is required. All other fields are optional and handled
-    dynamically — known columns are written to DB, the rest go into notes[source].
-    """
-    model_config = {"extra": "allow"}
-
-    id_contacto: int
-
-
-class BulkContactData(BaseModel):
-    contacts: list[BulkContactItem]
-
-
-class BulkEnrichRequest(BaseModel):
-    source: str
-    data: BulkContactData
-
-
-class BulkEnrichmentResultItem(BaseModel):
-    id_contacto: int
-    status: str
-    message: str | None = None
-
-
-class BulkEnrichmentResponse(BaseModel):
-    results: list[BulkEnrichmentResultItem]
-
 
 @router.post("/bulk", response_model=BulkEnrichmentResponse)
 async def bulk_enrich(
@@ -97,6 +60,7 @@ async def bulk_enrich(
                     status="success"
                 ))
         except Exception as e:
+            logger.error(f"Error bulk_enrich contact {contact_item.id_contacto}: {e}")
             results.append(BulkEnrichmentResultItem(
                 id_contacto=contact_item.id_contacto,
                 status="error",
@@ -106,7 +70,7 @@ async def bulk_enrich(
     return BulkEnrichmentResponse(results=results)
 
 
-
+@router.post("/contact/{contact_id}")
 async def enrich_contact(
     contact_id: int,
     body: EnrichRequest,
@@ -127,95 +91,7 @@ async def enrich_contact(
     }
 
 
-class IngestContactInput(BaseModel):
-    first_name: str
-    last_name: str
-    email: str | None = None
-    linkedin: str | None = None
-    job_title: str | None = None
-    phone: str | None = None
-
-class IngestEmpresaInput(BaseModel):
-    empresa_id: int
-    web: str
-    email: str | None = None
-    cif: str | None = None
-    cnae: str | None = None
-    numero_empleados: int | None = None
-    facturacion: float | None = None
-    sector: list[str] = []
-    vertical: list[str] = []
-    producto: list[str] = []
-    contactos: list[IngestContactInput] = []
-
-class IngestRequest(BaseModel):
-    empresas: list[IngestEmpresaInput]
-
-class IngestResponse(BaseModel):
-    status: str
-    empresa_processed: int
-    empresa_skipped: int
-    contact_created: int
-    contact_updated: int
-    contact_skipped: int
-
-async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[IngestContactInput]):
-    from app.services import cargo_service
-    created = 0
-    updated = 0
-    skipped = 0
-
-    unique_titles = {c.job_title for c in contactos if c.job_title}
-    title_to_cargo_id = {}
-    for title in unique_titles:
-        cargo = await cargo_service.resolve_cargo(db, title)
-        if cargo:
-            title_to_cargo_id[title] = cargo.id
-
-    for contact_in in contactos:
-        # Normalize empty strings to None
-        email = contact_in.email if contact_in.email != "" else None
-        linkedin = contact_in.linkedin if contact_in.linkedin != "" else None
-
-        if not email and not linkedin:
-            logger.warning(f"SKIP Contacto: Ni email ni linkedin. Payload: {contact_in.model_dump()}")
-            skipped += 1
-            continue
-
-        contact_data = ContactCreate(
-            empresa_id=empresa_id,
-            first_name=contact_in.first_name,
-            last_name=contact_in.last_name,
-            email=email,
-            linkedin=linkedin,
-            job_title=contact_in.job_title,
-            cargo_id=title_to_cargo_id.get(contact_in.job_title),
-            phone=contact_in.phone
-        )
-        try:
-            contact, action = await contact_service.upsert_contact(
-                db,
-                contact_data,
-                from_enrichment=True,
-                strict_identity=True,
-                auto_commit=False,
-            )
-            if action == "created":
-                created += 1
-            elif action == "updated":
-                updated += 1
-            else:
-                skipped += 1
-        except Exception as e:
-            logger.error(f"Error ingesting contact {contact_in.first_name} {contact_in.last_name}: {e}\nPayload: {contact_in.model_dump()}")
-            skipped += 1
-    return created, updated, skipped
-
-async def validate_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
-    return await db.get(Empresa, empresa_id)
-
-@router.post("/ingest")
-@router.post("/{contact_id}")
+@router.post("/ingest", response_model=IngestResponse)
 async def ingest_enrichment(
     body: IngestRequest,
     db: AsyncSession = Depends(get_db),
@@ -223,69 +99,6 @@ async def ingest_enrichment(
     """
     Ingest bulk enrichment from n8n.
     Protected strictly by router-level Depends(get_current_user).
+    Delegated completely to service layer.
     """
-    empresa_processed = 0
-    empresa_skipped = 0
-    contact_created = 0
-    contact_updated = 0
-    contact_skipped = 0
-
-    for emp_in in body.empresas:
-        empresa = await validate_empresa(db, emp_in.empresa_id)
-        
-        if not empresa:
-            logger.warning(f"SKIP Empresa: ID {emp_in.empresa_id} no existe en DB. Payload: {emp_in.model_dump()}")
-            empresa_skipped += 1
-            continue
-            
-        # Update fields selectively, only if not None and not empty string
-        if emp_in.web not in (None, ""): empresa.web = emp_in.web
-        if emp_in.email not in (None, ""): empresa.email = emp_in.email
-        if emp_in.cif not in (None, ""): empresa.cif = emp_in.cif
-        if emp_in.cnae not in (None, ""): empresa.cnae = emp_in.cnae
-        if emp_in.numero_empleados not in (None, ""): empresa.numero_empleados = emp_in.numero_empleados
-        if emp_in.facturacion not in (None, ""): empresa.facturacion = emp_in.facturacion
-        
-        # M2M relationships — merge-append only, never replace existing
-        if emp_in.sector:
-            res_sec = await db.execute(select(Sector).where(Sector.name.in_(emp_in.sector)))
-            new_sectors = list(res_sec.scalars().all())
-            existing_ids = {s.id for s in empresa.sectors}
-            for s in new_sectors:
-                if s.id not in existing_ids:
-                    empresa.sectors.append(s)
-            
-        if emp_in.vertical:
-            res_ver = await db.execute(select(Vertical).where(Vertical.name.in_(emp_in.vertical)))
-            new_verticals = list(res_ver.scalars().all())
-            existing_ids = {v.id for v in empresa.verticals}
-            for v in new_verticals:
-                if v.id not in existing_ids:
-                    empresa.verticals.append(v)
-            
-        if emp_in.producto:
-            res_prod = await db.execute(select(Product).where(Product.name.in_(emp_in.producto)))
-            new_products = list(res_prod.scalars().all())
-            existing_ids = {p.id for p in empresa.products_rel}
-            for p in new_products:
-                if p.id not in existing_ids:
-                    empresa.products_rel.append(p)
-
-        await db.flush()
-        empresa_processed += 1
-        
-        created, updated, skipped = await process_contacts(db, empresa.id, emp_in.contactos)
-        contact_created += created
-        contact_updated += updated
-        contact_skipped += skipped
-
-    await db.commit()
-
-    return IngestResponse(
-        status="success",
-        empresa_processed=empresa_processed,
-        empresa_skipped=empresa_skipped,
-        contact_created=contact_created,
-        contact_updated=contact_updated,
-        contact_skipped=contact_skipped
-    )
+    return await enrichment_ingest_service.bulk_ingest(db, body)

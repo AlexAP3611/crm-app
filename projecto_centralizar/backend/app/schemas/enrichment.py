@@ -1,0 +1,61 @@
+from typing import Any
+from pydantic import BaseModel
+
+class EnrichRequest(BaseModel):
+    source: str
+    data: dict[str, Any]
+
+class BulkContactItem(BaseModel):
+    """
+    Only id_contacto is required. All other fields are optional and handled
+    dynamically — known columns are written to DB, the rest go into notes[source].
+    """
+    model_config = {"extra": "allow"}
+    id_contacto: int
+
+class BulkContactData(BaseModel):
+    contacts: list[BulkContactItem]
+
+class BulkEnrichRequest(BaseModel):
+    source: str
+    data: BulkContactData
+
+class BulkEnrichmentResultItem(BaseModel):
+    id_contacto: int
+    status: str
+    message: str | None = None
+
+class BulkEnrichmentResponse(BaseModel):
+    results: list[BulkEnrichmentResultItem]
+
+class IngestContactInput(BaseModel):
+    first_name: str
+    last_name: str
+    email: str | None = None
+    linkedin: str | None = None
+    job_title: str | None = None
+    phone: str | None = None
+
+class IngestEmpresaInput(BaseModel):
+    empresa_id: int
+    web: str
+    email: str | None = None
+    cif: str | None = None
+    cnae: str | None = None
+    numero_empleados: int | None = None
+    facturacion: float | None = None
+    sector: list[str] = []
+    vertical: list[str] = []
+    producto: list[str] = []
+    contactos: list[IngestContactInput] = []
+
+class IngestRequest(BaseModel):
+    empresas: list[IngestEmpresaInput]
+
+class IngestResponse(BaseModel):
+    status: str
+    empresa_processed: int
+    empresa_skipped: int
+    contact_created: int
+    contact_updated: int
+    contact_skipped: int

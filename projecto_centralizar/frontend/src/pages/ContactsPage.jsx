@@ -292,7 +292,7 @@ export default function ContactsPage() {
     }
 
     const clearAllFilters = () => {
-        ['search', 'contacto_nombre', 'email', 'cnae', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id'].forEach((k) => updateFilter(k, ''))
+        ['search', 'contacto_nombre', 'email', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id'].forEach((k) => updateFilter(k, ''))
     }
 
     const handleBulkSave = async (updateData) => {

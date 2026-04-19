@@ -1,4 +1,6 @@
 import re
+from typing import Optional
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.cargo import Cargo
@@ -16,6 +18,12 @@ ALIAS_MAP = {
     "head of marketing": "chief marketing officer",
 }
 
+class CargoResolutionResult(BaseModel):
+    id_map: dict[str, int]
+    created: list[str]
+    missed: list[str]
+
+
 def normalize_job_title(raw_value: str) -> str:
     """
     Standardize job title syntax:
@@ -28,12 +36,20 @@ def normalize_job_title(raw_value: str) -> str:
         return ""
     
     val = raw_value.lower().strip()
-    # Replace dots and other symbols with spaces
     val = val.replace(".", " ")
     val = re.sub(r'[^a-z0-9\s]', ' ', val)
-    # Collapse spaces
     val = re.sub(r'\s+', ' ', val).strip()
     return val
+
+def _get_canonical_name(raw_value: str) -> str | None:
+    norm = normalize_job_title(raw_value)
+    if not norm:
+        return None
+    return ALIAS_MAP.get(norm, norm)
+
+def _get_display_name(raw_value: str, norm: str) -> str:
+    return norm.title() if norm != normalize_job_title(raw_value) else raw_value.strip()
+
 
 async def resolve_cargo(session: AsyncSession, raw_value: str) -> Cargo | None:
     """
@@ -42,15 +58,10 @@ async def resolve_cargo(session: AsyncSession, raw_value: str) -> Cargo | None:
     if not raw_value:
         return None
     
-    # 1. Normalize syntax
-    norm = normalize_job_title(raw_value)
+    norm = _get_canonical_name(raw_value)
     if not norm:
         return None
     
-    # 2. Expand Semantic Aliases
-    norm = ALIAS_MAP.get(norm, norm)
-    
-    # 3. Lookup in DB
     result = await session.execute(
         select(Cargo).where(Cargo.normalized_name == norm)
     )
@@ -59,16 +70,56 @@ async def resolve_cargo(session: AsyncSession, raw_value: str) -> Cargo | None:
     if cargo:
         return cargo
     
-    # 4. Create if not exists
-    # If no alias was applied, use the original raw value for the display name.
-    # If an alias was applied, use title-cased 'norm' for a clean display name.
-    display_name = norm.title() if norm != normalize_job_title(raw_value) else raw_value.strip()
-
-    new_cargo = Cargo(
-        name=display_name,
-        normalized_name=norm
-    )
+    display_name = _get_display_name(raw_value, norm)
+    new_cargo = Cargo(name=display_name, normalized_name=norm)
     session.add(new_cargo)
     await session.flush()
     
     return new_cargo
+
+
+async def resolve_cargos_bulk(session: AsyncSession, raw_titles: set[str]) -> CargoResolutionResult:
+    """
+    Bulk resolve Job Titles to Cargo IDs.
+    Returns observability schema to decouple logic domains.
+    """
+    res = await session.execute(select(Cargo))
+    cargo_map = {c.normalized_name: c for c in res.scalars().all() if c.normalized_name}
+
+    id_map = {}
+    created_names = []
+    missed_names = []
+
+    new_cargos = []
+    
+    for title in raw_titles:
+        if not title:
+            continue
+            
+        norm = _get_canonical_name(title)
+        if not norm:
+            missed_names.append(title)
+            continue
+            
+        cargo = cargo_map.get(norm)
+        if cargo:
+            id_map[title] = cargo.id
+        else:
+            display_name = _get_display_name(title, norm)
+            new_cargo = Cargo(name=display_name, normalized_name=norm)
+            session.add(new_cargo)
+            # Link it mentally for deduplication within exact same batch
+            cargo_map[norm] = new_cargo
+            new_cargos.append((title, new_cargo))
+            created_names.append(title)
+    
+    if new_cargos:
+        await session.flush()
+        for title, loaded_cargo in new_cargos:
+            id_map[title] = loaded_cargo.id
+            
+    return CargoResolutionResult(
+        id_map=id_map,
+        created=created_names,
+        missed=missed_names
+    )

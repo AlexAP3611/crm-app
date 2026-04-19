@@ -119,7 +119,86 @@ function EmpresaBulkAssignmentModal({ type, targetCount, options = [], onClose, 
 }
 
 const EMPTY_FORM = { nombre: '', cif: '', email: '', phone: '', web: '', sector_ids: [], vertical_ids: [], product_ids: [], cargo_ids: [], campaign_ids: [], numero_empleados: '', facturacion: '', cnae: '' }
-const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', c_search: '', c_cargo_id: '', c_campaign_id: '', page: 1, page_size: 50 }
+const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', page: 1, page_size: 50 }
+
+function EmpresaContactosRow({ empresaId, onEditContact, onDeleteContact }) {
+    const [contactos, setContactos] = useState([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const pageSize = 10;
+    const totalPages = Math.ceil(total / pageSize);
+
+    useEffect(() => {
+        let isMounted = true;
+        setLoading(true);
+        api.getEmpresaContactos(empresaId, page, pageSize)
+            .then(data => {
+                if (isMounted) {
+                    setContactos(data.items || []);
+                    setTotal(data.total || 0);
+                    setError(null);
+                }
+            })
+            .catch(e => {
+                if (isMounted) setError(e.message);
+            })
+            .finally(() => {
+                if (isMounted) setLoading(false);
+            });
+        
+        return () => { isMounted = false; };
+    }, [empresaId, page]);
+
+    if (loading) return <div className="p-8 text-center text-sm text-stone-500 flex justify-center items-center gap-2"><span className="material-symbols-outlined animate-spin text-lg">sync</span> Cargando contactos...</div>;
+    if (error) return <div className="p-8 text-center text-sm text-error bg-error/10 m-4 rounded-xl font-medium border border-error/20">{error}</div>;
+
+    return (
+        <div className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-sm my-4 mx-4 md:mx-16">
+            {contactos.length > 0 ? (
+                <>
+                    <table className="w-full text-left">
+                        <thead className="bg-stone-50">
+                            <tr>
+                                <th className="py-3 px-5 text-[10px] font-bold text-stone-500 uppercase tracking-widest border-b border-stone-200">Contacto</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-stone-500 uppercase tracking-widest border-b border-stone-200">Cargo</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-stone-500 uppercase tracking-widest border-b border-stone-200">Email</th>
+                                <th className="py-3 px-5 text-[10px] font-bold text-stone-500 uppercase tracking-widest border-b border-stone-200">LinkedIn</th>
+                                <th className="py-3 px-5 w-10 border-b border-stone-200"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-100">
+                            {contactos.map(c => (
+                                <tr key={c.id} className="hover:bg-stone-50/50 transition-colors">
+                                    <td className="py-3 px-5 text-sm font-bold text-stone-800">{c.first_name} {c.last_name}</td>
+                                    <td className="py-3 px-5 text-sm font-medium text-stone-600">{c.cargo?.name || c.cargo?.nombre || '-'}</td>
+                                    <td className="py-3 px-5 text-sm font-medium text-stone-600">{c.email || c.email_generic || '-'}</td>
+                                    <td className="py-3 px-5 text-sm font-bold text-cyan-600">{c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer" className="hover:underline flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">link</span> Perfil</a> : '-'}</td>
+                                    <td className="py-3 px-5 text-right">
+                                        <RowMenu onEdit={() => onEditContact(c)} onDelete={() => onDeleteContact(c)} />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between p-4 bg-stone-50">
+                            <span className="text-[10px] text-stone-500 uppercase tracking-widest font-bold">Mostrando página {page} de {totalPages} ({total} total)</span>
+                            <div className="flex gap-2">
+                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-bold text-stone-600 disabled:opacity-50 hover:bg-stone-100 hover:text-stone-900 transition-colors">Anterior</button>
+                                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-bold text-stone-600 disabled:opacity-50 hover:bg-stone-100 hover:text-stone-900 transition-colors">Siguiente</button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            ) : (
+                <div className="p-8 text-center text-sm font-medium text-stone-500">No hay contactos vinculados a esta empresa.</div>
+            )}
+        </div>
+    );
+}
 
 function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess }) {
     const [selectedToAssign, setSelectedToAssign] = useState("");
@@ -296,8 +375,6 @@ export default function EmpresasPage() {
             sector_id: createMap(sectors),
             vertical_id: createMap(verticals),
             product_id: createMap(products),
-            c_campaign_id: createMap(campaigns),
-            c_cargo_id: createMap(cargos),
         }
     }, [sectors, verticals, products, campaigns, cargos]);
 
@@ -612,17 +689,6 @@ export default function EmpresasPage() {
                             {products.map(p => <option key={p.id} value={p.id}>{p.name || p.nombre}</option>)}
                         </select>
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Cargo</label>
-                        <select 
-                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
-                            value={filters.c_cargo_id}
-                            onChange={e => handleFilterChange('c_cargo_id', e.target.value)}
-                        >
-                            <option value="">Todos</option>
-                            {cargos.map(c => <option key={c.id} value={c.id}>{c.name || c.nombre}</option>)}
-                        </select>
-                    </div>
                 </div>
             </div>
 
@@ -744,7 +810,7 @@ export default function EmpresasPage() {
                                                             <p className="text-sm font-bold text-on-surface leading-tight hover:text-cyan-700 transition-colors" onClick={() => handleEdit(emp)}>{emp.nombre}</p>
                                                             <div className="text-[10px] text-stone-400 font-medium flex items-center gap-1 mt-0.5">
                                                                 <span className="material-symbols-outlined text-[12px]">group</span>
-                                                                {emp.contactos ? `${emp.contactos.length} contactos` : '0 contactos'}
+                                                                Ver contactos
                                                                 {expandedRows.has(emp.id) ? '▾' : '▸'}
                                                             </div>
                                                         </div>
@@ -792,38 +858,11 @@ export default function EmpresasPage() {
                                         {expandedRows.has(emp.id) && (
                                             <tr className="bg-stone-50 border-transparent">
                                                 <td colSpan="8" className="p-0">
-                                                    <div className="px-16 py-4">
-                                                        <div className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                                                            {emp.contactos && emp.contactos.length > 0 ? (
-                                                                <table className="w-full text-left">
-                                                                    <thead className="bg-stone-100/50">
-                                                                        <tr>
-                                                                            <th className="py-2.5 px-4 text-[10px] font-bold text-stone-500 uppercase tracking-wider">Contacto</th>
-                                                                            <th className="py-2.5 px-4 text-[10px] font-bold text-stone-500 uppercase tracking-wider">Cargo</th>
-                                                                            <th className="py-2.5 px-4 text-[10px] font-bold text-stone-500 uppercase tracking-wider">Email</th>
-                                                                            <th className="py-2.5 px-4 text-[10px] font-bold text-stone-500 uppercase tracking-wider">LinkedIn</th>
-                                                                            <th className="py-2.5 px-4 w-10"></th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody className="divide-y divide-stone-100">
-                                                                        {emp.contactos.map(c => (
-                                                                            <tr key={c.id} className="hover:bg-stone-50 transition-colors">
-                                                                                <td className="py-2 px-4 text-sm font-semibold text-stone-800">{c.first_name} {c.last_name}</td>
-                                                                                <td className="py-2 px-4 text-sm text-stone-600">{c.cargo?.name || '-'}</td>
-                                                                                <td className="py-2 px-4 text-sm text-stone-600">{c.email || c.email_generic || '-'}</td>
-                                                                                <td className="py-2 px-4 text-sm text-cyan-600">{c.linkedin ? <a href={c.linkedin} target="_blank" rel="noreferrer" className="hover:underline">Perfil</a> : '-'}</td>
-                                                                                <td className="py-2 px-4 text-right">
-                                                                                    <RowMenu onEdit={() => handleEditContact(c)} onDelete={() => handleDeleteContact(c)} />
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            ) : (
-                                                                <div className="p-4 text-center text-sm text-stone-500">No hay contactos vinculados.</div>
-                                                            )}
-                                                        </div>
-                                                    </div>
+                                                    <EmpresaContactosRow 
+                                                        empresaId={emp.id} 
+                                                        onEditContact={handleEditContact} 
+                                                        onDeleteContact={handleDeleteContact} 
+                                                    />
                                                 </td>
                                             </tr>
                                         )}

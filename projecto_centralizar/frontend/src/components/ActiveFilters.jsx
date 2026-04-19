@@ -17,9 +17,6 @@ const FILTER_LABELS = {
   product_id: 'Producto',
   cargo_id: 'Cargo',
   empresa_id: 'Empresa',
-  empresa_sector: 'Sector de Empresa',
-  empresa_numero_empleados_min: 'Min. Empleados de Empresa',
-  empresa_numero_empleados_max: 'Max. Empleados de Empresa',
 };
 
 const formatValue = (key, value, optionsMap) => {

@@ -463,22 +463,13 @@ async def list_contacts(
         )
 
     has_empresa_filters = any(x is not None for x in [
-        filters.empresa_numero_empleados_min, 
-        filters.empresa_numero_empleados_max,
         filters.sector_id,
         filters.vertical_id,
-        filters.product_id,
-        filters.cnae
+        filters.product_id
     ])
     
     if has_empresa_filters:
         query = query.join(Empresa, Contact.empresa_id == Empresa.id)
-        if filters.cnae:
-            query = query.where(Empresa.cnae.startswith(filters.cnae))
-        if filters.empresa_numero_empleados_min is not None:
-            query = query.where(Empresa.numero_empleados >= filters.empresa_numero_empleados_min)
-        if filters.empresa_numero_empleados_max is not None:
-            query = query.where(Empresa.numero_empleados <= filters.empresa_numero_empleados_max)
 
         # Sector/Vertical/Product filters route through Empresa's M2M tables
         if filters.sector_id is not None:

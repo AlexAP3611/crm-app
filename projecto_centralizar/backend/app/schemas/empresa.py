@@ -5,6 +5,18 @@ from pydantic import BaseModel
 from app.schemas.contact import ContactResponse, SectorRef, VerticalRef, ProductRef
 
 
+class EmpresaFilterParams(BaseModel):
+    q: Optional[str] = None
+    sector_id: Optional[int] = None
+    vertical_id: Optional[int] = None
+    product_id: Optional[int] = None
+    numero_empleados_min: Optional[int] = None
+    numero_empleados_max: Optional[int] = None
+    facturacion_min: Optional[float] = None
+    facturacion_max: Optional[float] = None
+    cnae: Optional[str] = None
+
+
 class EmpresaBase(BaseModel):
     nombre: str
     web: Optional[str] = None
@@ -63,7 +75,7 @@ class EmpresaCreateResponse(BaseModel):
         from_attributes = True
 
 class EmpresaResponse(EmpresaCreateResponse):
-    contactos: list[ContactResponse] = []
+    pass
 
 class EmpresaListResponse(BaseModel):
     total: int

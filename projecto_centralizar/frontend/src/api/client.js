@@ -287,6 +287,10 @@ export const api = {
     },
     createEmpresa: (data) => request('/empresas', { method: 'POST', body: JSON.stringify(data) }),
     updateEmpresa: (id, data) => request(`/empresas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    getEmpresaContactos: (id, page = 1, limit = 50) => {
+        const queryParams = new URLSearchParams({ page, limit, offset: (page - 1) * limit });
+        return request(`/empresas/${id}/contactos?${queryParams.toString()}`);
+    },
     deleteEmpresa: (id) => request(`/empresas/${id}`, { method: 'DELETE' }),
     deleteBulkEmpresas: (data) => request('/empresas/bulk-delete', { method: 'POST', body: JSON.stringify(data) }),
     updateBulkEmpresas: (data) => request('/empresas/bulk-update', { method: 'POST', body: JSON.stringify(data) }),
