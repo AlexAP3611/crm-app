@@ -1,5 +1,6 @@
 import csv
 import io
+from openpyxl import load_workbook
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,6 +65,43 @@ def parse_csv(content: bytes) -> list[dict]:
         rows.append(row)
 
     return rows
+
+def parse_xlsx(content: bytes) -> list[dict]:
+    """
+    Parses XLSX bytes and returns a list of dictionaries.
+    Headers are normalized (stripped and lowercased).
+    Data values are stripped if they are strings.
+    """
+    wb = load_workbook(io.BytesIO(content))
+    ws = wb.active
+
+    # Safe header extraction with normalization
+    headers = [
+        (str(cell.value).strip().lower() if cell.value is not None else None)
+        for cell in next(ws.iter_rows(min_row=1, max_row=1))
+    ]
+
+    rows = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        clean_row = {}
+        for k, v in zip(headers, row):
+            if not k:
+                continue
+            if isinstance(v, str):
+                v = v.strip()
+            clean_row[k] = v
+        rows.append(clean_row)
+
+    return rows
+
+def parse_file(content: bytes, filename: str) -> list[dict]:
+    """Unified parser that handles CSV and XLSX based on filename extension."""
+    filename = filename.lower()
+    if filename.endswith(".csv"):
+        return parse_csv(content)
+    if filename.endswith(".xlsx"):
+        return parse_xlsx(content)
+    raise ValueError("Unsupported file format. Only .csv and .xlsx are supported.")
 
 async def export_empresas_csv(session: AsyncSession, items: list[Empresa]) -> str:
     """Return CSV string for a list of enterprises."""

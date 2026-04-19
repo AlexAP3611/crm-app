@@ -4,11 +4,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.contact import Contact
 from app.schemas.contact import ContactCreate
 from app.schemas.empresa import EmpresaCreate
-from app.services import contact_service, empresa_service, empresa_mapper
+from app.services import contact_service, empresa_service, empresa_mapper, sector_service, vertical_service, product_service
 from app.core.utils import normalize_web, normalize_company_name
 from app.core.field_mapping import CORE_COLUMNS, M2M_FIELD_MAP, EMPRESA_CORE_COLUMNS, EMPRESA_M2M_FIELD_MAP
+from app.core.domain_mappers.empresa_mapper import normalize_empresa_row
 
 logger = logging.getLogger(__name__)
+
+def safe_str(val):
+    """
+    Safely convert any value to a trimmed string or None.
+    Specifically handles Excel floats that should be integers (e.g. 986561216.0 -> "986561216").
+    """
+    if val is None:
+        return None
+    
+    # Fix Excel floats like 986561216.0
+    if isinstance(val, float) and val.is_integer():
+        val = int(val)
+        
+    return str(val).strip() or None
 
 async def import_contacts_from_rows(session: AsyncSession, rows: list[dict]) -> dict[str, int]:
     created = 0
@@ -92,62 +107,109 @@ async def import_empresas_from_rows(session: AsyncSession, rows: list[dict]) -> 
     updated = 0
     skipped = 0
 
-    for row_idx, row in enumerate(rows):
-        try:
-            nombre = row.get("nombre")
-            if not nombre:
-                skipped += 1
-                logger.warning(f"Row {row_idx}: Skipped due to missing 'nombre'.")
-                continue
+    try:
+        for row_idx, row in enumerate(rows):
+            try:
+                # 1. Map row keys to internal field names
+                mapped = normalize_empresa_row(row)
+                
+                nombre = mapped.get("nombre")
+                if not nombre:
+                    skipped += 1
+                    logger.warning(f"Row {row_idx}: Skipped due to missing 'nombre' (mapped from aliases). Original row: {row}")
+                    continue
 
-            # 1. Build Payload
-            payload = {}
-            for col in EMPRESA_CORE_COLUMNS:
-                val = row.get(col)
-                if val is not None and val != "":
-                    if col == "web":
-                        payload[col] = normalize_web(val)
-                    elif col == "nombre":
-                        payload[col] = normalize_company_name(val)
-                    elif col == "numero_empleados":
-                        try: payload[col] = int(val)
-                        except ValueError: pass
-                    elif col == "facturacion":
-                        try: payload[col] = float(val)
-                        except ValueError: pass
-                    else:
-                        payload[col] = val
+                # 2. Build Payload
+                payload = {}
+                
+                # Core columns mapping
+                for col in EMPRESA_CORE_COLUMNS:
+                    val = mapped.get(col)
+                    if val is not None and val != "":
+                        if col == "web":
+                            payload[col] = normalize_web(val)
+                        elif col == "nombre":
+                            payload[col] = normalize_company_name(val)
+                        elif col == "numero_empleados":
+                            try: payload[col] = int(val)
+                            except ValueError: pass
+                        elif col == "facturacion":
+                            try: payload[col] = float(val)
+                            except ValueError: pass
+                        else:
+                            payload[col] = val
 
-            for m2m_key in EMPRESA_M2M_FIELD_MAP.keys():
-                val = row.get(m2m_key)
-                if val:
+                # 3. Resolve human-readable names to IDs (Sectors, Verticals, Products)
+                if mapped.get("sector_name"):
+                    sector = await sector_service.resolve_by_name(session, mapped["sector_name"])
+                    if sector:
+                        payload["sector_ids"] = [sector.id]
+                
+                if mapped.get("vertical_name"):
+                    vertical = await vertical_service.resolve_by_name(session, mapped["vertical_name"])
+                    if vertical:
+                        payload["vertical_ids"] = [vertical.id]
+                        
+                    if mapped.get("product_name"):
+                        product = await product_service.resolve_by_name(session, mapped["product_name"])
+                        if product:
+                            payload["product_ids"] = [product.id]
+
+                # 4. Fallback for direct IDs if present
+                for m2m_key in EMPRESA_M2M_FIELD_MAP.keys():
+                    if m2m_key not in payload: # Don't overwrite if already resolved by name
+                        val = mapped.get(m2m_key)
+                        if val:
+                            try:
+                                payload[m2m_key] = [int(x.strip()) for x in str(val).split(",") if x.strip()]
+                            except Exception:
+                                pass
+
+                # 5. Robust type normalization before validation
+                STRING_FIELDS = ["nombre", "phone", "email", "web", "cif", "cnae"]
+                for field in STRING_FIELDS:
+                    if field in payload:
+                        payload[field] = safe_str(payload[field])
+
+                if "numero_empleados" in payload:
                     try:
-                        payload[m2m_key] = [int(x.strip()) for x in str(val).split(",") if x.strip()]
-                    except Exception:
-                        pass
+                        payload["numero_empleados"] = int(payload["numero_empleados"])
+                    except (ValueError, TypeError):
+                        payload["numero_empleados"] = None
 
-            data = EmpresaCreate(**payload)
+                if "facturacion" in payload:
+                    try:
+                        payload["facturacion"] = float(payload["facturacion"])
+                    except (ValueError, TypeError):
+                        payload["facturacion"] = None
 
-            # 2. Call Domain Service (state base only)
-            empresa, action = await empresa_service.upsert_empresa(session, data)
-            
-            # 3. Sync M2M in Application Layer
-            await empresa_mapper._sync_empresa_m2m(session, empresa, data.sector_ids, data.vertical_ids, data.product_ids)
-            
-            # 4. Immediate Check per row
-            await session.flush()
+                data = EmpresaCreate(**payload)
 
-            if action == "created":
-                created += 1
-            elif action == "updated":
-                updated += 1
-            else:
-                skipped += 1
+                # 6. Call Domain Service (state base only)
+                empresa, action = await empresa_service.upsert_empresa(session, data)
+                
+                # 7. IMMEDIATE FLUSH to ensure we have empresa.id for M2M sync
+                await session.flush()
+                
+                # 8. Sync M2M in Application Layer (using explicit ID to avoid ORM traps)
+                await empresa_mapper._sync_empresa_m2m(session, empresa.id, data.sector_ids, data.vertical_ids, data.product_ids)
+                
+                if action == "created":
+                    created += 1
+                elif action == "updated":
+                    updated += 1
+                else:
+                    skipped += 1
 
-        except Exception as e:
-            await session.rollback()
-            skipped += 1
-            logger.error(f"Failed to import empresa row {row_idx} ({row.get('nombre', 'N/A')}): {str(e)}")
+            except Exception as row_error:
+                # We log the row error but the outer try-except will catch and rollback the entire batch
+                logger.error(f"Error processing empresa row {row_idx}: {row_error}")
+                raise row_error
 
-    await session.commit()
-    return {"created": created, "updated": updated, "skipped": skipped}
+        await session.commit()
+        return {"created": created, "updated": updated, "skipped": skipped}
+
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Import failed, rolling back entire batch. Error: {str(e)}")
+        raise e

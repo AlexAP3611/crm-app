@@ -36,21 +36,30 @@ async def export_csv(
     )
 
 
-@router.post("/import", summary="Import Contacts via CSV")
+@router.post("/import", summary="Import Contacts via CSV/XLSX")
 async def import_csv(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Import contacts from a CSV file.
-    The CSV should have columns matching the Contact model fields.
+    Import contacts from a CSV or XLSX file.
+    The file should have columns matching the Contact model fields.
     Relationships like id and empresa_id should be integers.
     """
-    if file.content_type not in ["text/csv", "application/vnd.ms-excel"]:
-        raise HTTPException(status_code=400, detail="Invalid file type. Only CSV allowed.")
+    # Allowed types: CSV, Excel (legacy), Excel (modern)
+    allowed_types = [
+        "text/csv", 
+        "application/vnd.ms-excel", 
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ]
+    if file.content_type not in allowed_types:
+        # Fallback check for extensions in case content_type is generic
+        if not (file.filename.lower().endswith(".csv") or file.filename.lower().endswith(".xlsx")):
+            raise HTTPException(status_code=400, detail="Invalid file type. Only CSV and XLSX allowed.")
 
     content = await file.read()
-    rows = csv_service.parse_csv(content)
+    from app.services import import_service
+    rows = csv_service.parse_file(content, file.filename)
     result = await import_service.import_contacts_from_rows(db, rows)
 
     return result

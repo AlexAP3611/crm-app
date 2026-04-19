@@ -71,9 +71,15 @@ async def list_empresa_contactos(
     result = await db.execute(q)
     items = result.scalars().all()
 
+    # Pydantic schema ContactListResponse requires page and page_size
+    current_page_size = limit if limit and limit > 0 else 50
+    page = (offset // current_page_size) + 1
+
     return ContactListResponse(
         total=total,
-        items=list(items)
+        items=list(items),
+        page=page,
+        page_size=current_page_size
     )
 
 @router.post("", response_model=EmpresaCreateResponse)
@@ -90,9 +96,13 @@ async def create_empresa(empresa: EmpresaCreate, db: AsyncSession = Depends(get_
     db_empresa = Empresa(**payload)
     
     # Sync M2M BEFORE db.add() so the object is transient and avoids lazy-loading
-    await empresa_mapper._sync_empresa_m2m(db, db_empresa, empresa.sector_ids, empresa.vertical_ids, empresa.product_ids)
-
+    # Note: Since the object is transient, it doesn't have an ID yet. 
+    # Actually, we should flush FIRST to get the ID if we use SQL Core sync.
+    # WAIT: the SQL core sync REQUIRES an ID.
+    
     db.add(db_empresa)
+    await db.flush() # Now db_empresa.id exists
+    await empresa_mapper._sync_empresa_m2m(db, db_empresa.id, empresa.sector_ids, empresa.vertical_ids, empresa.product_ids)
     await db.flush()
 
     await db.commit()
@@ -113,7 +123,7 @@ async def update_empresa(id: int, empresa_in: EmpresaCreate, db: AsyncSession = 
         setattr(empresa, field, value)
 
     # Sync M2M
-    await empresa_mapper._sync_empresa_m2m(db, empresa, empresa_in.sector_ids, empresa_in.vertical_ids, empresa_in.product_ids)
+    await empresa_mapper._sync_empresa_m2m(db, empresa.id, empresa_in.sector_ids, empresa_in.vertical_ids, empresa_in.product_ids)
 
     # Flush to persist M2M changes before building snapshots
     await db.flush()

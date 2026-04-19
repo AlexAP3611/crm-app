@@ -1,5 +1,4 @@
-from typing import Literal
-from pydantic import BaseModel
+from typing import Literal, NamedTuple
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +7,7 @@ from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empr
 from app.schemas.empresa import EmpresaListResponse, EmpresaFilterParams, EmpresaCreate
 from app.core.utils import normalize_company_name
 
-class ResolveEmpresaResult(BaseModel):
+class ResolveEmpresaResult(NamedTuple):
     empresa: Empresa
     created: bool
     matched_by: Literal["cif", "web", "name", "new"]

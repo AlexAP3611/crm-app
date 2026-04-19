@@ -11,6 +11,17 @@ export function CSVImport({ onImported }) {
 
     async function handleFile(file) {
         if (!file) return
+
+        // Robust validation by extension (avoiding unreliable MIME types)
+        const allowedExtensions = [".csv", ".xlsx", ".xls"];
+        const fileName = file.name.toLowerCase();
+        const isValid = allowedExtensions.some(ext => fileName.endsWith(ext));
+
+        if (!isValid) {
+            setError("Formato de archivo no válido. Use CSV o Excel (.xlsx, .xls)");
+            return;
+        }
+
         setLoading(true)
         setResult(null)
         setError(null)
@@ -42,10 +53,11 @@ export function CSVImport({ onImported }) {
                 onDrop={onDrop}
             >
                 <div className="drop-zone-icon">📂</div>
-                <p style={{ fontWeight: 500 }}>{loading ? 'Importando…' : 'Arrastra un archivo CSV aquí o haz clic para seleccionarlo'}</p>
-                <p className="text-xs text-muted mt-1">Mapeo dinámico import/export admitido: {CONTACT_COLUMNS.map(c => c.key).join(", ")}</p>
+                <p style={{ fontWeight: 500 }}>{loading ? 'Importando…' : 'Arrastra un archivo CSV o Excel aquí o haz clic'}</p>
+                <p className="text-xs text-muted mt-1">Formatos admitidos: CSV, Excel (.xlsx, .xls)</p>
+                <p className="text-xs text-muted mt-1">Columnas mapeadas: {CONTACT_COLUMNS.map(c => c.key).join(", ")}</p>
             </div>
-            <input id="csv-file-input" ref={inputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
+            <input id="csv-file-input" ref={inputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
             {result && (
                 <div className="alert alert-success mt-2">
                     ✓ Importado: <strong>{result.created}</strong> creados, <strong>{result.updated}</strong> actualizados
@@ -89,6 +101,17 @@ export function EmpresaCSVImport({ onImported }) {
 
     async function handleFile(file) {
         if (!file) return
+
+        // Robust validation by extension (avoiding unreliable MIME types)
+        const allowedExtensions = [".csv", ".xlsx", ".xls"];
+        const fileName = file.name.toLowerCase();
+        const isValid = allowedExtensions.some(ext => fileName.endsWith(ext));
+
+        if (!isValid) {
+            setError("Formato de archivo no válido. Use CSV o Excel (.xlsx, .xls)");
+            return;
+        }
+
         setLoading(true)
         setResult(null)
         setError(null)
@@ -120,10 +143,11 @@ export function EmpresaCSVImport({ onImported }) {
                 onDrop={onDrop}
             >
                 <div className="drop-zone-icon">🏢</div>
-                <p style={{ fontWeight: 500 }}>{loading ? 'Importando empresas…' : 'Arrastra un archivo CSV de empresas aquí o haz clic'}</p>
+                <p style={{ fontWeight: 500 }}>{loading ? 'Importando empresas…' : 'Arrastra un archivo CSV o Excel de empresas aquí o haz clic'}</p>
+                <p className="text-xs text-muted mt-1">Formatos admitidos: CSV, Excel (.xlsx, .xls)</p>
                 <p className="text-xs text-muted mt-1 italic">Columnas sugeridas: nombre, web, email, phone, cif, numero_empleados, facturacion, cnae</p>
             </div>
-            <input id="empresa-csv-file-input" ref={inputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
+            <input id="empresa-csv-file-input" ref={inputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files[0])} />
             {result && (
                 <div className="alert alert-success mt-2">
                     ✓ Importado: <strong>{result.created}</strong> creadas, <strong>{result.updated}</strong> actualizadas

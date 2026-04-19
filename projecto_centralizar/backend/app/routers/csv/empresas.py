@@ -35,20 +35,28 @@ async def export_empresas_csv(
     )
 
 
-@router.post("/import")
+@router.post("/import", summary="Import Empresas via CSV/XLSX")
 async def import_empresas_csv(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Import empresas from a CSV file.
+    Import empresas from a CSV or XLSX file.
     Deduplication: CIF -> web -> email -> Name.
     """
-    if file.content_type not in ["text/csv", "application/vnd.ms-excel"]:
-        raise HTTPException(status_code=400, detail="Invalid file type. Only CSV allowed.")
+    # Allowed types: CSV, Excel (legacy), Excel (modern)
+    allowed_types = [
+        "text/csv", 
+        "application/vnd.ms-excel", 
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ]
+    if file.content_type not in allowed_types:
+        # Fallback check for extensions in case content_type is generic
+        if not (file.filename.lower().endswith(".csv") or file.filename.lower().endswith(".xlsx")):
+            raise HTTPException(status_code=400, detail="Invalid file type. Only CSV and XLSX allowed.")
     
     content = await file.read()
     from app.services import csv_service, import_service
-    rows = csv_service.parse_csv(content)
+    rows = csv_service.parse_file(content, file.filename)
     result = await import_service.import_empresas_from_rows(db, rows)
     return result
