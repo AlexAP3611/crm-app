@@ -85,7 +85,6 @@ async def upsert_contact(
     session: AsyncSession,
     data: ContactCreate,
     from_enrichment: bool = False,
-    strict_identity: bool = False,
     auto_commit: bool = True,
 ) -> tuple[Contact | None, str]:
     """
@@ -93,10 +92,9 @@ async def upsert_contact(
 
     Returns (contact, action) where action is "created", "updated", or "skipped".
 
-    1. resolve_contact identifies an existing contact (email → linkedin → fuzzy)
+    1. resolve_contact identifies an existing contact (email → linkedin)
     2. High-confidence match (email/linkedin) → update existing contact
-    3. Low-confidence match (fuzzy) → update non-critical fields only
-    4. No match → create new contact
+    3. No match → create new contact
 
     Notes are always deep-merged, never replaced.
     """
@@ -125,14 +123,41 @@ async def upsert_contact(
     if cargo_id:
         kwargs["cargo_id"] = cargo_id
 
+    # Centralized update logic for both Happy Path and Recovery Path
+    async def apply_update(contact_obj: Contact):
+        for field, value in kwargs.items():
+            if value is None:
+                continue
+            # Protect email and phone: don't overwrite an existing valid value
+            if field == "email" and contact_obj.email:
+                continue
+            if field == "phone" and contact_obj.phone:
+                continue
+            setattr(contact_obj, field, value)
+
+        if data.notes:
+            contact_obj.notes = deep_merge(contact_obj.notes, data.notes)
+
+        if contact_obj.empresa_rel:
+            update_empresa_snapshot_in_contact(contact_obj, contact_obj.empresa_rel)
+            
+        if from_enrichment:
+            contact_obj.enriched = True
+            contact_obj.enriched_at = datetime.now(timezone.utc)
+            
+        for m2m_key, config in M2M_FIELD_MAP.items():
+            ids_list = getattr(data, m2m_key, None)
+            if ids_list is None and data.model_extra:
+                ids_list = data.model_extra.get(m2m_key, None)
+                
+            model_class = globals()[config["model"]]
+            await _sync_m2m(session, contact_obj, model_class, ids_list, config["relation_name"], False, False)
+
     # ── 3. Resolve identity ──
     resolution = await resolve_contact(
         session,
         email=norm_email,
         linkedin=norm_linkedin,
-        first_name=kwargs.get("first_name") if not strict_identity else None,
-        last_name=kwargs.get("last_name") if not strict_identity else None,
-        empresa_id=emp_id,
     )
 
     contact: Contact | None = None
@@ -141,81 +166,40 @@ async def upsert_contact(
     if resolution.confidence == "high":
         # ── Email or LinkedIn match → update existing ─────────────
         contact = resolution.contact
-        for field, value in kwargs.items():
-            if value is None:
-                continue
-            # Protect email and phone: don't overwrite an existing valid value
-            if field == "email" and contact.email:
-                continue
-            if field == "phone" and contact.phone:
-                continue
-            setattr(contact, field, value)
-
+        await apply_update(contact)
         action = "updated"
 
-        # Deep-merge notes
-        if data.notes:
-            contact.notes = deep_merge(contact.notes, data.notes)
+        final_id = contact.id
+        if auto_commit:
+            await session.commit()
+        else:
+            await session.flush()
+        return await _load_contact(session, final_id), action
 
-        # Update empresa snapshot
-        if contact.empresa_rel:
+    try:
+        # ── No Match ──────────
+        # Only create if it's an "active" contact (has email or linkedin)
+        if not norm_email and not norm_linkedin:
+            return None, "skipped"
+
+        contact = Contact(**kwargs, notes=data.notes)
+        session.add(contact)
+        await session.flush()
+        contact = await _load_contact(session, contact.id)
+        action = "created"
+
+        # Inject datos_empresa snapshot into notes
+        if contact and contact.empresa_rel:
             update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
-            
+
         if from_enrichment:
             contact.enriched = True
             contact.enriched_at = datetime.now(timezone.utc)
+        else:
+            contact.enriched = False
+            contact.enriched_at = None
 
-    elif resolution.confidence == "low" and resolution.possible_match_id:
-        # ── Fuzzy match → Update existing, but ONLY non-critical fields ─────────────
-        contact = await _load_contact(session, resolution.possible_match_id)
-        if contact:
-            for field, value in kwargs.items():
-                if value is None:
-                    continue
-                # Do NOT overwrite email, phone or linkedin from a fuzzy match
-                if field in ("email", "linkedin", "phone"):
-                    continue
-                setattr(contact, field, value)
-
-            action = "updated"
-
-            # Deep-merge notes
-            if data.notes:
-                contact.notes = deep_merge(contact.notes, data.notes)
-
-            # Update empresa snapshot
-            if contact.empresa_rel:
-                update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
-                
-            if from_enrichment:
-                contact.enriched = True
-                contact.enriched_at = datetime.now(timezone.utc)
-
-    try:
-        if contact is None:
-            # ── No Match (or fuzzy match ID not found) ──────────
-            # Only create if it's an "active" contact (has email or linkedin)
-            if not norm_email and not norm_linkedin:
-                return None, "skipped"
-
-            contact = Contact(**kwargs, notes=data.notes)
-            session.add(contact)
-            await session.flush()
-            contact = await _load_contact(session, contact.id)
-            action = "created"
-
-            # Inject datos_empresa snapshot into notes
-            if contact and contact.empresa_rel:
-                update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
-
-            if from_enrichment:
-                contact.enriched = True
-                contact.enriched_at = datetime.now(timezone.utc)
-            else:
-                contact.enriched = False
-                contact.enriched_at = None
-
-        # Sync M2M associations (only cargo_id and campaign_ids remain on Contact)
+        # Sync M2M associations
         for m2m_key, config in M2M_FIELD_MAP.items():
             ids_list = getattr(data, m2m_key, None)
             if ids_list is None and data.model_extra:
@@ -229,52 +213,40 @@ async def upsert_contact(
             await session.commit()
         else:
             await session.flush()
-        return await _load_contact(session, final_id), action  # type: ignore[return-value]
+        return await _load_contact(session, final_id), action
+        
     except IntegrityError:
         await session.rollback()
         
-        # Fallback to retrieving the existing contact by normalized email
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"IntegrityError en upsert_contact email={norm_email} linkedin={norm_linkedin}")
+        
+        # Concurrency Recovery Layer (O(1) indexed lookup)
+        query = select(Contact.id)
         if norm_email:
-            result = await session.execute(select(Contact).where(Contact.email == norm_email))
-            existing_contact = result.scalar_one_or_none()
+            query = query.where(Contact.email == norm_email)
+        elif norm_linkedin:
+            query = query.where(Contact.linkedin_normalized == norm_linkedin)
+        else:
+            raise
             
-            if existing_contact:
-                # Update existing contact
-                for field, value in kwargs.items():
-                    if value is None:
-                        continue
-                    if field == "email" and existing_contact.email:
-                        continue
-                    if field == "phone" and existing_contact.phone:
-                        continue
-                    setattr(existing_contact, field, value)
-                
-                if data.notes:
-                    existing_contact.notes = deep_merge(existing_contact.notes, data.notes)
-                
-                if existing_contact.empresa_rel:
-                    update_empresa_snapshot_in_contact(existing_contact, existing_contact.empresa_rel)
-                    
-                if from_enrichment:
-                    existing_contact.enriched = True
-                    existing_contact.enriched_at = datetime.now(timezone.utc)
-                    
-                for m2m_key, config in M2M_FIELD_MAP.items():
-                    ids_list = getattr(data, m2m_key, None)
-                    if ids_list is None and data.model_extra:
-                        ids_list = data.model_extra.get(m2m_key, None)
-                        
-                    model_class = globals()[config["model"]]
-                    await _sync_m2m(session, existing_contact, model_class, ids_list, config["relation_name"], False, False)
-                    
-                final_id = existing_contact.id
+        existing_id = (await session.execute(query)).scalar_one_or_none()
+        
+        if existing_id:
+            contact = await _load_contact(session, existing_id)
+            if contact:
+                await apply_update(contact)
+                final_id = contact.id
                 if auto_commit:
                     await session.commit()
                 else:
                     await session.flush()
                 return await _load_contact(session, final_id), "updated"
-                
-        raise  # Re-raise if we couldn't resolve the conflict
+            else:
+                raise
+        else:
+            raise
 
 
 

@@ -1,5 +1,5 @@
 """
-Contact Identity Resolution — hierarchical matching (email → linkedin → fuzzy).
+Contact Identity Resolution — hierarchical matching (email → linkedin).
 
 This module is PURE IDENTIFICATION. It never creates or modifies contacts.
 The caller (upsert_contact) is solely responsible for mutations.
@@ -7,8 +7,6 @@ The caller (upsert_contact) is solely responsible for mutations.
 RULES:
 - resolve_contact is strictly READ-ONLY
 - Email/LinkedIn matches return a full Contact ORM object (high confidence)
-- Fuzzy matches return ONLY a possible_match_id (low confidence, suggestion only)
-- Fuzzy match must NEVER be treated as a confirmed identity
 """
 from __future__ import annotations
 
@@ -77,24 +75,15 @@ class ResolveResult:
       - contact: the matched Contact ORM object
       - match_type: "email" or "linkedin"
       - confidence: "high"
-      - possible_match_id: None
-
-    For fuzzy matches (low confidence — SUGGESTION ONLY):
-      - contact: None  (never exposes a Contact ORM for fuzzy)
-      - match_type: "fuzzy"
-      - confidence: "low"
-      - possible_match_id: the id of the possible match
 
     For no match:
       - contact: None
       - match_type: None
       - confidence: None
-      - possible_match_id: None
     """
     contact: Contact | None
-    match_type: Literal["email", "linkedin", "fuzzy"] | None
-    confidence: Literal["high", "low"] | None
-    possible_match_id: int | None = None
+    match_type: Literal["email", "linkedin"] | None
+    confidence: Literal["high"] | None
 
 
 # Singleton for "no match found"
@@ -120,9 +109,6 @@ async def resolve_contact(
     *,
     email: str | None = None,
     linkedin: str | None = None,
-    first_name: str | None = None,
-    last_name: str | None = None,
-    empresa_id: int | None = None,
 ) -> ResolveResult:
     """
     Hierarchical contact resolution. NEVER modifies data.
@@ -130,8 +116,7 @@ async def resolve_contact(
     Priority cascade:
       1. EMAIL (exact, normalised) → high confidence, returns Contact
       2. LINKEDIN (exact, normalised) → high confidence, returns Contact
-      3. FUZZY (empresa_id + first_name + last_name) → low confidence, returns ONLY possible_match_id
-      4. No match → NO_MATCH
+      3. No match → NO_MATCH
     """
 
     # ── 1. EMAIL MATCH (highest priority) ──────────────────────────
@@ -148,60 +133,15 @@ async def resolve_contact(
 
     # ── 2. LINKEDIN MATCH (exact normalised comparison) ────────────
     norm_linkedin = normalize_linkedin(linkedin)
-    if norm_linkedin:
-        # Build a subquery that normalises the stored linkedin values
-        # the same way we normalise input, then compare exactly.
-        # We strip protocol, www, query params, trailing slash in Python
-        # but the DB values may be stored in various formats.
-        # Strategy: normalise both sides to the same canonical form.
-        #
-        # Since we can't run arbitrary Python in SQL, we apply the same
-        # transformations via SQL string functions:
-        #   lower → strip https:// and http:// → strip www. → strip trailing /
-        #
-        # For correctness we compare the normalised input against the
-        # normalised stored value using a constructed SQL expression.
-        db_linkedin = func.lower(Contact.linkedin)
-        # Strip protocol
-        db_linkedin = func.regexp_replace(db_linkedin, r'^https?://', '', 'i')
-        # Strip www.
-        db_linkedin = func.regexp_replace(db_linkedin, r'^www\.', '', 'i')
-        # Strip query params (everything after ?)
-        db_linkedin = func.regexp_replace(db_linkedin, r'\?.*$', '', 'i')
-        # Strip fragment (everything after #)
-        db_linkedin = func.regexp_replace(db_linkedin, r'#.*$', '', 'i')
-        # Strip trailing slash
-        db_linkedin = func.rtrim(db_linkedin, '/')
-
+    if norm_linkedin is not None:
         result = await session.execute(
             _contact_query().where(
-                db_linkedin == norm_linkedin,
-                Contact.linkedin.isnot(None),
+                Contact.linkedin_normalized == norm_linkedin
             )
         )
         contact = result.scalar_one_or_none()
         if contact:
             return ResolveResult(contact=contact, match_type="linkedin", confidence="high")
 
-    # ── 3. FUZZY MATCH (empresa + nombre) — SUGGESTION ONLY ────────
-    # Returns only possible_match_id, NEVER a Contact ORM object.
-    # The caller must decide whether to use this hint.
-    if empresa_id and first_name and last_name:
-        result = await session.execute(
-            select(Contact.id).where(
-                Contact.empresa_id == empresa_id,
-                func.lower(Contact.first_name) == first_name.strip().lower(),
-                func.lower(Contact.last_name) == last_name.strip().lower(),
-            )
-        )
-        match_id = result.scalar_one_or_none()
-        if match_id:
-            return ResolveResult(
-                contact=None,
-                match_type="fuzzy",
-                confidence="low",
-                possible_match_id=match_id,
-            )
-
-    # ── 4. NO MATCH ────────────────────────────────────────────────
+    # ── 3. NO MATCH ────────────────────────────────────────────────
     return NO_MATCH

@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func, Table, Column, BigInteger, Integer
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Boolean
+from sqlalchemy import Boolean, event
 
 from app.database import Base
 from app.models.campaign import contact_campaigns
@@ -56,6 +56,7 @@ class Contact(Base):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     linkedin: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    linkedin_normalized: Mapped[str | None] = mapped_column(String(500), nullable=True, unique=True, index=True)
 
     # --- Business context ---
     product: Mapped[str | None] = mapped_column(String(255), nullable=True)  # legacy, kept for migration compat
@@ -93,3 +94,10 @@ class Contact(Base):
     # --- Enrichment tracking ---
     enriched: Mapped[bool] = mapped_column(Boolean, default=False, server_default= "false", nullable=False)
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+@event.listens_for(Contact, "before_insert")
+@event.listens_for(Contact, "before_update")
+def normalize_linkedin_hook(mapper, connection, target):
+    from app.core.resolve import normalize_linkedin
+    target.linkedin_normalized = normalize_linkedin(target.linkedin)
