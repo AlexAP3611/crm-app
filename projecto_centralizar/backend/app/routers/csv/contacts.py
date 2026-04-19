@@ -36,18 +36,21 @@ async def export_csv(
     )
 
 
-@router.post("/import")
+@router.post("/import", summary="Import Contacts via CSV")
 async def import_csv(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Import contacts from a CSV file.
-    Required column: company.
-    Upsert: CIF → web → create new.
+    The CSV should have columns matching the Contact model fields.
+    Relationships like id and empresa_id should be integers.
     """
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only .csv files are accepted")
+    if file.content_type not in ["text/csv", "application/vnd.ms-excel"]:
+        raise HTTPException(status_code=400, detail="Invalid file type. Only CSV allowed.")
+
     content = await file.read()
-    result = await csv_service.import_csv(db, content)
+    rows = csv_service.parse_csv(content)
+    result = await import_service.import_contacts_from_rows(db, rows)
+
     return result

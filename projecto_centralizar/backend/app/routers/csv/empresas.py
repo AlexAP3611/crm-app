@@ -42,10 +42,13 @@ async def import_empresas_csv(
 ):
     """
     Import empresas from a CSV file.
-    Deduplication: CIF -> Name.
+    Deduplication: CIF -> web -> email -> Name.
     """
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only .csv files are accepted")
+    if file.content_type not in ["text/csv", "application/vnd.ms-excel"]:
+        raise HTTPException(status_code=400, detail="Invalid file type. Only CSV allowed.")
+    
     content = await file.read()
-    result = await csv_service.import_empresas_csv(db, content)
+    from app.services import csv_service, import_service
+    rows = csv_service.parse_csv(content)
+    result = await import_service.import_empresas_from_rows(db, rows)
     return result

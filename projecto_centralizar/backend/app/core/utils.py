@@ -1,4 +1,17 @@
 import re
+from urllib.parse import urlparse
+
+def normalize_web(url: str | None) -> str | None:
+    if not url: return None
+    url = url.strip().lower()
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    parsed = urlparse(url)
+    
+    # Tolerancia a "www." pero respeto ciego por subdominios SaaS (ej. app. vs api.)
+    netloc = parsed.netloc.replace("www.", "")
+    path = parsed.path.rstrip("/")
+    return f"{netloc}{path}"
 
 def normalize_company_name(name: str | None) -> str | None:
     """

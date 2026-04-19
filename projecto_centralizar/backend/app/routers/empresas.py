@@ -14,7 +14,7 @@ from app.models.vertical import Vertical
 from app.models.product import Product
 from app.schemas.empresa import EmpresaListResponse, EmpresaCreate, EmpresaResponse, EmpresaCreateResponse, EmpresaBulkUpdate, EmpresaBulkDelete, EmpresaFilterParams
 from app.schemas.contact import ContactListResponse
-from app.services import empresa_service
+from app.services import empresa_service, empresa_mapper
 from app.auth import get_current_user
 from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
 
@@ -23,21 +23,6 @@ router = APIRouter(
     tags=["Empresas"],
     dependencies=[Depends(get_current_user)]
 )
-
-
-async def _sync_empresa_m2m(db: AsyncSession, empresa: Empresa, sector_ids: list[int], vertical_ids: list[int], product_ids: list[int]):
-    """Sync M2M relationships for sectors, verticals, and products on an Empresa."""
-    if sector_ids is not None:
-        result = await db.execute(select(Sector).where(Sector.id.in_(sector_ids)))
-        empresa.sectors = list(result.scalars().all())
-
-    if vertical_ids is not None:
-        result = await db.execute(select(Vertical).where(Vertical.id.in_(vertical_ids)))
-        empresa.verticals = list(result.scalars().all())
-
-    if product_ids is not None:
-        result = await db.execute(select(Product).where(Product.id.in_(product_ids)))
-        empresa.products_rel = list(result.scalars().all())
 
 
 async def _load_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
@@ -105,7 +90,7 @@ async def create_empresa(empresa: EmpresaCreate, db: AsyncSession = Depends(get_
     db_empresa = Empresa(**payload)
     
     # Sync M2M BEFORE db.add() so the object is transient and avoids lazy-loading
-    await _sync_empresa_m2m(db, db_empresa, empresa.sector_ids, empresa.vertical_ids, empresa.product_ids)
+    await empresa_mapper._sync_empresa_m2m(db, db_empresa, empresa.sector_ids, empresa.vertical_ids, empresa.product_ids)
 
     db.add(db_empresa)
     await db.flush()
@@ -128,7 +113,7 @@ async def update_empresa(id: int, empresa_in: EmpresaCreate, db: AsyncSession = 
         setattr(empresa, field, value)
 
     # Sync M2M
-    await _sync_empresa_m2m(db, empresa, empresa_in.sector_ids, empresa_in.vertical_ids, empresa_in.product_ids)
+    await empresa_mapper._sync_empresa_m2m(db, empresa, empresa_in.sector_ids, empresa_in.vertical_ids, empresa_in.product_ids)
 
     # Flush to persist M2M changes before building snapshots
     await db.flush()

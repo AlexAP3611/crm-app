@@ -31,6 +31,18 @@ CORE_COLUMNS = [
     "phone"
 ]
 
+EMPRESA_CORE_COLUMNS = [
+    "nombre", 
+    "web", 
+    "email", 
+    "phone", 
+    "cif", 
+    "numero_empleados", 
+    "facturacion", 
+    "cnae"
+]
+
+
 # Campos que NO deben sobrescribirse durante enriquecimiento automático.
 # Si llega un valor nuevo, se redirige a notes[source]["_enrichment_{campo}"].
 ENRICHMENT_PROTECTED_FIELDS = {"web", "email", "phone"}

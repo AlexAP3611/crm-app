@@ -1,49 +1,114 @@
+from typing import Literal
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
-from app.schemas.empresa import EmpresaListResponse, EmpresaFilterParams
+from app.schemas.empresa import EmpresaListResponse, EmpresaFilterParams, EmpresaCreate
+from app.core.utils import normalize_company_name
 
-async def resolve_empresa(db: AsyncSession, empresa_id: int | None, empresa_nombre: str | None) -> int:
+class ResolveEmpresaResult(BaseModel):
+    empresa: Empresa
+    created: bool
+    matched_by: Literal["cif", "web", "name", "new"]
+
+async def resolve_empresa(
+    db: AsyncSession, 
+    empresa_id: int | None = None, 
+    cif: str | None = None,
+    web: str | None = None,
+    empresa_nombre: str | None = None,
+    auto_create: bool = True
+) -> ResolveEmpresaResult | None:
     """
-    Resolves an Empresa by ID or Name. 
-    1. If empresa_id is provided, use it.
-    2. If not, search for an existing Empresa by name (case-insensitive).
-    3. If not found, create a new Empresa.
-    4. Handles race conditions with re-selection on IntegrityError.
+    Resolves an Empresa by ID, CIF, Website, or Name.
+    Strict priority: CIF > Web > Nombre.
+    Email is NOT used for identity resolution.
+    Returns ResolveEmpresaResult. If auto_create=False and not found, returns None.
+    If auto_create=True, always returns ResolveEmpresaResult.
     """
     if empresa_id:
-        # We assume the ID is valid if provided by the frontend.
-        return empresa_id
+        emp = (await db.execute(select(Empresa).where(Empresa.id == empresa_id))).scalar_one_or_none()
+        if emp:
+            return ResolveEmpresaResult(empresa=emp, created=False, matched_by="cif") # Default to cif or generic for id match
+            
+    existing_emp = None
+    matched_by = None
+    
+    if cif:
+        existing_emp = (await db.execute(select(Empresa).where(Empresa.cif == cif.strip()))).scalar_one_or_none()
+        if existing_emp:
+            matched_by = "cif"
+    
+    if not existing_emp and web:
+        existing_emp = (await db.execute(select(Empresa).where(Empresa.web == web.strip()))).scalar_one_or_none()
+        if existing_emp:
+            matched_by = "web"
+        
+    if not existing_emp and empresa_nombre:
+        norm_name = normalize_company_name(empresa_nombre)
+        existing_emp = (await db.execute(select(Empresa).where(func.lower(Empresa.nombre) == norm_name.lower()))).scalar_one_or_none()
+        if existing_emp:
+            matched_by = "name"
 
-    if not empresa_nombre:
+    if existing_emp:
+        return ResolveEmpresaResult(empresa=existing_emp, created=False, matched_by=matched_by)
+        
+    if not auto_create or not empresa_nombre:
         return None
 
-    # 1. Search for existing empresa by name (case-insensitive)
-    query = select(Empresa.id).where(func.lower(Empresa.nombre) == empresa_nombre.strip().lower())
-    result = await db.execute(query)
-    existing_id = result.scalar_one_or_none()
-    
-    if existing_id:
-        return existing_id
-
-    # 2. Try to create a new one
+    # Try to create a new one
     try:
-        new_emp = Empresa(nombre=empresa_nombre.strip())
+        norm_name = normalize_company_name(empresa_nombre)
+        new_emp = Empresa(nombre=norm_name)
         db.add(new_emp)
-        await db.flush()  # We flush to get the ID and check for constraints
-        return new_emp.id
+        await db.flush()
+        return ResolveEmpresaResult(empresa=new_emp, created=True, matched_by="new")
     except IntegrityError:
-        # Race condition: someone else created it between our SELECT and INSERT
         await db.rollback()
-        # Retry selection
-        query = select(Empresa.id).where(func.lower(Empresa.nombre) == empresa_nombre.strip().lower())
-        result = await db.execute(query)
-        existing_id = result.scalar_one_or_none()
-        if existing_id:
-            return existing_id
-        raise  # Should not happen with the index in place, but re-raise if it still fails
+        # Race condition: try fetching again by name
+        existing_emp = (await db.execute(select(Empresa).where(func.lower(Empresa.nombre) == norm_name.lower()))).scalar_one_or_none()
+        if existing_emp:
+            return ResolveEmpresaResult(empresa=existing_emp, created=False, matched_by="name")
+        raise
+
+async def upsert_empresa(session: AsyncSession, data: EmpresaCreate) -> tuple[Empresa, str]:
+    """
+    Core domain logic to upsert an Empresa based on the identity hierarchy.
+    Domain Layer decides only base model state, NO M2M.
+    Returns (Empresa, "created"|"updated").
+    """
+    if data.nombre:
+        data.nombre = normalize_company_name(data.nombre)
+
+    resolution = await resolve_empresa(
+        session,
+        cif=data.cif,
+        web=data.web,
+        empresa_nombre=data.nombre,
+        auto_create=False
+    )
+
+    action = "skipped"
+    payload = data.model_dump(exclude={"sector_ids", "vertical_ids", "product_ids"}, exclude_unset=True)
+
+    if resolution:
+        # Update existing Base Entity
+        emp = resolution.empresa
+        for field, value in payload.items():
+            if value is not None:
+                setattr(emp, field, value)
+        action = "updated"
+    else:
+        # Prevent empty names
+        if not data.nombre:
+            raise ValueError("Empresa requires a valid non-empty name.")
+        emp = Empresa(**payload)
+        session.add(emp)
+        action = "created"
+        
+    return emp, action
 
 async def list_empresas(
     db: AsyncSession,
