@@ -8,11 +8,10 @@ class ContactCreate(BaseModel):
     empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
-    job_title: str | None = None
+    job_title: str | None = None  # transient input for cargo resolution
     email: str | None = None
     phone: str | None = None
     linkedin: str | None = None
-    products: list[str] | None = None  # legacy JSONB
     cargo_id: int | None = None
     notes: dict[str, Any] | None = None
     campaign_ids: list[int] = []
@@ -32,11 +31,10 @@ class ContactUpdate(BaseModel):
     empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
-    job_title: str | None = None
+    job_title: str | None = None  # transient input for cargo resolution
     email: str | None = None
     phone: str | None = None
     linkedin: str | None = None
-    products: list[str] | None = None  # legacy JSONB
     cargo_id: int | None = None
     notes: dict[str, Any] | None = None
     merge_lists: bool = True
@@ -110,11 +108,11 @@ class ContactResponse(BaseModel):
     empresa_rel: EmpresaRef | None = None
     first_name: str | None
     last_name: str | None
-    # job_title removed for UI (use cargo.name instead)
+    # Raw job_title removed. Use cargo.name for display.
     email: str | None
     phone: str | None
     linkedin: str | None
-    products: list[str] | None
+    # Product JSONB field removed. Products are managed at Empresa level.
     notes: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime

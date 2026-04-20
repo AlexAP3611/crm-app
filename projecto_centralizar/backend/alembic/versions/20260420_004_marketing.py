@@ -19,21 +19,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # --- Campaigns ---
+    # --- Campaigns (Simplified for labeling) ---
     op.create_table(
         'campaigns',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('nombre', sa.String(length=150), nullable=False),
-        sa.Column('tipo', sa.String(length=100), nullable=True),
-        sa.Column('estado', sa.String(length=50), nullable=False),
-        sa.Column('fecha_inicio', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('fecha_fin', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('presupuesto', sa.Numeric(precision=12, scale=2), nullable=True),
-        sa.Column('objetivo', sa.String(length=500), nullable=True),
-        sa.Column('responsable', sa.String(length=150), nullable=True),
-        sa.Column('canal', sa.String(length=100), nullable=True),
-        sa.Column('notas', sa.Text(), nullable=True),
-        sa.PrimaryKeyConstraint('id')
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('nombre')
     )
 
 

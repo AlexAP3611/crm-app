@@ -12,7 +12,7 @@ from app.services import cargo_service, contact_service
 
 logger = logging.getLogger(__name__)
 
-async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[IngestContactInput], title_to_cargo_id: dict[str, int]):
+async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[IngestContactInput], cargo_cache: dict[str, any]):
     created = 0
     updated = 0
     skipped = 0
@@ -27,6 +27,10 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
             skipped += 1
             continue
 
+        # Resolve Cargo using the robust single source of truth
+        cargo = await cargo_service.get_or_create_cargo(db, contact_in.job_title, cache=cargo_cache)
+        cargo_id = cargo.id if cargo else None
+
         contact_data = ContactCreate(
             empresa_id=empresa_id,
             first_name=contact_in.first_name,
@@ -34,7 +38,7 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
             email=email,
             linkedin=linkedin,
             job_title=contact_in.job_title,
-            cargo_id=title_to_cargo_id.get(contact_in.job_title) if contact_in.job_title else None,
+            cargo_id=cargo_id,
             phone=contact_in.phone
         )
         try:
@@ -59,13 +63,12 @@ async def validate_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
     return await db.get(Empresa, empresa_id)
 
 async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
-    # Resolve all cargos in bulk before processing
+    # 1. Pre-warm Cargo Cache (Optimization only)
     unique_titles = {c.job_title for emp in body.empresas for c in emp.contactos if c.job_title}
-    resolution = await cargo_service.resolve_cargos_bulk(db, unique_titles)
-    title_to_cargo_id = resolution.id_map
+    cargo_cache = await cargo_service.prefill_cargo_cache(db, unique_titles)
     
-    if resolution.created:
-        logger.info(f"Bulk Cargo creation: {len(resolution.created)} new job titles registered.")
+    if cargo_cache:
+        logger.info(f"Ingest: Cargo cache pre-filled with {len(cargo_cache)} existing job titles.")
 
     empresa_processed = 0
     empresa_skipped = 0
@@ -118,7 +121,8 @@ async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
             await db.flush()
             empresa_processed += 1
             
-            created, updated, skipped = await process_contacts(db, empresa.id, emp_in.contactos, title_to_cargo_id)
+            # Pass cargo_cache to maintain session-level performance
+            created, updated, skipped = await process_contacts(db, empresa.id, emp_in.contactos, cargo_cache)
             contact_created += created
             contact_updated += updated
             contact_skipped += skipped

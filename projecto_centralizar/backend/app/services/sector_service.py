@@ -1,5 +1,6 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from app.models.sector import Sector
 
 async def resolve_by_name(session: AsyncSession, name: str, auto_create: bool = True) -> Sector | None:
@@ -12,11 +13,10 @@ async def resolve_by_name(session: AsyncSession, name: str, auto_create: bool = 
         
     cleaned_name = name.strip()
     
-    # Case-insensitive search
-    result = await session.execute(
-        select(Sector).where(func.lower(Sector.name) == cleaned_name.lower())
-    )
-    sector = result.scalar_one_or_none()
+    # 1. First attempt: Case-insensitive search
+    stmt = select(Sector).where(func.lower(Sector.name) == cleaned_name.lower())
+    result = await session.execute(stmt)
+    sector = result.scalars().first()
     
     if sector:
         return sector
@@ -24,8 +24,14 @@ async def resolve_by_name(session: AsyncSession, name: str, auto_create: bool = 
     if not auto_create:
         return None
         
-    # Create new sector
-    new_sector = Sector(name=cleaned_name)
-    session.add(new_sector)
-    await session.flush() # Ensure ID is generated
-    return new_sector
+    # 2. Second attempt: Create new sector using a savepoint to handle concurrency
+    try:
+        async with session.begin_nested():
+            new_sector = Sector(name=cleaned_name)
+            session.add(new_sector)
+            await session.flush()
+            return new_sector
+    except IntegrityError:
+        # Another process created it between step 1 and 2
+        result = await session.execute(stmt)
+        return result.scalars().first()

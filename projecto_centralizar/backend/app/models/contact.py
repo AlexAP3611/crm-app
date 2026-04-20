@@ -20,7 +20,6 @@ class Contact(Base):
     # --- Optional identity fields ---
     first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    job_title: Mapped[str | None] = mapped_column(String(150), nullable=True) # legacy, kept for migration compat
 
     # --- Unique business identifiers (delegated to Empresa) ---
     @property
@@ -57,10 +56,6 @@ class Contact(Base):
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     linkedin: Mapped[str | None] = mapped_column(String(500), nullable=True)
     linkedin_normalized: Mapped[str | None] = mapped_column(String(500), nullable=True, unique=True, index=True)
-
-    # --- Business context ---
-    product: Mapped[str | None] = mapped_column(String(255), nullable=True)  # legacy, kept for migration compat
-    products: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     # --- Legacy Foreign keys (can be queried before migration deletion) ---
     # scalar foreign keys are removed from the model explicitly to force M2M logic.

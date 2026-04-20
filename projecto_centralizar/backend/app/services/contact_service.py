@@ -12,29 +12,14 @@ from app.models.cargo import Cargo
 from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
 from app.schemas.contact import ContactCreate, ContactFilterParams, ContactUpdate
 from app.services.merge import deep_merge
-from app.services import cargo_service, empresa_service
+from app.services import cargo_service
 from app.services.contact_mapper import build_contact_kwargs
 
-from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_PROTECTED_FIELDS
-from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
+from app.domain.relations import M2M_FIELD_MAP
+from app.core.enrichment.rules import ENRICHMENT_PROTECTED_FIELDS
+from app.core.utils import update_empresa_snapshot_in_contact
 from app.core.resolve import resolve_contact, normalize_email, normalize_linkedin
 
-
-
-
-
-def split_enrichment_data(data: dict):
-    structured = {}
-    extra = {}
-
-    for key, value in data.items():
-        if key in CONTACT_FIELD_MAP.values():
-            structured[key] = value
-        else:
-            extra[key] = value
-
-    return structured, extra
-#
 
 async def _load_contact(session: AsyncSession, contact_id: int) -> Contact | None:
     result = await session.execute(
@@ -89,14 +74,11 @@ async def upsert_contact(
 ) -> tuple[Contact | None, str]:
     """
     Upsert logic using hierarchical identity resolution.
-
-    Returns (contact, action) where action is "created", "updated", or "skipped".
-
-    1. resolve_contact identifies an existing contact (email → linkedin)
-    2. High-confidence match (email/linkedin) → update existing contact
-    3. No match → create new contact
-
-    Notes are always deep-merged, never replaced.
+    
+    Architectural Rules applied:
+    - job_title resolved to cargo_id via cargo_service.get_or_create_cargo
+    - no raw string persistence for job_title
+    - notes deep-merged
     """
     # ── 1. Resolve dependencies (cargo, normalize identity) ──
     emp_id = data.empresa_id
@@ -105,11 +87,11 @@ async def upsert_contact(
     norm_linkedin = normalize_linkedin(data.linkedin) if data.linkedin else None
 
     cargo_id = data.cargo_id
-    job_title = data.job_title
-    if job_title:
-        resolved_cargo = await cargo_service.resolve_cargo(session, job_title)
-        if resolved_cargo:
-            cargo_id = resolved_cargo.id
+    if data.job_title:
+        # AUTHORITATIVE: Only cargo_service resolves titles
+        cargo_obj = await cargo_service.get_or_create_cargo(session, data.job_title)
+        if cargo_obj:
+            cargo_id = cargo_obj.id
 
     # ── 2. Build ORM-safe kwargs via mapper ──
     kwargs = build_contact_kwargs(data)
@@ -164,7 +146,6 @@ async def upsert_contact(
     action = "skipped"
 
     if resolution.confidence == "high":
-        # ── Email or LinkedIn match → update existing ─────────────
         contact = resolution.contact
         await apply_update(contact)
         action = "updated"
@@ -177,8 +158,6 @@ async def upsert_contact(
         return await _load_contact(session, final_id), action
 
     try:
-        # ── No Match ──────────
-        # Only create if it's an "active" contact (has email or linkedin)
         if not norm_email and not norm_linkedin:
             return None, "skipped"
 
@@ -188,16 +167,12 @@ async def upsert_contact(
         contact = await _load_contact(session, contact.id)
         action = "created"
 
-        # Inject datos_empresa snapshot into notes
         if contact and contact.empresa_rel:
             update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
 
         if from_enrichment:
             contact.enriched = True
             contact.enriched_at = datetime.now(timezone.utc)
-        else:
-            contact.enriched = False
-            contact.enriched_at = None
 
         # Sync M2M associations
         for m2m_key, config in M2M_FIELD_MAP.items():
@@ -218,11 +193,6 @@ async def upsert_contact(
     except IntegrityError:
         await session.rollback()
         
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.warning(f"IntegrityError en upsert_contact email={norm_email} linkedin={norm_linkedin}")
-        
-        # Concurrency Recovery Layer (O(1) indexed lookup)
         query = select(Contact.id)
         if norm_email:
             query = query.where(Contact.email == norm_email)
@@ -249,8 +219,6 @@ async def upsert_contact(
             raise
 
 
-
-
 async def get_contact(session: AsyncSession, contact_id: int) -> Contact | None:
     return await _load_contact(session, contact_id)
 
@@ -271,25 +239,21 @@ async def update_contact(
     for field, value in kwargs.items():
         setattr(contact, field, value)
 
-    # --- Cargo Resolution (on Update) ---
+    # --- AUTHORITATIVE Cargo Resolution (on Update) ---
     if data.job_title:
-        resolved_cargo = await cargo_service.resolve_cargo(session, data.job_title)
-        if resolved_cargo:
-            contact.cargo_id = resolved_cargo.id
+        cargo_obj = await cargo_service.get_or_create_cargo(session, data.job_title)
+        if cargo_obj:
+            contact.cargo_id = cargo_obj.id
 
-    # Set notes from user input (or keep existing)
     contact.notes = base_notes
 
-    # Inject/update datos_empresa snapshot
     final_emp_id = kwargs.get("empresa_id") or contact.empresa_id
     if final_emp_id:
         empresa_obj = await session.get(Empresa, final_emp_id)
         if empresa_obj:
-            # Need M2M loaded for snapshot
             await session.refresh(empresa_obj, ["sectors", "verticals", "products_rel"])
             update_empresa_snapshot_in_contact(contact, empresa_obj)
 
-    # Sync M2M if provided (only cargo_id and campaign_ids remain on Contact)
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
     
@@ -329,7 +293,6 @@ async def delete_contacts_bulk(session: AsyncSession, contact_ids: list[int]) ->
 async def bulk_update_contacts(
     session: AsyncSession, contact_ids: list[int], data: ContactUpdate
 ) -> int:
-    """Update multiple contacts by ID list with the same data."""
     result = await session.execute(
         select(Contact)
         .options(
@@ -343,9 +306,7 @@ async def bulk_update_contacts(
     )
     contacts = result.scalars().all()
 
-    # ── Build ORM-safe kwargs via mapper (once for all contacts) ──
     kwargs = build_contact_kwargs(data)
-
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
 
@@ -353,13 +314,11 @@ async def bulk_update_contacts(
         base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
         emp_id = kwargs.get("empresa_id") or contact.empresa_id
 
-        # Apply only valid ORM fields
         for field, value in kwargs.items():
             setattr(contact, field, value)
 
         contact.notes = base_notes
 
-        # Inject/update datos_empresa snapshot
         if emp_id:
             empresa_obj = await session.get(Empresa, emp_id)
             if empresa_obj:
@@ -377,39 +336,7 @@ async def bulk_update_contacts(
 
     await session.commit()
     return len(contacts)
-    
-async def enrich_contact(
-    session: AsyncSession,
-    contact_id: int,
-    enrichment_data: dict
-) -> Contact | None:
 
-    contact = await _load_contact(session, contact_id)
-
-    if contact is None:
-        return None
-
-    # 🔹 1. separar datos
-    structured, extra = split_enrichment_data(enrichment_data)
-
-    # 🔹 2. actualizar campos estructurados (protegiendo company/web)
-    protected_redirected: dict[str, str] = {}
-    for field, value in structured.items():
-        if value is not None:
-            current_val = getattr(contact, field, None)
-            if field in ENRICHMENT_PROTECTED_FIELDS and current_val:
-                protected_redirected[f"_enrichment_{field}"] = str(value)
-            else:
-                setattr(contact, field, value)
-
-    # 🔹 3. guardar el resto en notes (incluyendo campos protegidos redirigidos)
-    all_extra = {**extra, **protected_redirected}
-    if all_extra:
-        contact.notes = deep_merge(contact.notes or {}, all_extra)
-
-    await session.commit()
-
-    return await _load_contact(session, contact_id)
 
 async def list_contacts(
     session: AsyncSession, filters: ContactFilterParams
@@ -443,7 +370,6 @@ async def list_contacts(
     if has_empresa_filters:
         query = query.join(Empresa, Contact.empresa_id == Empresa.id)
 
-        # Sector/Vertical/Product filters route through Empresa's M2M tables
         if filters.sector_id is not None:
             query = query.join(
                 empresa_sectors, Empresa.id == empresa_sectors.c.empresa_id
@@ -486,12 +412,10 @@ async def list_contacts(
             )
         )
 
-    # Total count (using a count over the filtered subquery without stripping options from main query)
     count_query = select(func.count()).select_from(query.with_only_columns(Contact.id).subquery())
     count_result = await session.execute(count_query)
     total = count_result.scalar_one()
 
-    # Pagination
     offset = (filters.page - 1) * filters.page_size
     query = query.order_by(Contact.id.desc()).offset(offset).limit(filters.page_size)
 

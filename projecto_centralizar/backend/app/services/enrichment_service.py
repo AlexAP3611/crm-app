@@ -23,7 +23,9 @@ from app.services.empresa_export_mapper import map_to_export_payload
 from app.services.merge import deep_merge
 
 from app.core.webhook_client import webhook_client
-from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_PROTECTED_FIELDS
+from app.core.mappings.contact_field_map import CONTACT_FIELD_MAP
+from app.domain.relations import M2M_FIELD_MAP
+from app.core.enrichment.rules import ENRICHMENT_PROTECTED_FIELDS
 
 from app.schemas.enrichment import (
     CompanyEnrichRequest, 

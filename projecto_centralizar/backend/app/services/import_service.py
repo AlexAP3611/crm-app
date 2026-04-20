@@ -6,7 +6,9 @@ from app.schemas.contact import ContactCreate
 from app.schemas.empresa import EmpresaCreate
 from app.services import contact_service, empresa_service, empresa_mapper, sector_service, vertical_service, product_service
 from app.core.utils import normalize_web, normalize_company_name
-from app.core.field_mapping import CORE_COLUMNS, M2M_FIELD_MAP, EMPRESA_CORE_COLUMNS, EMPRESA_M2M_FIELD_MAP
+from app.core.view_fields.contact_view_fields import CONTACT_VIEW_FIELDS
+from app.core.view_fields.empresa_view_fields import EMPRESA_VIEW_FIELDS
+from app.domain.relations import M2M_FIELD_MAP, EMPRESA_M2M_FIELD_MAP
 from app.core.domain_mappers.empresa_mapper import normalize_empresa_row
 
 logger = logging.getLogger(__name__)
@@ -65,7 +67,7 @@ async def import_contacts_from_rows(session: AsyncSession, rows: list[dict]) -> 
                 try: payload["cargo_id"] = int(cargo_id_raw)
                 except ValueError: pass
 
-            for col in CORE_COLUMNS:
+            for col in CONTACT_VIEW_FIELDS:
                 val = row.get(col)
                 if val is not None and val != "":
                     payload[col] = val
@@ -123,7 +125,7 @@ async def import_empresas_from_rows(session: AsyncSession, rows: list[dict]) -> 
                 payload = {}
                 
                 # Core columns mapping
-                for col in EMPRESA_CORE_COLUMNS:
+                for col in EMPRESA_VIEW_FIELDS:
                     val = mapped.get(col)
                     if val is not None and val != "":
                         if col == "web":

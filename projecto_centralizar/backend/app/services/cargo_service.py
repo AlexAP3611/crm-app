@@ -1,8 +1,8 @@
 import re
 from typing import Optional
-from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert
 from app.models.cargo import Cargo
 
 ALIAS_MAP = {
@@ -17,12 +17,6 @@ ALIAS_MAP = {
     "vp of engineering": "vice president of engineering",
     "head of marketing": "chief marketing officer",
 }
-
-class CargoResolutionResult(BaseModel):
-    id_map: dict[str, int]
-    created: list[str]
-    missed: list[str]
-
 
 def normalize_job_title(raw_value: str) -> str:
     """
@@ -48,78 +42,71 @@ def _get_canonical_name(raw_value: str) -> str | None:
     return ALIAS_MAP.get(norm, norm)
 
 def _get_display_name(raw_value: str, norm: str) -> str:
+    # Use title case if it was an alias expansion, otherwise keep original casing (trimmed)
     return norm.title() if norm != normalize_job_title(raw_value) else raw_value.strip()
 
+async def prefill_cargo_cache(db: AsyncSession, raw_titles: set[str]) -> dict[str, Cargo]:
+    """
+    Optimization: Fetch existing cargos for a batch of titles.
+    Returns: Dict[normalized_name, Cargo]
+    """
+    if not raw_titles:
+        return {}
+    
+    # Generate set of normalized names to query
+    norms = {n for t in raw_titles if (n := _get_canonical_name(t))}
+    if not norms:
+        return {}
+    
+    result = await db.execute(
+        select(Cargo).where(Cargo.normalized_name.in_(norms))
+    )
+    return {c.normalized_name: c for c in result.scalars().all()}
 
-async def resolve_cargo(session: AsyncSession, raw_value: str) -> Cargo | None:
+async def get_or_create_cargo(db: AsyncSession, raw_title: str, cache: dict[str, Cargo] | None = None) -> Cargo | None:
     """
-    Pipeline: Syntax Normalization -> Semantic Alias Expansion -> DB Lookup/Create
+    Single source of truth for Cargo resolution.
+    - Normalizes raw_title
+    - Uses provided cache (dict[normalized_name, Cargo]) for performance
+    - Uses PG ON CONFLICT DO NOTHING + SELECT for atomic safety
     """
-    if not raw_value:
+    if not raw_title or not raw_title.strip():
         return None
     
-    norm = _get_canonical_name(raw_value)
+    norm = _get_canonical_name(raw_title)
     if not norm:
         return None
     
-    result = await session.execute(
-        select(Cargo).where(Cargo.normalized_name == norm)
-    )
-    cargo = result.scalar_one_or_none()
+    # 1. Cache hit
+    if cache is not None and norm in cache:
+        return cache[norm]
     
-    if cargo:
-        return cargo
+    # 2. DB Select (Fast path for existing)
+    result = await db.execute(select(Cargo).where(Cargo.normalized_name == norm))
+    cargo = result.scalars().first()
     
-    display_name = _get_display_name(raw_value, norm)
-    new_cargo = Cargo(name=display_name, normalized_name=norm)
-    session.add(new_cargo)
-    await session.flush()
-    
-    return new_cargo
-
-
-async def resolve_cargos_bulk(session: AsyncSession, raw_titles: set[str]) -> CargoResolutionResult:
-    """
-    Bulk resolve Job Titles to Cargo IDs.
-    Returns observability schema to decouple logic domains.
-    """
-    res = await session.execute(select(Cargo))
-    cargo_map = {c.normalized_name: c for c in res.scalars().all() if c.normalized_name}
-
-    id_map = {}
-    created_names = []
-    missed_names = []
-
-    new_cargos = []
-    
-    for title in raw_titles:
-        if not title:
-            continue
-            
-        norm = _get_canonical_name(title)
-        if not norm:
-            missed_names.append(title)
-            continue
-            
-        cargo = cargo_map.get(norm)
-        if cargo:
-            id_map[title] = cargo.id
-        else:
-            display_name = _get_display_name(title, norm)
-            new_cargo = Cargo(name=display_name, normalized_name=norm)
-            session.add(new_cargo)
-            # Link it mentally for deduplication within exact same batch
-            cargo_map[norm] = new_cargo
-            new_cargos.append((title, new_cargo))
-            created_names.append(title)
-    
-    if new_cargos:
-        await session.flush()
-        for title, loaded_cargo in new_cargos:
-            id_map[title] = loaded_cargo.id
-            
-    return CargoResolutionResult(
-        id_map=id_map,
-        created=created_names,
-        missed=missed_names
-    )
+    if not cargo:
+        # 3. Atomic DB Insert
+        display_name = _get_display_name(raw_title, norm)
+        
+        # Using PostgreSQL specific insert for atomic safety
+        stmt = insert(Cargo).values(
+            name=display_name,
+            normalized_name=norm
+        ).on_conflict_do_nothing(
+            index_elements=['normalized_name']
+        ).returning(Cargo)
+        
+        insert_res = await db.execute(stmt)
+        cargo = insert_res.scalar_one_or_none()
+        
+        if not cargo:
+            # 4. Collision fallback (created by someone else between step 2 and 3)
+            result = await db.execute(select(Cargo).where(Cargo.normalized_name == norm))
+            cargo = result.scalars().first()
+        
+    # 5. Populate cache for next calls in this session
+    if cache is not None and cargo:
+        cache[norm] = cargo
+        
+    return cargo

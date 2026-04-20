@@ -1,5 +1,6 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from app.models.vertical import Vertical
 
 async def resolve_by_name(session: AsyncSession, name: str, auto_create: bool = True) -> Vertical | None:
@@ -12,11 +13,10 @@ async def resolve_by_name(session: AsyncSession, name: str, auto_create: bool = 
         
     cleaned_name = name.strip()
     
-    # Case-insensitive search
-    result = await session.execute(
-        select(Vertical).where(func.lower(Vertical.name) == cleaned_name.lower())
-    )
-    vertical = result.scalar_one_or_none()
+    # 1. First attempt: Case-insensitive search
+    stmt = select(Vertical).where(func.lower(Vertical.name) == cleaned_name.lower())
+    result = await session.execute(stmt)
+    vertical = result.scalars().first()
     
     if vertical:
         return vertical
@@ -24,8 +24,14 @@ async def resolve_by_name(session: AsyncSession, name: str, auto_create: bool = 
     if not auto_create:
         return None
         
-    # Create new vertical
-    new_vertical = Vertical(name=cleaned_name)
-    session.add(new_vertical)
-    await session.flush() # Ensure ID is generated
-    return new_vertical
+    # 2. Second attempt: Create new vertical using a savepoint to handle concurrency
+    try:
+        async with session.begin_nested():
+            new_vertical = Vertical(name=cleaned_name)
+            session.add(new_vertical)
+            await session.flush()
+            return new_vertical
+    except IntegrityError:
+        # Another process created it between step 1 and 2
+        result = await session.execute(stmt)
+        return result.scalars().first()
