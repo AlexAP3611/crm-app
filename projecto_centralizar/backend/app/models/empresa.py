@@ -66,3 +66,8 @@ class Empresa(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    # --- Enrichment Tracking ---
+    last_enriched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_enrichment_tool: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    enrichment_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

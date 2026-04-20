@@ -1,5 +1,7 @@
-from typing import Any
-from pydantic import BaseModel
+from typing import Any, Optional, Literal
+from uuid import UUID, uuid4
+from pydantic import BaseModel, Field
+from app.schemas.empresa import EmpresaFilterParams
 
 class EnrichRequest(BaseModel):
     source: str
@@ -59,3 +61,30 @@ class IngestResponse(BaseModel):
     contact_created: int
     contact_updated: int
     contact_skipped: int
+
+# --- Company Enrichment Refactor (Phase 3) ---
+
+class CompanyEnrichRequest(BaseModel):
+    tool_key: str
+    enrichment_run_id: UUID = Field(default_factory=uuid4)
+    ids: Optional[list[int]] = None
+    filters: Optional[EmpresaFilterParams] = None
+
+class InvalidCompany(BaseModel):
+    id: int
+    nombre: str
+    reason: str
+
+class CompanyEnrichErrorResponse(BaseModel):
+    status: str = "failed"
+    error_code: str
+    message: str
+    blocking: bool = True
+    invalid_companies: list[InvalidCompany] = []
+
+class CompanyEnrichSuccessResponse(BaseModel):
+    status: str = "success"
+    enrichment_run_id: UUID
+    total: int
+    sent: int
+    invalid: int

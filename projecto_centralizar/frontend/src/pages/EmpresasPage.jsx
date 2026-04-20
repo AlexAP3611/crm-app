@@ -297,74 +297,35 @@ export default function EmpresasPage() {
     const [enriching, setEnriching] = useState(null)
     const [enrichError, setEnrichError] = useState(null)
     const [enrichMessage, setEnrichMessage] = useState(null)
+    const [invalidCompanies, setInvalidCompanies] = useState([])
 
     const handleEnrich = async (tool) => {
         setEnrichError(null)
         setEnrichMessage(null)
+        setInvalidCompanies([])
         setEnriching(tool)
 
         try {
-            // Leer configuración desde el servicio centralizado (con caché)
-            let configs = {}
-            try {
-                configs = await settingsService.getExternalConfigs()
-            } catch (e) {
-                setEnrichError(`Error al obtener configuraciones: ${e.message}`)
-                return
-            }
+            // Backend handles target resolution, validation, identity, and webhook execution.
+            const data = await api.enrichEmpresas({
+                tool_key: tool,
+                ids: selectedIds.length > 0 ? selectedIds : null,
+                filters: selectedIds.length === 0 ? debouncedFilters : null
+            })
 
-            const cfg = configs[tool.toLowerCase()] || {};
-            // Utilizamos el campo apiKey como el Webhook URL en la configuración simple
-            const endpointUrl = cfg.apiKey ? cfg.apiKey.trim() : '';
-
-            if (!endpointUrl) {
-                setEnrichError(`Configura la URL del webhook de "${tool}" en la pestaña APIs & Webhooks`);
-                return;
-            }
-
-            const targets = await resolveTargetData();
-            if (targets.length === 0) {
-                setEnrichError(`Selecciona al menos una empresa para enriquecer con ${tool}`);
-                return;
-            }
-
-            // 1. Validar que TODAS las empresas tengan un dominio (web) válido antes de enviar
-            const hasInvalidWeb = targets.some(emp => !emp.web || String(emp.web).trim() === '');
-            if (hasInvalidWeb) {
-                setEnrichError('Todas las empresas deben tener un dominio (web) para poder enriquecer');
-                return;
-            }
-
-            const payload = {
-                empresas: targets.map(empresa => ({
-                    id_empresa: empresa.id,
-                    nombre_empresa: empresa.nombre || "",
-                    web: String(empresa.web).trim(),
-                    email: empresa.email || null,
-                    cif: empresa.cif || null,
-                    cnae: empresa.cnae || null,
-                    sector: Array.isArray(empresa.sectors) ? empresa.sectors.map(s => s.name || s.nombre) : [],
-                    vertical: Array.isArray(empresa.verticals) ? empresa.verticals.map(v => v.name || v.nombre) : [],
-                    producto: Array.isArray(empresa.products_rel) ? empresa.products_rel.map(p => p.name || p.nombre) : []
-                }))
-            };
-
-            const res = await fetch(endpointUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-            setEnrichMessage(`Enriquecimiento enviado correctamente a ${tool} (${targets.length} empresas)`);
+            setEnrichMessage(`Enriquecimiento iniciado correctamente (Run ID: ${data.enrichment_run_id.split('-')[0]}...)`);
         } catch (err) {
-            console.error(err);
-            setEnrichError(`Error al enviar datos a ${tool}: ${err.message}`);
+            console.error('Enrichment failed:', err);
+            
+            // Handle Structured Validation Errors (MISSING_WEB)
+            if (err.data && err.data.error_code === 'MISSING_WEB') {
+                setEnrichError(err.data.message);
+                setInvalidCompanies(err.data.invalid_companies || []);
+            } else {
+                setEnrichError(err.message || 'Error desconocido al iniciar enriquecimiento');
+            }
         } finally {
-            setEnriching(null);
+            setEnriching(null)
         }
     }
 
@@ -756,8 +717,30 @@ export default function EmpresasPage() {
             </div>
 
             {deleteError && <div className="p-3 bg-error-container text-on-error-container rounded text-sm mt-2">{deleteError}</div>}
-            {enrichError && <div className="p-3 bg-error-container text-on-error-container rounded text-sm mt-2">{enrichError}</div>}
-            {enrichMessage && <div className="p-3 bg-teal-100 text-teal-800 rounded text-sm mt-2 border border-teal-200">{enrichMessage}</div>}
+            {enrichError && (
+                <div className="p-4 bg-error-container text-on-error-container rounded-xl text-sm mt-2 border border-error/20 space-y-3">
+                    <div className="flex items-center gap-2 font-bold">
+                        <span className="material-symbols-outlined text-lg">warning</span>
+                        {enrichError}
+                    </div>
+                    {invalidCompanies.length > 0 && (
+                        <div className="bg-surface-container-lowest/50 rounded-lg p-3 space-y-1 mt-2">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-on-error-container/70 mb-2">Empresas sin web:</p>
+                            <ul className="list-disc list-inside space-y-0.5">
+                                {invalidCompanies.map(emp => (
+                                    <li key={emp.id} className="font-medium">
+                                        {emp.nombre} <span className="text-[10px] opacity-70">(ID: {emp.id})</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
+            {enrichMessage && <div className="p-4 bg-teal-100 text-teal-800 rounded-xl text-sm mt-2 border border-teal-200 font-medium flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg">check_circle</span>
+                {enrichMessage}
+            </div>}
 
             {/* Main Data Table */}
             <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm border border-stone-200/40">

@@ -14,7 +14,8 @@ from app.models.vertical import Vertical
 from app.models.product import Product
 from app.schemas.empresa import EmpresaListResponse, EmpresaCreate, EmpresaResponse, EmpresaCreateResponse, EmpresaBulkUpdate, EmpresaBulkDelete, EmpresaFilterParams
 from app.schemas.contact import ContactListResponse
-from app.services import empresa_service, empresa_mapper
+from app.schemas.enrichment import CompanyEnrichRequest, CompanyEnrichSuccessResponse, CompanyEnrichErrorResponse
+from app.services import empresa_service, empresa_mapper, enrichment_service
 from app.auth import get_current_user
 from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
 
@@ -360,3 +361,26 @@ async def unassign_product(id: int, product_id: int, db: AsyncSession = Depends(
     await _propagate_snapshot(db, id, refreshed)
     await db.commit()
     return refreshed
+
+@router.post("/enrich", response_model=CompanyEnrichSuccessResponse)
+async def enrich_empresas(
+    request: CompanyEnrichRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Enrich a set of empresas using an external tool.
+    Supports specific IDs or dynamic filters with STRICT validation.
+    """
+    from fastapi import Response
+    
+    result = await enrichment_service.trigger_company_enrichment(db, request)
+    
+    # Handle structured validation errors
+    if isinstance(result, CompanyEnrichErrorResponse):
+        return Response(
+            content=result.model_dump_json(),
+            status_code=400,
+            media_type="application/json"
+        )
+    
+    return result

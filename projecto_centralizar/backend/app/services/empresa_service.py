@@ -1,4 +1,4 @@
-from typing import Literal, NamedTuple
+from typing import Literal, NamedTuple, Optional
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,14 +109,11 @@ async def upsert_empresa(session: AsyncSession, data: EmpresaCreate) -> tuple[Em
         
     return emp, action
 
-async def list_empresas(
-    db: AsyncSession,
-    filters: EmpresaFilterParams,
-    limit: int = 50,
-    offset: int = 0
-) -> EmpresaListResponse:
-    query = select(Empresa)
-
+def _apply_empresa_filters(query, filters: EmpresaFilterParams):
+    """
+    Private utility to apply filters to an Empresa query.
+    Centralizes filtering logic for both paged views and unpaginated exports.
+    """
     if filters.q:
         query = query.where(Empresa.nombre.ilike(f"%{filters.q}%"))
 
@@ -144,6 +141,17 @@ async def list_empresas(
         query = query.where(Empresa.facturacion <= filters.facturacion_max)
     if filters.cnae:
         query = query.where(Empresa.cnae.startswith(filters.cnae))
+    
+    return query
+
+async def list_empresas(
+    db: AsyncSession,
+    filters: EmpresaFilterParams,
+    limit: int = 50,
+    offset: int = 0
+) -> EmpresaListResponse:
+    query = select(Empresa)
+    query = _apply_empresa_filters(query, filters)
 
     # Always eagerly load Empresa's own M2M
     query = query.options(
@@ -169,3 +177,32 @@ async def list_empresas(
         total=total,
         items=list(items)
     )
+
+async def list_empresas_unpaginated(
+    db: AsyncSession,
+    filters: Optional[EmpresaFilterParams] = None,
+    ids: Optional[list[int]] = None
+) -> list[Empresa]:
+    """
+    Fetches full Empresa ORM objects without pagination.
+    Used for enrichment and exports.
+    """
+    query = select(Empresa)
+    
+    if filters:
+        query = _apply_empresa_filters(query, filters)
+    
+    if ids:
+        query = query.where(Empresa.id.in_(ids))
+        
+    # Ensure all M2M are loaded via selectinload
+    query = query.options(
+        selectinload(Empresa.sectors),
+        selectinload(Empresa.verticals),
+        selectinload(Empresa.products_rel),
+    )
+    
+    query = query.order_by(Empresa.nombre).distinct()
+    
+    result = await db.execute(query)
+    return list(result.scalars().unique().all())

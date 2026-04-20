@@ -21,6 +21,7 @@ from app.models.setting import Setting
 # ── Nuevos modelos (Parte 3) ──
 from app.models.user_request import UserRequest  # Solicitudes de acceso
 from app.models.log import Log                    # Registro de auditoría
+from app.models.enrichment_log import EnrichmentLog
 
 __all__ = [
     "Campaign",
@@ -35,4 +36,5 @@ __all__ = [
     # Parte 3: Persistencia de solicitudes y logs
     "UserRequest",
     "Log",
+    "EnrichmentLog",
 ]

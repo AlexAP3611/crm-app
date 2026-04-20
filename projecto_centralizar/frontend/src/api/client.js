@@ -144,7 +144,10 @@ async function request(path, { headers, signal, ...options } = {}) {
             : Array.isArray(detail)
                 ? detail.map((d) => d.msg ?? JSON.stringify(d)).join('; ')
                 : JSON.stringify(detail) || 'Request failed'
-        throw new Error(msg)
+        
+        const error = new Error(msg)
+        error.data = err // Attach structured error data for specialized handlers (e.g. enrichment validation)
+        throw error
     }
 
     // 204 No Content — no hay body que parsear
@@ -300,6 +303,9 @@ export const api = {
     // ── Enrichment ──
     enrichContact: (id, source, data) =>
         request(`/enrichment/${id}`, { method: 'POST', body: JSON.stringify({ source, data }) }),
+    
+    enrichEmpresas: (data) =>
+        request('/empresas/enrich', { method: 'POST', body: JSON.stringify(data) }),
 
     // ── Access Requests ──
     requestAccess: (email, password) =>
