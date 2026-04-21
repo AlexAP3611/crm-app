@@ -12,7 +12,10 @@ from app.models.contact import Contact
 from app.models.sector import Sector
 from app.models.vertical import Vertical
 from app.models.product import Product
-from app.schemas.empresa import EmpresaListResponse, EmpresaCreate, EmpresaResponse, EmpresaCreateResponse, EmpresaBulkUpdate, EmpresaBulkDelete, EmpresaFilterParams
+from app.schemas.empresa import EmpresaListResponse, EmpresaCreate, EmpresaResponse, EmpresaCreateResponse, EmpresaFilterParams
+from app.schemas.scope import EmpresaScopedDelete, EmpresaScopedUpdate
+from app.services.scope import apply_scope
+from app.services.empresa_service import _apply_empresa_filters
 from app.schemas.contact import ContactListResponse
 from app.schemas.enrichment import CompanyEnrichRequest, CompanyEnrichSuccessResponse, CompanyEnrichErrorResponse
 from app.services import empresa_service, empresa_mapper, enrichment_service
@@ -156,50 +159,68 @@ async def delete_empresa(id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/bulk-delete")
 async def delete_empresas_bulk(
-    data: EmpresaBulkDelete = Body(...),
+    data: EmpresaScopedDelete = Body(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete multiple empresas by ID list. Validates they have no contacts."""
-    if not data.ids:
-        return {"deleted": 0}
-        
-    result = await db.execute(select(Empresa).where(Empresa.id.in_(data.ids)))
+    """Delete empresas by scope. Skips empresas with contacts. Rejects empty scope."""
+    try:
+        query = select(Empresa)
+        query = apply_scope(
+            query, model=Empresa,
+            ids=data.ids, filters=data.filters,
+            apply_filters_fn=_apply_empresa_filters,
+            allow_all=data.all is True,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    result = await db.execute(query)
     empresas = result.scalars().all()
+
+    if not empresas:
+        return {"deleted": 0}
+
     count = 0
     for empresa in empresas:
-        # Check contacts count
         contacts_count = await db.scalar(select(func.count(Contact.id)).where(Contact.empresa_id == empresa.id))
         if contacts_count == 0:
             await db.delete(empresa)
             count += 1
-            
+
     await db.commit()
     return {"deleted": count}
 
 @router.post("/bulk-update")
 async def update_empresas_bulk(
-    data: EmpresaBulkUpdate = Body(...),
+    data: EmpresaScopedUpdate = Body(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update multiple empresas by ID list. Mostly used for M2M merge_lists/remove_lists."""
-    if not data.ids:
-        return {"updated": 0}
-
-    result = await db.execute(
-        select(Empresa)
-        .options(
+    """Update empresas by scope. Handles M2M merge/remove/replace. Rejects empty scope."""
+    try:
+        query = select(Empresa).options(
             selectinload(Empresa.sectors),
             selectinload(Empresa.verticals),
             selectinload(Empresa.products_rel),
         )
-        .where(Empresa.id.in_(data.ids))
-    )
+        query = apply_scope(
+            query, model=Empresa,
+            ids=data.ids, filters=data.filters,
+            apply_filters_fn=_apply_empresa_filters,
+            allow_all=data.all is True,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    result = await db.execute(query)
     empresas = result.scalars().all()
-    
-    # Load targets if we need them
+
+    if not empresas:
+        return {"updated": 0}
+
+    # Load M2M targets if needed
     update_data = data.data
     new_sectors, new_verticals, new_products = [], [], []
-    
+
     if update_data.sector_ids:
         res = await db.execute(select(Sector).where(Sector.id.in_(update_data.sector_ids)))
         new_sectors = list(res.scalars().all())
@@ -228,7 +249,7 @@ async def update_empresas_bulk(
                 for p in new_products:
                     if p.id not in existing_ids:
                         empresa.products_rel.append(p)
-                        
+
         elif update_data.remove_lists:
             # Remove matches
             if update_data.sector_ids:

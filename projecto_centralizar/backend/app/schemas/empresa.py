@@ -5,7 +5,8 @@ from pydantic import BaseModel, field_validator
 from app.schemas.contact import ContactResponse, SectorRef, VerticalRef, ProductRef
 
 
-class EmpresaFilterParams(BaseModel):
+class EmpresaFilterFields(BaseModel):
+    """Pure business filters. No pagination. Used by bulk scope and inherited by EmpresaFilterParams."""
     q: Optional[str] = None
     sector_id: Optional[int] = None
     vertical_id: Optional[int] = None
@@ -15,6 +16,10 @@ class EmpresaFilterParams(BaseModel):
     facturacion_min: Optional[float] = None
     facturacion_max: Optional[float] = None
     cnae: Optional[str] = None
+
+
+class EmpresaFilterParams(EmpresaFilterFields):
+    """List-only: adds pagination on top of filter fields."""
     page: int = 1
     page_size: int = 50
 
@@ -55,13 +60,6 @@ class EmpresaUpdate(BaseModel):
     product_ids: Optional[list[int]] = None
     merge_lists: bool = True
     remove_lists: bool = False
-
-class EmpresaBulkDelete(BaseModel):
-    ids: list[int]
-
-class EmpresaBulkUpdate(BaseModel):
-    ids: list[int]
-    data: EmpresaUpdate
 
 class EmpresaCreateResponse(BaseModel):
     id: int

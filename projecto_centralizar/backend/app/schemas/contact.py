@@ -52,15 +52,6 @@ class ContactUpdate(BaseModel):
         return None if v == "" else v
 
 
-class ContactBulkDelete(BaseModel):
-    ids: list[int]
-
-
-class ContactBulkUpdate(BaseModel):
-    ids: list[int]
-    data: ContactUpdate
-
-
 class CampaignRef(BaseModel):
     id: int
     nombre: str
@@ -134,7 +125,8 @@ class ContactListResponse(BaseModel):
     items: list[ContactResponse]
 
 
-class ContactFilterParams(BaseModel):
+class ContactFilterFields(BaseModel):
+    """Pure business filters. No pagination. Used by bulk scope and inherited by ContactFilterParams."""
     sector_id: int | None = None
     vertical_id: int | None = None
     campaign_id: int | None = None
@@ -144,6 +136,10 @@ class ContactFilterParams(BaseModel):
     contacto_nombre: str | None = None
     email: str | None = None
     empresa_id: int | None = None
+
+
+class ContactFilterParams(ContactFilterFields):
+    """List-only: adds pagination on top of filter fields."""
     page: int = 1
     page_size: int = 50
 

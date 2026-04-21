@@ -95,11 +95,11 @@ def _empresa_to_row(empresa: Empresa) -> dict[str, Any]:
 
 async def export_csv(session: AsyncSession, filters: ContactFilterParams) -> str:
     """Return CSV string for all contacts matching filters."""
-    result = await contact_service.list_contacts(session, filters)
+    items = await contact_service.list_contacts_unpaginated(session, filters)
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=CSV_FIELDS, extrasaction="ignore")
     writer.writeheader()
-    for contact in result["items"]:
+    for contact in items:
         writer.writerow(_contact_to_row(contact))
     return output.getvalue()
 

@@ -1,11 +1,17 @@
 from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
 import io
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.schemas.contact import ContactFilterParams
+from app.schemas.contact import ContactFilterFields
 from app.services import csv_service
+from app.services.scope import apply_scope
+from app.services.contact_service import _apply_contact_filters
+from app.models.contact import Contact
+from app.models.empresa import Empresa
 
 router = APIRouter()
 
@@ -14,23 +20,53 @@ async def export_csv(
     sector_id: int | None = Query(None),
     vertical_id: int | None = Query(None),
     campaign_id: int | None = Query(None),
-    product: str | None = Query(None),
+    product_id: int | None = Query(None),
+    cargo_id: int | None = Query(None),
     search: str | None = Query(None),
+    contacto_nombre: str | None = Query(None),
+    email: str | None = Query(None),
+    empresa_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Export contacts matching current filters as a CSV file download."""
-    filters = ContactFilterParams(
+    """Export contacts matching filters as CSV. No pagination leakage."""
+    filters = ContactFilterFields(
         sector_id=sector_id,
         vertical_id=vertical_id,
         campaign_id=campaign_id,
-        product=product,
+        product_id=product_id,
+        cargo_id=cargo_id,
         search=search,
-        page=1,
-        page_size=100_000,  # export all matching
+        contacto_nombre=contacto_nombre,
+        email=email,
+        empresa_id=empresa_id,
     )
-    csv_content = await csv_service.export_csv(db, filters)
+    query = select(Contact).options(
+        selectinload(Contact.cargo),
+        selectinload(Contact.campaigns),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+    ).order_by(Contact.id.desc())
+    query = apply_scope(
+        query,
+        model=Contact,
+        filters=filters,
+        apply_filters_fn=_apply_contact_filters,
+        allow_all=True,  # export all is safe (non-destructive)
+    )
+
+    result = await db.execute(query)
+    items = list(result.scalars().unique().all())
+
+    output = io.StringIO()
+    import csv
+    writer = csv.DictWriter(output, fieldnames=csv_service.CSV_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    for contact in items:
+        writer.writerow(csv_service._contact_to_row(contact))
+
     return StreamingResponse(
-        io.StringIO(csv_content),
+        io.StringIO(output.getvalue()),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=contacts.csv"},
     )

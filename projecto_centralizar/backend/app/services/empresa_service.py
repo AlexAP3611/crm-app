@@ -178,31 +178,4 @@ async def list_empresas(
         items=list(items)
     )
 
-async def list_empresas_unpaginated(
-    db: AsyncSession,
-    filters: Optional[EmpresaFilterParams] = None,
-    ids: Optional[list[int]] = None
-) -> list[Empresa]:
-    """
-    Fetches full Empresa ORM objects without pagination.
-    Used for enrichment and exports.
-    """
-    query = select(Empresa)
-    
-    if filters:
-        query = _apply_empresa_filters(query, filters)
-    
-    if ids:
-        query = query.where(Empresa.id.in_(ids))
-        
-    # Ensure all M2M are loaded via selectinload
-    query = query.options(
-        selectinload(Empresa.sectors),
-        selectinload(Empresa.verticals),
-        selectinload(Empresa.products_rel),
-    )
-    
-    query = query.order_by(Empresa.nombre).distinct()
-    
-    result = await db.execute(query)
-    return list(result.scalars().unique().all())
+

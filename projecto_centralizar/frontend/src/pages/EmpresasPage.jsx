@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { api } from '../api/client'
+import { api, buildScope } from '../api/client'
 import RowMenu from '../components/RowMenu'
 import { useLookups } from '../hooks/useContacts'
 import { useDebounce } from '../hooks/useDebounce'
@@ -40,9 +40,9 @@ function EmpresaBulkAssignmentModal({ type, targetCount, options = [], onClose, 
     const [error, setError] = useState(null)
 
     const config = {
-        sector_ids:   { title: 'Asignar Sector',   label: 'Sector',   icon: 'category'     },
-        vertical_ids: { title: 'Asignar Vertical',  label: 'Vertical',  icon: 'stacked_bar_chart' },
-        product_ids:  { title: 'Asignar Producto',  label: 'Producto',  icon: 'inventory_2'  },
+        sector_ids: { title: 'Asignar Sector', label: 'Sector', icon: 'category' },
+        vertical_ids: { title: 'Asignar Vertical', label: 'Vertical', icon: 'stacked_bar_chart' },
+        product_ids: { title: 'Asignar Producto', label: 'Producto', icon: 'inventory_2' },
     }
     const { title, label, icon } = config[type] || { title: 'Asignar', label: 'Opción', icon: 'assignment' }
 
@@ -148,7 +148,7 @@ function EmpresaContactosRow({ empresaId, onEditContact, onDeleteContact }) {
             .finally(() => {
                 if (isMounted) setLoading(false);
             });
-        
+
         return () => { isMounted = false; };
     }, [empresaId, page]);
 
@@ -280,7 +280,7 @@ export default function EmpresasPage() {
     // Modal state: { mode: 'create' | 'edit', data: { ...fields } o null si está cerrado }
     const [modalConfig, setModalConfig] = useState({ mode: 'create', data: null })
     const [contactModalConfig, setContactModalConfig] = useState({ isOpen: false, data: null })
-    
+
     // Bulk Selection State
     const [selectedIds, setSelectedIds] = useState([])
     const [assignmentModal, setAssignmentModal] = useState(null)
@@ -306,17 +306,16 @@ export default function EmpresasPage() {
         setEnriching(tool)
 
         try {
-            // Backend handles target resolution, validation, identity, and webhook execution.
+            const scope = buildScope(selectedIds, debouncedFilters)
             const data = await api.enrichEmpresas({
                 tool_key: tool,
-                ids: selectedIds.length > 0 ? selectedIds : null,
-                filters: selectedIds.length === 0 ? debouncedFilters : null
+                ...scope
             })
 
             setEnrichMessage(`Enriquecimiento iniciado correctamente (Run ID: ${data.enrichment_run_id.split('-')[0]}...)`);
         } catch (err) {
             console.error('Enrichment failed:', err);
-            
+
             // Handle Structured Validation Errors (MISSING_WEB)
             if (err.data && err.data.error_code === 'MISSING_WEB') {
                 setEnrichError(err.data.message);
@@ -342,7 +341,7 @@ export default function EmpresasPage() {
     useEffect(() => {
         setQueryParams(debouncedFilters)
         loadEmpresas(debouncedFilters)
-        
+
         return () => {
             if (abortControllerRef.current) {
                 abortControllerRef.current.abort()
@@ -487,24 +486,46 @@ export default function EmpresasPage() {
         setConfirmDelete({ ids: [empresa.id], single: true, label: empresa.nombre })
     }
 
-    const resolveTargetData = async () => {
-        if (selectedIds.length > 0) {
-            const data = await api.listEmpresas({ ...debouncedFilters, offset: 0, limit: 100000 })
-            return data.items.filter(e => selectedIds.includes(e.id))
-        } else {
-            const data = await api.listEmpresas({ ...debouncedFilters, offset: 0, limit: 100000 })
-            return data.items
-        }
-    }
 
-    const actionCount = selectedIds.length > 0 ? selectedIds.length : totalEmpresas
+
+    const filteredCount = totalEmpresas
+    const selectionCount = selectedIds.length
+
+    const actionCount = selectionCount > 0 ? selectionCount : filteredCount
 
     const handleSelect = (id, checked) => setSelectedIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id))
     const handleSelectAll = (checked) => setSelectedIds(checked ? empresas.map(c => c.id) : [])
 
-    const handleDeleteBulk = async () => {
-        const targets = await resolveTargetData()
-        setConfirmDelete({ ids: targets.map(c => c.id), single: false })
+    const handleDeleteBulk = () => {
+        const hasSelection = selectedIds.length > 0
+
+        let scope
+        let count
+
+        if (hasSelection) {
+            scope = { ids: selectedIds }
+            count = selectedIds.length
+        } else {
+            const filteredScope = buildScope([], debouncedFilters)
+            const hasFilters = Object.keys(filteredScope).length > 0
+
+            if (hasFilters) {
+                scope = filteredScope
+                count = empresas.length
+            } else {
+                // 👇 CASO CLAVE: usar lo visible en tabla
+                const visibleIds = empresas.map(e => e.id)
+
+                scope = { all: true }
+                count = totalEmpresas
+            }
+        }
+
+        setConfirmDelete({
+            scope,
+            count,
+            single: false
+        })
     }
 
     const handleConfirmDelete = async () => {
@@ -515,7 +536,7 @@ export default function EmpresasPage() {
             if (confirmDelete.single) {
                 await api.deleteEmpresa(confirmDelete.ids[0])
             } else {
-                await api.deleteBulkEmpresas({ ids: confirmDelete.ids.map(Number) })
+                await api.deleteBulkEmpresas(confirmDelete.scope)
                 setSelectedIds([])
             }
             setConfirmDelete(null)
@@ -535,7 +556,7 @@ export default function EmpresasPage() {
 
     const handleDeleteContact = async (contact) => {
         if (!window.confirm(`¿Seguro que deseas eliminar el contacto "${contact.first_name} ${contact.last_name}"?`)) return
-        
+
         setError(null)
         try {
             await api.deleteContact(contact.id)
@@ -567,8 +588,8 @@ export default function EmpresasPage() {
                         <span className="material-symbols-outlined text-lg">input</span>
                         Importar empresas
                     </button>
-                    <button 
-                        onClick={handleOpenCreate} 
+                    <button
+                        onClick={handleOpenCreate}
                         className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">domain_add</span>
@@ -587,42 +608,47 @@ export default function EmpresasPage() {
                     <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
                         <span className="material-symbols-outlined text-lg">tune</span> Búsqueda y Filtros
                     </h3>
-                    <button 
-                        onClick={resetFilters} 
+                    <button
+                        onClick={resetFilters}
                         className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 flex items-center gap-1.5 border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 whitespace-nowrap"
                     >
                         <span className="material-symbols-outlined text-[14px]">filter_alt_off</span>
                         Limpiar filtros
                     </button>
                 </div>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                     <div className="space-y-1.5 lg:col-span-2">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">Empresa / Contacto</label>
-                        <input 
-                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400" 
-                            placeholder="Buscar nombre..." 
-                            type="text" 
-                            value={filters.q} 
-                            onChange={e => handleFilterChange('q', e.target.value)} 
+                        <input
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400"
+                            placeholder="Buscar nombre..."
+                            type="text"
+                            value={filters.q}
+                            onChange={e => handleFilterChange('q', e.target.value)}
                         />
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">CNAE</label>
-                        <input 
-                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400" 
-                            placeholder="Ej. 6201" 
-                            type="text" 
-                            value={filters.cnae} 
-                            onChange={e => handleFilterChange('cnae', e.target.value)} 
+                        <input
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400"
+                            placeholder="Ej. 6201"
+                            type="text"
+                            value={filters.cnae}
+                            onChange={e => handleFilterChange('cnae', e.target.value)}
                         />
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">Sector</label>
-                        <select 
+                        <select
                             className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
                             value={filters.sector_id}
-                            onChange={e => handleFilterChange('sector_id', e.target.value)}
+                            onChange={e =>
+                                handleFilterChange(
+                                    'sector_id',
+                                    e.target.value ? Number(e.target.value) : ''
+                                )
+                            }
                         >
                             <option value="">Todos</option>
                             {sectors.map(s => <option key={s.id} value={s.id}>{s.name || s.nombre}</option>)}
@@ -630,10 +656,15 @@ export default function EmpresasPage() {
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">Vertical</label>
-                        <select 
+                        <select
                             className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
                             value={filters.vertical_id}
-                            onChange={e => handleFilterChange('vertical_id', e.target.value)}
+                            onChange={e =>
+                                handleFilterChange(
+                                    'vertical_id',
+                                    e.target.value ? Number(e.target.value) : ''
+                                )
+                            }
                         >
                             <option value="">Todas</option>
                             {verticals.map(v => <option key={v.id} value={v.id}>{v.name || v.nombre}</option>)}
@@ -641,10 +672,15 @@ export default function EmpresasPage() {
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">Producto</label>
-                        <select 
+                        <select
                             className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
                             value={filters.product_id}
-                            onChange={e => handleFilterChange('product_id', e.target.value)}
+                            onChange={e =>
+                                handleFilterChange(
+                                    'product_id',
+                                    e.target.value ? Number(e.target.value) : ''
+                                )
+                            }
                         >
                             <option value="">Todos</option>
                             {products.map(p => <option key={p.id} value={p.id}>{p.name || p.nombre}</option>)}
@@ -657,24 +693,24 @@ export default function EmpresasPage() {
             <div className="space-y-3">
                 {/* Fila 1: Asignar + Eliminar */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <button 
-                        onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'assign' })} 
+                    <button
+                        onClick={() => setAssignmentModal({ type: 'sector_ids', mode: 'assign' })}
                         className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">assignment_ind</span>
                         Asignar Sector
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
-                    <button 
-                        onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'assign' })} 
+                    <button
+                        onClick={() => setAssignmentModal({ type: 'vertical_ids', mode: 'assign' })}
                         className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">category</span>
                         Asignar Vertical
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
-                    <button 
-                        onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'assign' })} 
+                    <button
+                        onClick={() => setAssignmentModal({ type: 'product_ids', mode: 'assign' })}
                         className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">inventory_2</span>
@@ -682,7 +718,7 @@ export default function EmpresasPage() {
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                     <div className="flex-1"></div>
-                    <button 
+                    <button
                         onClick={handleDeleteBulk}
                         className="bg-error/10 text-error px-4 py-2 rounded-lg text-sm font-bold hover:bg-error/20 transition-colors flex items-center gap-2 border border-error/20 shadow-sm active:scale-95"
                     >
@@ -750,7 +786,7 @@ export default function EmpresasPage() {
                             <tr className="bg-surface-container-low border-b border-stone-200/40">
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">
                                     <div className="flex items-center gap-4">
-                                        <Checkbox 
+                                        <Checkbox
                                             checked={selectedIds.length > 0 && selectedIds.length === empresas.length}
                                             onChange={e => handleSelectAll(e.target.checked)}
                                         />
@@ -781,7 +817,7 @@ export default function EmpresasPage() {
                                         <tr className="group hover:bg-stone-50 transition-colors cursor-pointer" onClick={() => toggleRow(emp.id)}>
                                             <td className="py-5 px-6" onClick={e => e.stopPropagation()}>
                                                 <div className="flex items-center gap-4">
-                                                    <Checkbox 
+                                                    <Checkbox
                                                         checked={selectedIds.includes(emp.id)}
                                                         onChange={e => handleSelect(emp.id, e.target.checked)}
                                                     />
@@ -831,9 +867,9 @@ export default function EmpresasPage() {
                                             <td className="py-5 px-6"><span className="text-sm text-stone-600">{emp.numero_empleados?.toLocaleString() || '-'}</span></td>
                                             <td className="py-5 px-6 text-right"><span className="text-sm font-bold text-on-surface">{emp.facturacion ? `$${emp.facturacion.toLocaleString()}` : '-'}</span></td>
                                             <td className="py-5 px-6" onClick={e => e.stopPropagation()}>
-                                                <RowMenu 
-                                                    onEdit={() => handleEdit(emp)} 
-                                                    onDelete={() => handleDelete(emp)} 
+                                                <RowMenu
+                                                    onEdit={() => handleEdit(emp)}
+                                                    onDelete={() => handleDelete(emp)}
                                                 />
                                             </td>
                                         </tr>
@@ -841,10 +877,10 @@ export default function EmpresasPage() {
                                         {expandedRows.has(emp.id) && (
                                             <tr className="bg-stone-50 border-transparent">
                                                 <td colSpan="8" className="p-0">
-                                                    <EmpresaContactosRow 
-                                                        empresaId={emp.id} 
-                                                        onEditContact={handleEditContact} 
-                                                        onDeleteContact={handleDeleteContact} 
+                                                    <EmpresaContactosRow
+                                                        empresaId={emp.id}
+                                                        onEditContact={handleEditContact}
+                                                        onDeleteContact={handleDeleteContact}
                                                     />
                                                 </td>
                                             </tr>
@@ -876,7 +912,7 @@ export default function EmpresasPage() {
             {modalConfig.data && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-md animate-in fade-in duration-300" onClick={handleCloseModal}></div>
-                    
+
                     <div className="relative w-full max-w-4xl bg-surface-container-lowest rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
                         {/* Modal Header */}
                         <div className="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-low/50">
@@ -894,7 +930,7 @@ export default function EmpresasPage() {
                         {/* Modal Content - Scrollable */}
                         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-12">
                             {formError && <div className="p-4 bg-error-container text-on-error-container rounded-xl text-sm font-bold border border-error/20">{formError}</div>}
-                            
+
                             {/* Section: Basic Information */}
                             <section className="space-y-6">
                                 <div className="flex items-center gap-2 mb-2">
@@ -997,24 +1033,24 @@ export default function EmpresasPage() {
                                         <h3 className="font-headline font-bold text-lg text-on-surface">Productos</h3>
                                     </div>
                                     <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/20 min-h-[140px]">
-                                    {modalConfig.mode === 'create' ? (
-                                        <MultiSelect
-                                            options={products}
-                                            selectedIds={modalConfig.data.product_ids || []}
-                                            onChange={(ids) => handleChange({ target: { name: 'product_ids', value: ids } })}
-                                            placeholder="Asignar productos..."
-                                        />
-                                    ) : (
-                                        <DynamicM2MEditor
-                                            empresaId={modalConfig.data.id}
-                                            type="products"
-                                            items={modalConfig.data.product_ids || []}
-                                            availableOptions={products}
-                                            onSuccess={handleDynamicM2MSuccess}
-                                        />
-                                    )}
-                                </div>
-                            </section>
+                                        {modalConfig.mode === 'create' ? (
+                                            <MultiSelect
+                                                options={products}
+                                                selectedIds={modalConfig.data.product_ids || []}
+                                                onChange={(ids) => handleChange({ target: { name: 'product_ids', value: ids } })}
+                                                placeholder="Asignar productos..."
+                                            />
+                                        ) : (
+                                            <DynamicM2MEditor
+                                                empresaId={modalConfig.data.id}
+                                                type="products"
+                                                items={modalConfig.data.product_ids || []}
+                                                availableOptions={products}
+                                                onSuccess={handleDynamicM2MSuccess}
+                                            />
+                                        )}
+                                    </div>
+                                </section>
                             </div>
                         </form>
 
@@ -1023,10 +1059,10 @@ export default function EmpresasPage() {
                             <button type="button" onClick={handleCloseModal} disabled={saving} className="px-6 py-3 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container-highest transition-colors">
                                 Cancelar
                             </button>
-                             <button 
-                                type="submit" 
-                                onClick={handleSubmit} 
-                                disabled={saving} 
+                            <button
+                                type="submit"
+                                onClick={handleSubmit}
+                                disabled={saving}
                                 className="px-8 py-3 btn-primary-gradient text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                             >
                                 {saving ? 'Guardando...' : (modalConfig.mode === 'create' ? 'Crear Empresa' : 'Guardar Cambios')}
@@ -1042,16 +1078,13 @@ export default function EmpresasPage() {
                     targetCount={actionCount}
                     options={
                         assignmentModal.type === 'sector_ids' ? sectors :
-                        assignmentModal.type === 'vertical_ids' ? verticals : products
+                            assignmentModal.type === 'vertical_ids' ? verticals : products
                     }
                     onClose={() => setAssignmentModal(null)}
                     onSave={async (updateData) => {
                         try {
-                            const targets = await resolveTargetData()
-                            await api.updateBulkEmpresas({
-                                ids: targets.map(e => e.id),
-                                data: updateData
-                            })
+                            const scope = buildScope(selectedIds, debouncedFilters)
+                            await api.updateBulkEmpresas(scope, updateData)
                             setAssignmentModal(null)
                             setSelectedIds([])
                             loadEmpresas(debouncedFilters)
@@ -1064,7 +1097,7 @@ export default function EmpresasPage() {
 
             {confirmDelete && (
                 <EmpresaConfirmDeleteModal
-                    count={confirmDelete.ids.length}
+                    count={confirmDelete.single ? 1 : confirmDelete.count}
                     onConfirm={handleConfirmDelete}
                     onCancel={handleCancelDelete}
                     loading={bulkDeleting}
@@ -1086,7 +1119,7 @@ export default function EmpresasPage() {
                     }}
                 />
             )}
-            
+
             {/* CSV Import Modal */}
             {showImportModal && (
                 <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[100] flex justify-center items-center p-4" onClick={() => setShowImportModal(false)}>
@@ -1098,7 +1131,7 @@ export default function EmpresasPage() {
                             </button>
                         </div>
                         <div className="p-6">
-                            <EmpresaCSVImport onImported={() => { 
+                            <EmpresaCSVImport onImported={() => {
                                 setShowImportModal(false);
                                 loadEmpresas(debouncedFilters);
                             }} />

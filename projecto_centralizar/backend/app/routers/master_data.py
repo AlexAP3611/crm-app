@@ -110,8 +110,8 @@ async def list_cargos(db: AsyncSession = Depends(get_db)):
 
 @router.post("/cargos", response_model=MasterDataResponse)
 async def create_cargo(data: MasterDataCreate, db: AsyncSession = Depends(get_db)):
-    from app.services.cargo_service import resolve_cargo
-    cargo = await resolve_cargo(db, data.name)
+    from app.services.cargo_service import get_or_create_cargo
+    cargo = await get_or_create_cargo(db, data.name)
     if cargo is None:
         raise HTTPException(status_code=400, detail="Nombre de cargo inválido")
     if data.description:

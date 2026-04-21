@@ -19,6 +19,8 @@ from app.models.campaign import Campaign
 from app.models.product import Product
 
 from app.services import empresa_service
+from app.services.scope import apply_scope
+from app.services.empresa_service import _apply_empresa_filters
 from app.services.empresa_export_mapper import map_to_export_payload
 from app.services.merge import deep_merge
 
@@ -56,11 +58,11 @@ async def enrich_contact(
     result = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.sectors),
-            selectinload(Contact.verticals),
-            selectinload(Contact.products_rel),
-            selectinload(Contact.cargos),
+            selectinload(Contact.cargo),
             selectinload(Contact.campaigns),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
         )
         .where(Contact.id == contact_id)
     )
@@ -76,11 +78,11 @@ async def enrich_contact(
     result2 = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.sectors),
-            selectinload(Contact.verticals),
-            selectinload(Contact.products_rel),
-            selectinload(Contact.cargos),
+            selectinload(Contact.cargo),
             selectinload(Contact.campaigns),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
         )
         .where(Contact.id == contact_id)
     )
@@ -102,11 +104,11 @@ async def enrich_contact_smart(
     result = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.sectors),
-            selectinload(Contact.verticals),
-            selectinload(Contact.products_rel),
-            selectinload(Contact.cargos),
+            selectinload(Contact.cargo),
             selectinload(Contact.campaigns),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
         )
         .where(Contact.id == contact_id)
     )
@@ -157,11 +159,11 @@ async def enrich_contact_smart(
     result2 = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.sectors),
-            selectinload(Contact.verticals),
-            selectinload(Contact.products_rel),
-            selectinload(Contact.cargos),
+            selectinload(Contact.cargo),
             selectinload(Contact.campaigns),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
         )
         .where(Contact.id == contact_id)
     )
@@ -188,10 +190,24 @@ async def trigger_company_enrichment(
     
     # 1. Resolve & Validate
     # ---------------------
-    empresas = await empresa_service.list_empresas_unpaginated(
-        db, filters=request.filters, ids=request.ids
-    )
-    
+    try:
+        query = select(Empresa).options(
+            selectinload(Empresa.sectors),
+            selectinload(Empresa.verticals),
+            selectinload(Empresa.products_rel),
+        )
+        query = apply_scope(
+            query, model=Empresa,
+            ids=request.ids, filters=request.filters,
+            apply_filters_fn=_apply_empresa_filters,
+            allow_all=False,  # never enrich entire DB by accident
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    result = await db.execute(query)
+    empresas = list(result.scalars().unique().all())
+
     if not empresas:
         raise HTTPException(status_code=400, detail="No se encontraron empresas para enriquecer.")
 

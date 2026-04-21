@@ -1,17 +1,23 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.contact import Contact
+from app.models.empresa import Empresa
 from app.schemas.contact import (
-    ContactBulkDelete,
-    ContactBulkUpdate,
     ContactCreate,
     ContactFilterParams,
     ContactListResponse,
     ContactResponse,
     ContactUpdate,
 )
+from app.schemas.scope import ContactScopedDelete, ContactScopedUpdate
 from app.services import contact_service
+from app.services import enrichment_service
+from app.services.scope import apply_scope
+from app.services.contact_service import _apply_contact_filters
 from app.auth import get_current_user
 
 router = APIRouter(
@@ -46,7 +52,7 @@ async def list_contacts(
     email: str | None = Query(None),
     empresa_id: int | None = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100000),
+    page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
     filters = ContactFilterParams(
@@ -70,21 +76,60 @@ async def list_contacts(
 # errors. POST reliably carries request bodies.
 @router.post("/bulk-delete")
 async def delete_contacts_bulk(
-    data: ContactBulkDelete = Body(...),
+    data: ContactScopedDelete = Body(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete multiple contacts by ID list."""
-    count = await contact_service.delete_contacts_bulk(db, data.ids)
-    return {"deleted": count}
+    """Delete contacts by scope. Rejects empty scope."""
+    try:
+        query = select(Contact)
+        query = apply_scope(
+            query, model=Contact,
+            ids=data.ids, filters=data.filters,
+            apply_filters_fn=_apply_contact_filters,
+            allow_all=False,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    result = await db.execute(query)
+    contacts = result.scalars().all()
+    for c in contacts:
+        await db.delete(c)
+    await db.commit()
+    return {"deleted": len(contacts)}
 
 
 @router.post("/bulk-update")
 async def update_contacts_bulk(
-    data: ContactBulkUpdate = Body(...),
+    data: ContactScopedUpdate = Body(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update multiple contacts by ID list with the same data."""
-    count = await contact_service.bulk_update_contacts(db, data.ids, data.data)
+    """Update contacts by scope. Rejects empty scope."""
+    try:
+        query = select(Contact).options(
+            selectinload(Contact.cargo),
+            selectinload(Contact.campaigns),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+        )
+        query = apply_scope(
+            query, model=Contact,
+            ids=data.ids, filters=data.filters,
+            apply_filters_fn=_apply_contact_filters,
+            allow_all=False,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    result = await db.execute(query)
+    contacts = result.scalars().all()
+    contact_ids = [c.id for c in contacts]
+
+    if not contact_ids:
+        return {"updated": 0}
+
+    count = await contact_service.bulk_update_contacts(db, contact_ids, data.data)
     return {"updated": count}
 
 
@@ -120,7 +165,7 @@ async def enrich_contact(
     Enrich contact notes using deep merge.
     Used by enrichment tools or background processes.
     """
-    contact = await contact_service.enrich_contact(db, contact_id, data)
+    contact = await enrichment_service.enrich_contact(db, contact_id, "manual", data)
 
     if contact is None:
         raise HTTPException(status_code=404, detail="Contact not found")

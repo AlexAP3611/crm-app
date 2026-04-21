@@ -279,76 +279,13 @@ async def delete_contact(session: AsyncSession, contact_id: int) -> bool:
     return True
 
 
-async def delete_contacts_bulk(session: AsyncSession, contact_ids: list[int]) -> int:
-    result = await session.execute(select(Contact).where(Contact.id.in_(contact_ids)))
-    contacts = result.scalars().all()
-    count = 0
-    for c in contacts:
-        await session.delete(c)
-        count += 1
-    await session.commit()
-    return count
 
 
-async def bulk_update_contacts(
-    session: AsyncSession, contact_ids: list[int], data: ContactUpdate
-) -> int:
-    result = await session.execute(
-        select(Contact)
-        .options(
-            selectinload(Contact.cargo),
-            selectinload(Contact.campaigns),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
-        )
-        .where(Contact.id.in_(contact_ids))
-    )
-    contacts = result.scalars().all()
-
-    kwargs = build_contact_kwargs(data)
-    is_merge = data.merge_lists
-    is_remove = getattr(data, 'remove_lists', False)
-
-    for contact in contacts:
-        base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
-        emp_id = kwargs.get("empresa_id") or contact.empresa_id
-
-        for field, value in kwargs.items():
-            setattr(contact, field, value)
-
-        contact.notes = base_notes
-
-        if emp_id:
-            empresa_obj = await session.get(Empresa, emp_id)
-            if empresa_obj:
-                await session.refresh(empresa_obj, ["sectors", "verticals", "products_rel"])
-                update_empresa_snapshot_in_contact(contact, empresa_obj)
-
-        for m2m_key, config in M2M_FIELD_MAP.items():
-            ids_list = getattr(data, m2m_key, None)
-            if ids_list is None and data.model_extra:
-                ids_list = data.model_extra.get(m2m_key, None)
-                
-            if ids_list is not None:
-                model_class = globals()[config["model"]]
-                await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], is_merge, is_remove)
-
-    await session.commit()
-    return len(contacts)
-
-
-async def list_contacts(
-    session: AsyncSession, filters: ContactFilterParams
-) -> dict[str, Any]:
-    query = select(Contact).options(
-        selectinload(Contact.cargo),
-        selectinload(Contact.campaigns),
-        selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
-        selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
-        selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
-    )
-
+def _apply_contact_filters(query, filters: ContactFilterParams):
+    """
+    Private utility to apply filters to a Contact query.
+    Centralizes filtering logic for both paged views and unpaginated exports.
+    """
     if filters.empresa_id is not None:
         query = query.where(Contact.empresa_id == filters.empresa_id)
 
@@ -411,6 +348,20 @@ async def list_contacts(
                 Contact.email.ilike(term),
             )
         )
+    return query
+
+async def list_contacts(
+    session: AsyncSession, filters: ContactFilterParams
+) -> dict[str, Any]:
+    query = select(Contact).options(
+        selectinload(Contact.cargo),
+        selectinload(Contact.campaigns),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+    )
+
+    query = _apply_contact_filters(query, filters)
 
     # Precise Count using DISTINCT to handle joins in search/filters
     count_stmt = select(func.count(func.distinct(Contact.id))).select_from(query.subquery())
@@ -429,3 +380,5 @@ async def list_contacts(
         "page_size": filters.page_size,
         "items": items,
     }
+
+

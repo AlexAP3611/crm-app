@@ -70,7 +70,8 @@ export function CSVImport({ onImported }) {
 
 export function CSVExport({ filters, label, children, icon, className = "", ...props }) {
     function download() {
-        const url = api.exportCsvUrl(filters)
+        const { page, page_size, ...cleanFilters } = filters
+        const url = api.exportCsvUrl(cleanFilters)
         const a = document.createElement('a')
         a.href = url
         a.download = 'contacts.csv'
@@ -78,9 +79,9 @@ export function CSVExport({ filters, label, children, icon, className = "", ...p
     }
 
     return (
-        <button 
-            id="csv-export-btn" 
-            className={`flex items-center gap-2 ${className}`} 
+        <button
+            id="csv-export-btn"
+            className={`flex items-center gap-2 ${className}`}
             onClick={download}
             {...props}
         >
@@ -160,7 +161,8 @@ export function EmpresaCSVImport({ onImported }) {
 
 export function EmpresaCSVExport({ filters, label, children, icon, className = "", ...props }) {
     function download() {
-        const url = api.exportEmpresasCsvUrl(filters)
+        const { page, page_size, ...cleanFilters } = filters
+        const url = api.exportEmpresasCsvUrl(cleanFilters)
         const a = document.createElement('a')
         a.href = url
         a.download = 'empresas.csv'
@@ -168,9 +170,9 @@ export function EmpresaCSVExport({ filters, label, children, icon, className = "
     }
 
     return (
-        <button 
-            id="empresa-csv-export-btn" 
-            className={`flex items-center gap-2 ${className}`} 
+        <button
+            id="empresa-csv-export-btn"
+            className={`flex items-center gap-2 ${className}`}
             onClick={download}
             {...props}
         >

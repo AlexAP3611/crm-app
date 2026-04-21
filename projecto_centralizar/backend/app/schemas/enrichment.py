@@ -1,7 +1,7 @@
 from typing import Any, Optional, Literal
 from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
-from app.schemas.empresa import EmpresaFilterParams
+from app.schemas.empresa import EmpresaFilterFields
 
 class EnrichRequest(BaseModel):
     source: str
@@ -71,7 +71,7 @@ class CompanyEnrichRequest(BaseModel):
     tool_key: str
     enrichment_run_id: UUID = Field(default_factory=uuid4)
     ids: Optional[list[int]] = None
-    filters: Optional[EmpresaFilterParams] = None
+    filters: Optional[EmpresaFilterFields] = None
 
 class InvalidCompany(BaseModel):
     id: int

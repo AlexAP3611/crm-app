@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useContacts, useLookups } from '../hooks/useContacts'
 import ContactModal from '../components/ContactModal'
 import { CSVImport, CSVExport } from '../components/CSV'
-import { api } from '../api/client'
+import { api, buildScope } from '../api/client'
 import RowMenu from '../components/RowMenu'
 import Checkbox from '../components/Checkbox'
 import { settingsService } from '../api/settingsService'
@@ -137,15 +137,7 @@ export default function ContactsPage() {
     const [enrichMessage, setEnrichMessage] = useState(null)
     const [enriching, setEnriching] = useState(null)
 
-    const resolveTargetData = async () => {
-        if (selectedIds.length > 0) {
-            const data = await api.listContacts({ ...filters, page: 1, page_size: 100000 })
-            return data.items.filter(c => selectedIds.includes(c.id))
-        } else {
-            const data = await api.listContacts({ ...filters, page: 1, page_size: 100000 })
-            return data.items
-        }
-    }
+
 
     const actionCount = selectedIds.length > 0 ? selectedIds.length : total
     const totalPages = Math.ceil(total / filters.page_size)
@@ -157,9 +149,12 @@ export default function ContactsPage() {
     const handleSelect = (id, checked) => setSelectedIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id))
     const handleSelectAll = (checked) => setSelectedIds(checked ? contacts.map(c => c.id) : [])
 
-    const handleDeleteBulk = async () => {
-        const targets = await resolveTargetData()
-        setConfirmDelete({ ids: targets.map(c => c.id), single: false })
+    const handleDeleteBulk = () => {
+        setConfirmDelete({
+            scope: buildScope(selectedIds, filters),
+            count: actionCount,
+            single: false
+        })
     }
 
     const handleConfirmDelete = async () => {
@@ -171,8 +166,7 @@ export default function ContactsPage() {
                 setDeleting(confirmDelete.ids[0])
                 await api.deleteContact(confirmDelete.ids[0])
             } else {
-                const ids = confirmDelete.ids.map((id) => Number(id))
-                await api.deleteBulkContacts({ ids })
+                await api.deleteBulkContacts(confirmDelete.scope)
                 setSelectedIds([])
             }
             setConfirmDelete(null)
@@ -209,7 +203,15 @@ export default function ContactsPage() {
 
         setEnriching(service)
         try {
-            const resolvedContacts = await resolveTargetData()
+            // NOTE: Legacy client-side resolution (compromise as per plan)
+            let resolvedContacts = []
+            if (selectedIds.length > 0) {
+                const data = await api.listContacts({ ...filters, page: 1, page_size: 100000 })
+                resolvedContacts = data.items.filter(c => selectedIds.includes(c.id))
+            } else {
+                const data = await api.listContacts({ ...filters, page: 1, page_size: 100000 })
+                resolvedContacts = data.items
+            }
 
             // Construir payload con los datos de los contactos seleccionados
             const payload = {
@@ -296,9 +298,8 @@ export default function ContactsPage() {
     }
 
     const handleBulkSave = async (updateData) => {
-        const targets = await resolveTargetData()
-        const ids = targets.map(c => Number(c.id))
-        await api.updateBulkContacts({ ids, data: updateData })
+        const scope = buildScope(selectedIds, filters)
+        await api.updateBulkContacts(scope, updateData)
         setAssignmentModal(null)
         setSelectedIds([])
         refresh()
@@ -574,7 +575,7 @@ export default function ContactsPage() {
             {/* Confirm Delete Modal */}
             {confirmDelete && (
                 <ConfirmDeleteModal
-                    count={confirmDelete.ids.length}
+                    count={confirmDelete.single ? 1 : confirmDelete.count}
                     loading={bulkDeleting}
                     onConfirm={handleConfirmDelete}
                     onCancel={() => setConfirmDelete(null)}

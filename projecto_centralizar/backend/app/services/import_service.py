@@ -183,10 +183,10 @@ async def import_empresas_from_rows(session: AsyncSession, rows: list[dict]) -> 
                     if vertical:
                         payload["vertical_ids"] = [vertical.id]
                         
-                    if mapped.get("product_name"):
-                        product = await product_service.resolve_by_name(session, mapped["product_name"])
-                        if product:
-                            payload["product_ids"] = [product.id]
+                if mapped.get("product_name"):
+                    product = await product_service.resolve_by_name(session, mapped["product_name"])
+                    if product:
+                        payload["product_ids"] = [product.id]
 
                 # 4. Fallback for direct IDs if present
                 for m2m_key in EMPRESA_M2M_FIELD_MAP.keys():

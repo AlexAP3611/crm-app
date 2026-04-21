@@ -271,9 +271,10 @@ async def list_requests(
     """
 
     # ── Paso 1: Construir query con filtro opcional ──
-    # Si status_filter es "pending", solo traemos solicitudes pendientes.
-    # Cualquier otro valor (incluido None o "all") trae todas.
-    # Esto permite al frontend decidir si filtra en cliente o en servidor.
+    query = select(UserRequest)
+    if status == "pending":
+        query = query.where(UserRequest.status == "pending")
+
     # ── Paso 2: Contar total de registros ──
     count_stmt = select(func.count(UserRequest.id))
     if status == "pending":

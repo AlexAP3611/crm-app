@@ -144,7 +144,7 @@ async function request(path, { headers, signal, ...options } = {}) {
             : Array.isArray(detail)
                 ? detail.map((d) => d.msg ?? JSON.stringify(d)).join('; ')
                 : JSON.stringify(detail) || 'Request failed'
-        
+
         const error = new Error(msg)
         error.data = err // Attach structured error data for specialized handlers (e.g. enrichment validation)
         throw error
@@ -153,6 +153,32 @@ async function request(path, { headers, signal, ...options } = {}) {
     // 204 No Content — no hay body que parsear
     if (res.status === 204) return null
     return res.json()
+}
+
+/**
+ * Build scope payload from current UI state.
+ * ZERO resolution logic. ZERO data fetching. Pure data transform.
+ *
+ * - selectedIds exist → { ids: [...] }
+ * - active filters exist → { filters: {...} } (stripped of page/page_size)
+ * - neither → {} (backend will decide if this is allowed per endpoint)
+ */
+export function buildScope(selectedIds, filters) {
+    if (selectedIds.length > 0) {
+        return { ids: selectedIds }
+    }
+    const { page, page_size, ...f } = filters
+    const hasFilter = Object.values(f).some(v =>
+        v !== undefined &&
+        v !== null &&
+        !(typeof v === 'string' && v.trim() === '')
+    )
+    if (hasFilter) {
+        return { filters: f }
+    }
+
+    // 🔥 CLAVE
+    return { all: true }
 }
 
 
@@ -213,8 +239,8 @@ export const api = {
     upsertContact: (data) => request('/contacts', { method: 'POST', body: JSON.stringify(data) }),
     updateContact: (id, data) => request(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteContact: (id) => request(`/contacts/${id}`, { method: 'DELETE' }),
-    deleteBulkContacts: (data) => request('/contacts/bulk-delete', { method: 'POST', body: JSON.stringify(data) }),
-    updateBulkContacts: (data) => request('/contacts/bulk-update', { method: 'POST', body: JSON.stringify(data) }),
+    deleteBulkContacts: (scope) => request('/contacts/bulk-delete', { method: 'POST', body: JSON.stringify(scope) }),
+    updateBulkContacts: (scope, data) => request('/contacts/bulk-update', { method: 'POST', body: JSON.stringify({ ...scope, data }) }),
 
     // ── CSV ──
     exportCsvUrl: (params = {}) => {
@@ -295,15 +321,15 @@ export const api = {
         return request(`/empresas/${id}/contactos?${queryParams.toString()}`);
     },
     deleteEmpresa: (id) => request(`/empresas/${id}`, { method: 'DELETE' }),
-    deleteBulkEmpresas: (data) => request('/empresas/bulk-delete', { method: 'POST', body: JSON.stringify(data) }),
-    updateBulkEmpresas: (data) => request('/empresas/bulk-update', { method: 'POST', body: JSON.stringify(data) }),
+    deleteBulkEmpresas: (scope) => request('/empresas/bulk-delete', { method: 'POST', body: JSON.stringify(scope) }),
+    updateBulkEmpresas: (scope, data) => request('/empresas/bulk-update', { method: 'POST', body: JSON.stringify({ ...scope, data }) }),
     assignEmpresaRelation: (empresaId, relationType, relationId) => request(`/empresas/${empresaId}/${relationType}/${relationId}`, { method: 'POST' }),
     unassignEmpresaRelation: (empresaId, relationType, relationId) => request(`/empresas/${empresaId}/${relationType}/${relationId}`, { method: 'DELETE' }),
 
     // ── Enrichment ──
     enrichContact: (id, source, data) =>
         request(`/enrichment/${id}`, { method: 'POST', body: JSON.stringify({ source, data }) }),
-    
+
     enrichEmpresas: (data) =>
         request('/empresas/enrich', { method: 'POST', body: JSON.stringify(data) }),
 
