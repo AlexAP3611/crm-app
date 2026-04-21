@@ -146,3 +146,8 @@ class ContactFilterParams(BaseModel):
     empresa_id: int | None = None
     page: int = 1
     page_size: int = 50
+
+    @field_validator("page_size")
+    @classmethod
+    def cap_page_size(cls, v: int) -> int:
+        return min(v, 200)

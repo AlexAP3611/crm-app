@@ -13,6 +13,16 @@ from app.core.domain_mappers.empresa_mapper import normalize_empresa_row
 
 logger = logging.getLogger(__name__)
 
+# Enforce strict domain consistency during import
+STRICT_IMPORT = True
+
+def is_valid_name(name: str | None) -> bool:
+    """Blocks placeholder names like N/A, Unknown, etc. to prevent DB pollution."""
+    if not name:
+        return False
+    placeholders = {"n/a", "unknown", "desconocido", "desconocida", "-", "."}
+    return name.strip().lower() not in placeholders
+
 def safe_str(val):
     """
     Safely convert any value to a trimmed string or None.
@@ -37,21 +47,39 @@ async def import_contacts_from_rows(session: AsyncSession, rows: list[dict]) -> 
             # 1. Resolve Empresa
             empresa_id = None
             emp_id_raw = row.get("empresa_id")
-            emp_name = row.get("empresa_nombre") or row.get("empresa")
+            
+            # Extract resolution candidates
+            emp_name = safe_str(row.get("empresa_nombre") or row.get("empresa"))
+            emp_cif = safe_str(row.get("empresa_cif"))
+            emp_web = safe_str(row.get("empresa_web"))
             
             if emp_id_raw:
                 try:
                     empresa_id = int(emp_id_raw)
                 except ValueError:
                     pass
-            elif emp_name:
-                # Semantic auto-resolution. email is NOT used.
+
+            if not empresa_id and (emp_cif or emp_web or emp_name):
+                # Only attempt creation if name is valid
+                auto_create = is_valid_name(emp_name)
+                
                 resolution = await empresa_service.resolve_empresa(
                     session,
+                    cif=emp_cif,
+                    web=emp_web,
                     empresa_nombre=emp_name,
-                    auto_create=True
+                    auto_create=auto_create
                 )
+                
                 if resolution:
+                    # Strict consistency check
+                    if STRICT_IMPORT and resolution.matched_by != "new":
+                        emp = resolution.empresa
+                        # If we matched by CIF, but Names are provided and different, warn or skip
+                        if emp_cif and emp.cif == emp_cif.strip():
+                            if emp_name and normalize_company_name(emp.nombre).lower() != normalize_company_name(emp_name).lower():
+                                logger.warning(f"Row {row_idx}: Potential mismatch. Row Name '{emp_name}' != DB Name '{emp.nombre}' for CIF {emp_cif}. Using DB entity.")
+
                     empresa_id = resolution.empresa.id
             
             if not empresa_id:
@@ -72,11 +100,14 @@ async def import_contacts_from_rows(session: AsyncSession, rows: list[dict]) -> 
                 if val is not None and val != "":
                     payload[col] = val
                     
-            for m2m_key in M2M_FIELD_MAP.keys():
+            for m2m_key, config in M2M_FIELD_MAP.items():
                 val = row.get(m2m_key)
                 if val:
                     try:
+                        # Append strategy: merge with existing (handled by upsert logic if from_enrichment=True or similar, 
+                        # but here we pass it to ContactCreate which goes to upsert_contact)
                         payload[m2m_key] = [int(x.strip()) for x in str(val).split(",") if x.strip()]
+                        payload["merge_lists"] = True # Explicitly signal non-destructive merge
                     except Exception:
                         pass
 
@@ -116,9 +147,9 @@ async def import_empresas_from_rows(session: AsyncSession, rows: list[dict]) -> 
                 mapped = normalize_empresa_row(row)
                 
                 nombre = mapped.get("nombre")
-                if not nombre:
+                if not is_valid_name(nombre):
                     skipped += 1
-                    logger.warning(f"Row {row_idx}: Skipped due to missing 'nombre' (mapped from aliases). Original row: {row}")
+                    logger.warning(f"Row {row_idx}: Skipped due to missing or invalid 'nombre' (placeholder detection). Original row: {row}")
                     continue
 
                 # 2. Build Payload

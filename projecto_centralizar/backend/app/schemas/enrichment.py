@@ -31,6 +31,7 @@ class BulkEnrichmentResponse(BaseModel):
     results: list[BulkEnrichmentResultItem]
 
 class IngestContactInput(BaseModel):
+    model_config = {"extra": "allow"}
     first_name: str
     last_name: str
     email: str | None = None
@@ -39,9 +40,11 @@ class IngestContactInput(BaseModel):
     phone: str | None = None
 
 class IngestEmpresaInput(BaseModel):
+    model_config = {"extra": "allow"}
     empresa_id: int
-    web: str
+    web: str | None = None
     email: str | None = None
+    phone: str | None = None
     cif: str | None = None
     cnae: str | None = None
     numero_empleados: int | None = None

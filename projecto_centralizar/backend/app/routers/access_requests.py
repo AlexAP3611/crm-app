@@ -29,7 +29,7 @@ import logging
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, EmailStr, field_validator
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,8 +106,11 @@ class AccessRequestItem(BaseModel):
 
 
 class AccessRequestListResponse(BaseModel):
-    """Schema de respuesta para GET /api/requests — lista de solicitudes."""
-    requests: list[AccessRequestItem]
+    """Schema de respuesta para GET /api/requests — lista de solicitudes paginada."""
+    items: list[AccessRequestItem]
+    total: int
+    page: int
+    page_size: int
 
 
 class ActionResponse(BaseModel):
@@ -242,6 +245,8 @@ async def list_requests(
     admin: AdminUser,
     db: AsyncSession = Depends(get_db),
     status: str | None = None,
+    page: int = Query(1, ge=1, description="Número de página"),
+    page_size: int = Query(50, ge=1, le=200, description="Tamaño de página"),
 ):
     """
     Endpoint: GET /api/requests
@@ -269,44 +274,46 @@ async def list_requests(
     # Si status_filter es "pending", solo traemos solicitudes pendientes.
     # Cualquier otro valor (incluido None o "all") trae todas.
     # Esto permite al frontend decidir si filtra en cliente o en servidor.
-    query = select(UserRequest)
-
+    # ── Paso 2: Contar total de registros ──
+    count_stmt = select(func.count(UserRequest.id))
     if status == "pending":
-        # Filtrar solo solicitudes en estado 'pending'
-        query = query.where(UserRequest.status == "pending")
+        count_stmt = count_stmt.where(UserRequest.status == "pending")
+    
+    total = await db.scalar(count_stmt) or 0
 
-    # ORDER BY created_at DESC para mostrar las más recientes primero
-    query = query.order_by(UserRequest.created_at.desc())
+    # ── Paso 3: Aplicar orden estable y paginación ──
+    offset = (page - 1) * page_size
+    query = query.order_by(UserRequest.created_at.desc(), UserRequest.id.desc()).offset(offset).limit(page_size)
 
     result = await db.execute(query)
-    # scalars() extrae los objetos ORM de los resultados
-    # .all() los convierte en una lista Python
     all_requests = result.scalars().all()
 
     logger.info(
         f"[requests] Consulta de solicitudes "
-        f"(filtro={status or 'all'}) — {len(all_requests)} encontradas"
+        f"(filtro={status or 'all'}, page={page}, page_size={page_size}) — {len(all_requests)} encontradas"
     )
 
-    # ── Paso 2: Registrar la acción en logs ──
-    # Registramos quién consultó y cuántas solicitudes había
+    # ── Paso 4: Registrar la acción en logs ──
     await _create_log(
         db=db,
         action="Consultó solicitudes de usuario",
-        user_id=admin.id,  # ID del admin autenticado para auditoría
+        user_id=admin.id,
         metadata={
             "total_requests": len(all_requests),
             "admin_email": admin.email,
             "status_filter": status or "all",
+            "page": page,
+            "page_size": page_size
         },
     )
     await db.commit()
 
-    # ── Paso 3: Serializar y retornar ──
-    # Convertimos cada objeto UserRequest a un dict compatible con el schema
-    # del frontend (con 'requested_at' en vez de 'created_at')
+    # ── Paso 5: Serializar y retornar ──
     return {
-        "requests": [_serialize_request(req) for req in all_requests]
+        "items": [_serialize_request(req) for req in all_requests],
+        "total": total,
+        "page": page,
+        "page_size": page_size
     }
 
 

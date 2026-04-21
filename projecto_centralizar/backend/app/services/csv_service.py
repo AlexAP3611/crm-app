@@ -16,29 +16,80 @@ from app.core.view_fields.contact_view_fields import CONTACT_VIEW_FIELDS
 from app.core.view_fields.empresa_view_fields import EMPRESA_VIEW_FIELDS
 from app.domain.relations import M2M_FIELD_MAP, EMPRESA_M2M_FIELD_MAP
 
-# Combine both maps for CSV export/import purposes
-_ALL_M2M = {**M2M_FIELD_MAP, **EMPRESA_M2M_FIELD_MAP}
-CSV_FIELDS = ["id", "empresa_id", "cargo_id"] + CONTACT_VIEW_FIELDS + list(_ALL_M2M.keys())
+CSV_VERSION = "v1"
 
-EMPRESA_CSV_FIELDS = ["id"] + EMPRESA_VIEW_FIELDS + list(EMPRESA_M2M_FIELD_MAP.keys())
+# Domain-specific M2M field maps
+CONTACT_M2M_FIELDS = M2M_FIELD_MAP
+EMPRESA_M2M_FIELDS = EMPRESA_M2M_FIELD_MAP
+
+CSV_FIELDS = [
+    "csv_version",
+    "id",
+    "empresa_id",
+    "cargo_id",
+    # Contact native fields
+    *CONTACT_VIEW_FIELDS,
+    # Empresa explicit fields
+    "empresa_nombre",
+    "empresa_cif",
+    "empresa_web",
+    "empresa_email",
+    "empresa_phone",
+    # M2M Relationships
+    *CONTACT_M2M_FIELDS.keys(),
+    *EMPRESA_M2M_FIELDS.keys(),
+]
+
+EMPRESA_CSV_FIELDS = ["csv_version", "id"] + EMPRESA_VIEW_FIELDS + list(EMPRESA_M2M_FIELDS.keys())
 
 def _contact_to_row(contact: Contact) -> dict[str, Any]:
-    row = {field: getattr(contact, field, None) for field in ["id", "empresa_id", "cargo_id"] + CONTACT_VIEW_FIELDS}
-    for m2m_key, config in _ALL_M2M.items():
-        # Check if attribute exists on contact (it might be on Empresa instead)
-        rel_list = getattr(contact, config["relation_name"], None)
-        if rel_list is not None:
-            row[m2m_key] = ",".join(str(item.id) for item in rel_list)
-        else:
-            row[m2m_key] = ""
+    row = {"csv_version": CSV_VERSION}
+
+    # Core
+    row["id"] = contact.id
+    row["empresa_id"] = contact.empresa_id
+    row["cargo_id"] = contact.cargo_id
+
+    # Contact native fields
+    for field in CONTACT_VIEW_FIELDS:
+        row[field] = getattr(contact, field, "") or ""
+
+    # Empresa explicit fields (Decoupled access)
+    empresa = getattr(contact, "empresa_rel", None)
+    row["empresa_nombre"] = empresa.nombre if empresa else ""
+    row["empresa_cif"] = empresa.cif if empresa else ""
+    row["empresa_web"] = empresa.web if empresa else ""
+    row["empresa_email"] = empresa.email if empresa else ""
+    row["empresa_phone"] = empresa.phone if empresa else ""
+
+    # Contact M2M
+    for key, config in CONTACT_M2M_FIELDS.items():
+        rel_list = getattr(contact, config["relation_name"], [])
+        row[key] = ",".join(str(item.id) for item in rel_list)
+
+    # Empresa M2M
+    if empresa:
+        for key, config in EMPRESA_M2M_FIELDS.items():
+            rel_list = getattr(empresa, config["relation_name"], [])
+            row[key] = ",".join(str(item.id) for item in rel_list)
+    else:
+        for key in EMPRESA_M2M_FIELDS.keys():
+            row[key] = ""
+
     return row
 
 
 def _empresa_to_row(empresa: Empresa) -> dict[str, Any]:
-    row = {field: getattr(empresa, field, None) for field in ["id"] + EMPRESA_VIEW_FIELDS}
-    for m2m_key, config in EMPRESA_M2M_FIELD_MAP.items():
+    row = {"csv_version": CSV_VERSION}
+    row["id"] = empresa.id
+
+    for field in EMPRESA_VIEW_FIELDS:
+        row[field] = getattr(empresa, field, "") or ""
+
+    for key, config in EMPRESA_M2M_FIELDS.items():
         rel_list = getattr(empresa, config["relation_name"], [])
-        row[m2m_key] = ",".join(str(item.id) for item in rel_list)
+        row[key] = ",".join(str(item.id) for item in rel_list)
+
     return row
 
 

@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.schemas.contact import ContactResponse, SectorRef, VerticalRef, ProductRef
 
@@ -15,6 +15,14 @@ class EmpresaFilterParams(BaseModel):
     facturacion_min: Optional[float] = None
     facturacion_max: Optional[float] = None
     cnae: Optional[str] = None
+    page: int = 1
+    page_size: int = 50
+
+    @field_validator("page_size")
+    @classmethod
+    def cap_page_size(cls, v: int) -> int:
+        return min(v, 200)
+
 
 
 class EmpresaBase(BaseModel):
@@ -79,4 +87,7 @@ class EmpresaResponse(EmpresaCreateResponse):
 
 class EmpresaListResponse(BaseModel):
     total: int
+    page: int
+    page_size: int
     items: list[EmpresaResponse]
+

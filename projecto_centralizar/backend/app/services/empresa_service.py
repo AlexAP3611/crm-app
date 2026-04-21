@@ -147,34 +147,34 @@ def _apply_empresa_filters(query, filters: EmpresaFilterParams):
 async def list_empresas(
     db: AsyncSession,
     filters: EmpresaFilterParams,
-    limit: int = 50,
-    offset: int = 0
 ) -> EmpresaListResponse:
     query = select(Empresa)
     query = _apply_empresa_filters(query, filters)
 
-    # Always eagerly load Empresa's own M2M
+    # 1. Precise Count using DISTINCT to handle M2M joins in filters
+    # We strip eager loads and ordering for the count query performance
+    count_stmt = select(func.count(func.distinct(Empresa.id))).select_from(query.subquery())
+    total = await db.scalar(count_stmt) or 0
+
+    # 2. Results with Eager Loading and Stable Sort (Name + ID as tie-breaker)
     query = query.options(
         selectinload(Empresa.sectors),
         selectinload(Empresa.verticals),
         selectinload(Empresa.products_rel),
-    )
-        
-    query = query.order_by(Empresa.nombre).distinct()
-    
-    # Extract count before pagination
-    count_query = select(func.count(func.distinct(Empresa.id))).select_from(query.with_only_columns(Empresa.id).order_by(None).subquery())
-    count_result = await db.execute(count_query)
-    total = count_result.scalar_one()
+    ).order_by(Empresa.nombre, Empresa.id.desc())
 
-    # Apply pagination
-    query = query.limit(limit).offset(offset)
+    # 3. Apply Pagination (Offset calculated internally)
+    offset = (filters.page - 1) * filters.page_size
+    query = query.offset(offset).limit(filters.page_size)
     
     result = await db.execute(query)
+    # unique() is still needed because of selectinload and potential joins in _apply_empresa_filters
     items = result.scalars().unique().all()
     
     return EmpresaListResponse(
         total=total,
+        page=filters.page,
+        page_size=filters.page_size,
         items=list(items)
     )
 

@@ -26,21 +26,10 @@ async def _sync_m2m_table(
     current_ids = set(result.scalars().all())
     target_set = set(target_ids)
 
-    # 2. Compute Diff
+    # 2. Compute Diff (Additive strategy: only find what is missing)
     to_add = target_set - current_ids
-    to_remove = current_ids - target_set
 
-    # 3. Apply Changes
-    if to_remove:
-        await db.execute(
-            delete(table).where(
-                and_(
-                    fk_col == empresa_id,
-                    id_col.in_(to_remove)
-                )
-            )
-        )
-
+    # 3. Apply Changes (Append only, no removals)
     if to_add:
         # Build bulk insert values
         # table.c.sector_id.name etc gives the column name string

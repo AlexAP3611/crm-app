@@ -84,10 +84,12 @@ class LogItem(BaseModel):
 class LogListResponse(BaseModel):
     """
     Schema de respuesta para GET /api/logs.
-    Contiene la lista de logs y el total de registros.
+    Contiene la lista de logs, el total de registros y metadatos de paginación.
     """
-    logs: list[LogItem]
+    items: list[LogItem]
     total: int
+    page: int
+    page_size: int
 
 
 class CleanupResponse(BaseModel):
@@ -133,49 +135,36 @@ async def list_logs(
     admin: AdminUser,
     db: AsyncSession = Depends(get_db),
     user_id: int | None = Query(None, description="Filtrar por ID de usuario"),
-    limit: int = Query(100, ge=1, le=1000, description="Número máximo de logs"),
-    offset: int = Query(0, ge=0, description="Offset para paginación"),
+    page: int = Query(1, ge=1, description="Número de página"),
+    page_size: int = Query(50, ge=1, le=200, description="Tamaño de página (máx 200)"),
 ):
     """
     Endpoint: GET /api/logs
 
     Flujo:
     1. Construye la query con filtros opcionales (user_id)
-    2. Aplica paginación (limit/offset)
-    3. Ordena por created_at descendente (más recientes primero)
-    4. Retorna la lista de logs con el total
-
-    Índices aprovechados:
-    - idx_logs_user_id: Si se filtra por user_id, PostgreSQL usa este índice
-      en lugar de un full table scan → O(log n) vs O(n)
-    - idx_logs_created_at: El ORDER BY created_at DESC se beneficia del índice
-
-    Parámetros de query:
-    - user_id: Filtrar logs de un usuario específico (audit trail)
-    - limit:   Máximo de resultados (default 100, max 1000)
-    - offset:  Saltar N registros para paginación
+    2. Obtiene el conteo total de registros coincidentes
+    3. Aplica orden estable (created_at DESC, id DESC) y paginación (page/page_size)
+    4. Retorna la lista de logs con metadatos completos
 
     Seguridad: Solo admin (AdminUser dependency)
     """
 
     # ── Paso 1: Construir query base ──
     query = select(Log)
-    count_query = select(func.count()).select_from(Log)
 
     # ── Paso 2: Aplicar filtros ──
-    # Si se proporciona user_id, filtramos por él
-    # Esto aprovecha el índice idx_logs_user_id
     if user_id is not None:
         query = query.where(Log.user_id == user_id)
-        count_query = count_query.where(Log.user_id == user_id)
 
-    # ── Paso 3: Contar total de registros (para paginación) ──
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
+    # ── Paso 3: Contar total de registros (Optimizado con subquery) ──
+    count_stmt = select(func.count(Log.id)).select_from(query.subquery())
+    total = await db.scalar(count_stmt) or 0
 
-    # ── Paso 4: Aplicar orden y paginación ──
-    # ORDER BY created_at DESC aprovecha el índice idx_logs_created_at
-    query = query.order_by(Log.created_at.desc()).limit(limit).offset(offset)
+    # ── Paso 4: Aplicar orden estable y paginación ──
+    offset = (page - 1) * page_size
+    # Siempre usamos un tie-breaker (id DESC) para garantizar un orden estable entre páginas
+    query = query.order_by(Log.created_at.desc(), Log.id.desc()).limit(page_size).offset(offset)
 
     # ── Paso 5: Ejecutar query ──
     result = await db.execute(query)
@@ -183,12 +172,14 @@ async def list_logs(
 
     logger.info(
         f"[logs] Consulta de logs — {len(logs)} de {total} total "
-        f"(filtro user_id={user_id}, limit={limit}, offset={offset})"
+        f"(filtro user_id={user_id}, page={page}, page_size={page_size})"
     )
 
     return {
-        "logs": [_serialize_log(log) for log in logs],
+        "items": [_serialize_log(log) for log in logs],
         "total": total,
+        "page": page,
+        "page_size": page_size
     }
 
 

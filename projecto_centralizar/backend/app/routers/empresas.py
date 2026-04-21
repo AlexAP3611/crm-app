@@ -43,20 +43,18 @@ async def _load_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
 @router.get("", response_model=EmpresaListResponse)
 async def list_empresas(
     filters: EmpresaFilterParams = Depends(),
-    limit: int = Query(50, description="Límite de paginación", ge=1, le=1000),
-    offset: int = Query(0, description="Desplazamiento de paginación", ge=0),
     db: AsyncSession = Depends(get_db)
 ):
-    return await empresa_service.list_empresas(db, filters, limit, offset)
+    return await empresa_service.list_empresas(db, filters)
 
 @router.get("/{empresa_id}/contactos", response_model=ContactListResponse)
 async def list_empresa_contactos(
     empresa_id: int,
-    limit: int = Query(50, description="Límite de paginación", ge=1, le=1000),
-    offset: int = Query(0, description="Desplazamiento de paginación"),
+    page: int = Query(1, ge=1, description="Número de página"),
+    page_size: int = Query(50, ge=1, le=200, description="Tamaño de página"),
     db: AsyncSession = Depends(get_db)
 ):
-    # Validar que la empresa existe (opcional pero buena práctica)
+    # Validar que la empresa existe
     empresa = await db.scalar(select(Empresa).where(Empresa.id == empresa_id))
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
@@ -65,22 +63,21 @@ async def list_empresa_contactos(
         selectinload(Contact.cargo)
     )
     
-    count_query = select(func.count()).select_from(q.with_only_columns(Contact.id).subquery())
-    total = await db.scalar(count_query)
+    # Precise Count using DISTINCT to handle joins if they existed (not here, but for consistency)
+    count_query = select(func.count(Contact.id)).where(Contact.empresa_id == empresa_id)
+    total = await db.scalar(count_query) or 0
 
-    q = q.order_by(Contact.first_name, Contact.last_name).limit(limit).offset(offset)
+    # Stable Sort (First Name, Last Name + ID as tie-breaker)
+    offset = (page - 1) * page_size
+    q = q.order_by(Contact.first_name, Contact.last_name, Contact.id.desc()).offset(offset).limit(page_size)
     result = await db.execute(q)
     items = result.scalars().all()
-
-    # Pydantic schema ContactListResponse requires page and page_size
-    current_page_size = limit if limit and limit > 0 else 50
-    page = (offset // current_page_size) + 1
 
     return ContactListResponse(
         total=total,
         items=list(items),
         page=page,
-        page_size=current_page_size
+        page_size=page_size
     )
 
 @router.post("", response_model=EmpresaCreateResponse)

@@ -88,6 +88,7 @@ async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
             # Update fields selectively, only if not None and not empty string
             if emp_in.web not in (None, ""): empresa.web = emp_in.web
             if emp_in.email not in (None, ""): empresa.email = emp_in.email
+            if emp_in.phone not in (None, ""): empresa.phone = emp_in.phone
             if emp_in.cif not in (None, ""): empresa.cif = emp_in.cif
             if emp_in.cnae not in (None, ""): empresa.cnae = emp_in.cnae
             if emp_in.numero_empleados not in (None, ""): empresa.numero_empleados = emp_in.numero_empleados

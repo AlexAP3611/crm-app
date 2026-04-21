@@ -412,11 +412,12 @@ async def list_contacts(
             )
         )
 
-    count_query = select(func.count()).select_from(query.with_only_columns(Contact.id).subquery())
-    count_result = await session.execute(count_query)
-    total = count_result.scalar_one()
+    # Precise Count using DISTINCT to handle joins in search/filters
+    count_stmt = select(func.count(func.distinct(Contact.id))).select_from(query.subquery())
+    total = await session.scalar(count_stmt) or 0
 
     offset = (filters.page - 1) * filters.page_size
+    # Order by ID DESC is already stable
     query = query.order_by(Contact.id.desc()).offset(offset).limit(filters.page_size)
 
     result = await session.execute(query)
