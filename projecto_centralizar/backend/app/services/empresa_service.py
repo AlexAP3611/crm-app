@@ -153,7 +153,9 @@ async def list_empresas(
 
     # 1. Precise Count using DISTINCT to handle M2M joins in filters
     # We strip eager loads and ordering for the count query performance
-    count_stmt = select(func.count(func.distinct(Empresa.id))).select_from(query.subquery())
+    subq = query.subquery()
+    count_stmt = select(func.count(func.distinct(subq.c.id)))
+    
     total = await db.scalar(count_stmt) or 0
 
     # 2. Results with Eager Loading and Stable Sort (Name + ID as tie-breaker)

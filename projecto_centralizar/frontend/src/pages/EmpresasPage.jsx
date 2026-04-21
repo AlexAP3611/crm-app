@@ -299,6 +299,22 @@ export default function EmpresasPage() {
     const [enrichMessage, setEnrichMessage] = useState(null)
     const [invalidCompanies, setInvalidCompanies] = useState([])
 
+    // ===============================
+    // BULK SCOPE CENTRALIZADO
+    // ===============================
+    const getScope = () => {
+        if (selectedIds.length > 0) {
+            return { ids: selectedIds }
+        }
+
+        // Limpieza de filtros vacíos para evitar scopes rotos
+        const cleanFilters = Object.fromEntries(
+            Object.entries(debouncedFilters).filter(([_, v]) => v !== '' && v != null)
+        )
+
+        return buildScope([], cleanFilters)
+    }
+
     const handleEnrich = async (tool) => {
         setEnrichError(null)
         setEnrichMessage(null)
@@ -494,32 +510,21 @@ export default function EmpresasPage() {
     const actionCount = selectionCount > 0 ? selectionCount : filteredCount
 
     const handleSelect = (id, checked) => setSelectedIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id))
-    const handleSelectAll = (checked) => setSelectedIds(checked ? empresas.map(c => c.id) : [])
+    const handleSelectAll = (checked) => {
+        if (checked) {
+            setSelectedIds(empresas.map(c => c.id))
+        } else {
+            setSelectedIds([])
+        }
+    }
 
     const handleDeleteBulk = () => {
-        const hasSelection = selectedIds.length > 0
+        const scope = getScope()
 
-        let scope
-        let count
-
-        if (hasSelection) {
-            scope = { ids: selectedIds }
-            count = selectedIds.length
-        } else {
-            const filteredScope = buildScope([], debouncedFilters)
-            const hasFilters = Object.keys(filteredScope).length > 0
-
-            if (hasFilters) {
-                scope = filteredScope
-                count = empresas.length
-            } else {
-                // 👇 CASO CLAVE: usar lo visible en tabla
-                const visibleIds = empresas.map(e => e.id)
-
-                scope = { all: true }
-                count = totalEmpresas
-            }
-        }
+        const count =
+            selectedIds.length > 0
+                ? selectedIds.length
+                : totalEmpresas
 
         setConfirmDelete({
             scope,
@@ -534,7 +539,7 @@ export default function EmpresasPage() {
         setDeleteError(null)
         try {
             if (confirmDelete.single) {
-                await api.deleteEmpresa(confirmDelete.ids[0])
+                await api.deleteEmpresa(confirmDelete.scope.ids[0])
             } else {
                 await api.deleteBulkEmpresas(confirmDelete.scope)
                 setSelectedIds([])

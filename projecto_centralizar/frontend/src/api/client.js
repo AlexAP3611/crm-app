@@ -163,18 +163,43 @@ async function request(path, { headers, signal, ...options } = {}) {
  * - active filters exist → { filters: {...} } (stripped of page/page_size)
  * - neither → {} (backend will decide if this is allowed per endpoint)
  */
+const NUMERIC_FIELDS = new Set([
+    'sector_id',
+    'vertical_id',
+    'product_id',
+    'numero_empleados_min',
+    'numero_empleados_max',
+    'facturacion_min',
+    'facturacion_max',
+    'cargo_id',
+    'empresa_id',
+    'campaign_id'
+]);
+
+const normalizeValue = (k, v) => {
+    if (v === '' || v === null || v === undefined) return undefined;
+    if (typeof v === 'string' && v.trim() !== '' && NUMERIC_FIELDS.has(k) && !isNaN(v)) {
+        return Number(v);
+    }
+    return v;
+}
+
 export function buildScope(selectedIds, filters) {
     if (selectedIds.length > 0) {
         return { ids: selectedIds }
     }
     const { page, page_size, ...f } = filters
-    const hasFilter = Object.values(f).some(v =>
-        v !== undefined &&
-        v !== null &&
-        !(typeof v === 'string' && v.trim() === '')
+
+    // 🔥 Purga estricta y Normalización asimétrica (solo muta a Number lo listado en NUMERIC_FIELDS)
+    const cleanFilters = Object.fromEntries(
+        Object.entries(f).flatMap(([k, v]) => {
+            const normalized = normalizeValue(k, v);
+            return normalized === undefined ? [] : [[k, normalized]];
+        })
     )
-    if (hasFilter) {
-        return { filters: f }
+
+    if (Object.keys(cleanFilters).length > 0) {
+        return { filters: cleanFilters }
     }
 
     // 🔥 CLAVE
