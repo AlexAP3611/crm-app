@@ -114,10 +114,7 @@ async def create_cargo(data: MasterDataCreate, db: AsyncSession = Depends(get_db
     cargo = await get_or_create_cargo(db, data.name)
     if cargo is None:
         raise HTTPException(status_code=400, detail="Nombre de cargo inválido")
-    if data.description:
-        cargo.description = data.description
-        await db.commit()
-        await db.refresh(cargo)
+    await db.commit()
     return cargo
 
 @router.delete("/cargos/{item_id}", status_code=204)

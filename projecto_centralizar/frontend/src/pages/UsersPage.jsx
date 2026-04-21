@@ -78,7 +78,7 @@ export default function UsersPage({ currentUserEmail }) {
         setLoading(true)
         try {
             const data = await api.listUsers()
-            setUsers(data.users || [])
+            setUsers(data.items || [])
         } catch (err) {
             setError(err.message || 'Error al cargar usuarios')
         } finally {

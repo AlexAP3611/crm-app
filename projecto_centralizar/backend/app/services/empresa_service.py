@@ -140,7 +140,7 @@ def _apply_empresa_filters(query, filters: EmpresaFilterParams):
     if filters.facturacion_max is not None:
         query = query.where(Empresa.facturacion <= filters.facturacion_max)
     if filters.cnae:
-        query = query.where(Empresa.cnae.startswith(filters.cnae))
+        query = query.where(Empresa.cnae.startswith(filters.cnae, autoescape=True))
     
     return query
 

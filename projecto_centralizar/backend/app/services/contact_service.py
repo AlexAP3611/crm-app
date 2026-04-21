@@ -382,3 +382,48 @@ async def list_contacts(
     }
 
 
+# ── Explicit model map for bulk M2M resolution (avoids fragile globals()) ──
+_BULK_MODEL_MAP = {
+    "Campaign": Campaign,
+}
+
+
+async def bulk_update_contacts(
+    session: AsyncSession, contact_ids: list[int], data: ContactUpdate
+) -> int:
+    """Batch update contacts by IDs. Handles scalar fields + M2M merge/remove/replace."""
+    result = await session.execute(
+        select(Contact)
+        .options(selectinload(Contact.campaigns))
+        .where(Contact.id.in_(contact_ids))
+    )
+    contacts = list(result.scalars().unique().all())
+
+    is_merge = data.merge_lists
+    is_remove = getattr(data, "remove_lists", False)
+
+    # ── Scalar fields (FK updates like cargo_id) ──
+    SCALAR_FIELDS = ("cargo_id",)
+
+    for contact in contacts:
+        # Apply scalar updates
+        for field in SCALAR_FIELDS:
+            if field in data.model_fields_set:
+                setattr(contact, field, getattr(data, field))
+
+        # Apply M2M updates (campaigns)
+        for m2m_key, config in M2M_FIELD_MAP.items():
+            if not hasattr(data, m2m_key):
+                continue
+            ids_list = getattr(data, m2m_key, None)
+            if ids_list is not None:
+                model_class = _BULK_MODEL_MAP[config["model"]]
+                await _sync_m2m(
+                    session, contact, model_class,
+                    ids_list, config["relation_name"],
+                    is_merge, is_remove,
+                )
+
+    await session.commit()
+    return len(contacts)
+

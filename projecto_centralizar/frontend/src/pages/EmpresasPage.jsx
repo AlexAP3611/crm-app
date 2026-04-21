@@ -456,7 +456,7 @@ export default function EmpresasPage() {
             }
 
             setModalConfig({ mode: 'create', data: null })
-            loadEmpresas()
+            loadEmpresas(debouncedFilters)
         } catch (err) {
             setFormError(err.message)
         } finally {
@@ -499,7 +499,7 @@ export default function EmpresasPage() {
     }
 
     const handleDelete = async (empresa) => {
-        setConfirmDelete({ ids: [empresa.id], single: true, label: empresa.nombre })
+        setConfirmDelete({ id: empresa.id, single: true, label: empresa.nombre })
     }
 
 
@@ -539,7 +539,7 @@ export default function EmpresasPage() {
         setDeleteError(null)
         try {
             if (confirmDelete.single) {
-                await api.deleteEmpresa(confirmDelete.scope.ids[0])
+                await api.deleteEmpresa(confirmDelete.id)
             } else {
                 await api.deleteBulkEmpresas(confirmDelete.scope)
                 setSelectedIds([])

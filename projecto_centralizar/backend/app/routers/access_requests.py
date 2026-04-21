@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, EmailStr, field_validator
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Importación del hash de contraseñas y autorización desde el módulo de autenticación
