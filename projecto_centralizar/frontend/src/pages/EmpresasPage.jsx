@@ -947,11 +947,17 @@ export default function EmpresasPage() {
                     <div className="flex items-center justify-between p-6 border-t border-stone-100">
                         <p className="text-xs text-stone-500">Página <span className="font-bold text-stone-900">{currentPage}</span> de {totalPages}</p>
                         <div className="flex gap-2">
-                            <button onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1} className="w-8 h-8 rounded-lg border border-stone-200 flex items-center justify-center text-stone-400 hover:bg-stone-100 disabled:opacity-50 transition-colors">
+                            <button onClick={() => setPage(1)} disabled={currentPage <= 1} className="w-8 h-8 rounded-lg border border-stone-200 flex items-center justify-center text-stone-400 hover:bg-stone-100 disabled:opacity-50 transition-colors">
+                                <span className="material-symbols-outlined text-sm">first_page</span>
+                            </button>
+                            <button onClick={() => setPage(Math.max(1, currentPage - 1))} disabled={currentPage <= 1} className="w-8 h-8 rounded-lg border border-stone-200 flex items-center justify-center text-stone-400 hover:bg-stone-100 disabled:opacity-50 transition-colors">
                                 <span className="material-symbols-outlined text-sm">chevron_left</span>
                             </button>
-                            <button onClick={() => setPage(currentPage + 1)} disabled={currentPage >= totalPages} className="w-8 h-8 rounded-lg border border-stone-200 flex items-center justify-center text-stone-400 hover:bg-stone-100 disabled:opacity-50 transition-colors">
+                            <button onClick={() => setPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage >= totalPages} className="w-8 h-8 rounded-lg border border-stone-200 flex items-center justify-center text-stone-400 hover:bg-stone-100 disabled:opacity-50 transition-colors">
                                 <span className="material-symbols-outlined text-sm">chevron_right</span>
+                            </button>
+                            <button onClick={() => setPage(totalPages)} disabled={currentPage >= totalPages} className="w-8 h-8 rounded-lg border border-stone-200 flex items-center justify-center text-stone-400 hover:bg-stone-100 disabled:opacity-50 transition-colors">
+                                <span className="material-symbols-outlined text-sm">last_page</span>
                             </button>
                         </div>
                     </div>
