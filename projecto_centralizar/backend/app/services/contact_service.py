@@ -278,7 +278,7 @@ async def delete_contact(session: AsyncSession, contact_id: int) -> bool:
     await session.commit()
     return True
 
-
+ 
 
 
 def _apply_contact_filters(query, filters: ContactFilterParams):
@@ -298,34 +298,39 @@ def _apply_contact_filters(query, filters: ContactFilterParams):
             )
         )
 
-    has_empresa_filters = any(x is not None for x in [
-        filters.sector_id,
-        filters.vertical_id,
-        filters.product_id
-    ])
-    
-    if has_empresa_filters:
-        query = query.join(Empresa, Contact.empresa_id == Empresa.id)
+    from sqlalchemy.sql import exists
 
-        if filters.sector_id is not None:
-            query = query.join(
-                empresa_sectors, Empresa.id == empresa_sectors.c.empresa_id
-            ).where(empresa_sectors.c.sector_id == filters.sector_id)
-        if filters.vertical_id is not None:
-            query = query.join(
-                empresa_verticals, Empresa.id == empresa_verticals.c.empresa_id
-            ).where(empresa_verticals.c.vertical_id == filters.vertical_id)
-        if filters.product_id is not None:
-            query = query.join(
-                empresa_products, Empresa.id == empresa_products.c.empresa_id
-            ).where(empresa_products.c.product_id == filters.product_id)
+    if filters.sector_id is not None:
+        query = query.where(
+            exists().where(
+                (empresa_sectors.c.empresa_id == Contact.empresa_id) &
+                (empresa_sectors.c.sector_id == filters.sector_id)
+            )
+        )
+    if filters.vertical_id is not None:
+        query = query.where(
+            exists().where(
+                (empresa_verticals.c.empresa_id == Contact.empresa_id) &
+                (empresa_verticals.c.vertical_id == filters.vertical_id)
+            )
+        )
+    if filters.product_id is not None:
+        query = query.where(
+            exists().where(
+                (empresa_products.c.empresa_id == Contact.empresa_id) &
+                (empresa_products.c.product_id == filters.product_id)
+            )
+        )
 
     if filters.cargo_id is not None:
         query = query.where(Contact.cargo_id == filters.cargo_id)
     if filters.campaign_id is not None:
         from app.models.campaign import contact_campaigns as ccamp_table
-        query = query.join(ccamp_table, Contact.id == ccamp_table.c.contact_id).where(
-            ccamp_table.c.campaign_id == filters.campaign_id
+        query = query.where(
+            exists().where(
+                (ccamp_table.c.contact_id == Contact.id) &
+                (ccamp_table.c.campaign_id == filters.campaign_id)
+            )
         )
 
     if filters.email:
@@ -348,6 +353,12 @@ def _apply_contact_filters(query, filters: ContactFilterParams):
                 Contact.email.ilike(term),
             )
         )
+
+    if filters.is_enriched is True:
+        query = query.where(Contact.enriched.is_(True))
+    elif filters.is_enriched is False:
+        query = query.where(Contact.enriched.is_(False))
+        
     return query
 
 async def list_contacts(
@@ -364,7 +375,7 @@ async def list_contacts(
     query = _apply_contact_filters(query, filters)
 
     # Precise Count using DISTINCT to handle joins in search/filters
-    count_stmt = select(func.count(func.distinct(Contact.id))).select_from(query.subquery())
+    count_stmt = select(func.count()).select_from(query.distinct(Contact.id).subquery())
     total = await session.scalar(count_stmt) or 0
 
     offset = (filters.page - 1) * filters.page_size

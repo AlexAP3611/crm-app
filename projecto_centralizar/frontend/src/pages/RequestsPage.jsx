@@ -45,7 +45,7 @@ export default function RequestsPage() {
         setError(null)
         try {
             const data = await api.listRequests()
-            setAllRequests(data.requests || [])
+            setAllRequests(data.items || [])
         } catch (err) {
             setError(err.message || 'Error al cargar solicitudes')
         } finally {
@@ -112,7 +112,7 @@ export default function RequestsPage() {
             <div className="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden border border-stone-200/50">
                 <div className="px-6 py-4 flex items-center justify-between bg-surface-container-low/50">
                     <div className="flex gap-4">
-                        <button 
+                        <button
                             onClick={() => setShowAll(false)}
                             className={`px-5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm border-0 active:scale-95 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 ${!showAll ? 'bg-primary text-white shadow-primary/20' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'}`}
                         >
@@ -120,7 +120,7 @@ export default function RequestsPage() {
                             Pendientes
                             <span className={`px-1.5 py-0.5 rounded text-[10px] ${!showAll ? 'bg-white/20 text-white' : 'bg-stone-200/50 text-stone-500'}`}>{pendingCount}</span>
                         </button>
-                        <button 
+                        <button
                             onClick={() => setShowAll(true)}
                             className={`px-5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm border-0 active:scale-95 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 ${showAll ? 'bg-primary text-white shadow-primary/20' : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'}`}
                         >
@@ -130,7 +130,7 @@ export default function RequestsPage() {
                         </button>
                     </div>
                 </div>
-                
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
@@ -181,7 +181,7 @@ export default function RequestsPage() {
                                         <td className="py-5 px-6 text-right">
                                             {isPending ? (
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleApprove(req.id)}
                                                         disabled={actionLoading === req.id}
                                                         className="px-4 py-2 bg-primary/5 border border-primary/20 text-primary font-bold text-xs rounded-lg hover:bg-primary/10 transition-colors flex items-center gap-1.5"
@@ -189,7 +189,7 @@ export default function RequestsPage() {
                                                         <span className="material-symbols-outlined text-sm">check_circle</span>
                                                         {actionLoading === req.id ? '...' : 'Aprobar'}
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleReject(req.id)}
                                                         disabled={actionLoading === req.id}
                                                         className="px-4 py-2 bg-error/5 border border-error/20 text-error font-bold text-xs rounded-lg hover:bg-error/10 transition-colors flex items-center gap-1.5"
@@ -211,7 +211,7 @@ export default function RequestsPage() {
                         </tbody>
                     </table>
                 </div>
-                
+
                 <div className="px-6 py-4 bg-surface-container-low/50 flex items-center justify-between border-t border-stone-100">
                     <p className="text-xs font-medium text-stone-500">Mostrando {filteredRequests.length} solicitudes</p>
                 </div>

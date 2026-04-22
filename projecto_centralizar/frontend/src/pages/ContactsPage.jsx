@@ -38,7 +38,7 @@ function BulkAssignmentModal({ type, targetCount, options = [], onClose, onSave 
 
     const config = {
         'campaña': { title: 'Asignar Campaña', label: 'Campaña', icon: 'campaign', fieldKey: 'campaign_ids' },
-        'cargo':   { title: 'Asignar Cargo',   label: 'Cargo',   icon: 'work',     fieldKey: 'cargo_id'    },
+        'cargo': { title: 'Asignar Cargo', label: 'Cargo', icon: 'work', fieldKey: 'cargo_id' },
     }
     const { title, label, icon, fieldKey } = config[type] || { title: 'Asignar', label: 'Opción', icon: 'assignment', fieldKey: 'ids' }
 
@@ -47,14 +47,14 @@ function BulkAssignmentModal({ type, targetCount, options = [], onClose, onSave 
         setError(null)
         try {
             const ids = (selected === '' || selected === 'unassign' || selected === '__placeholder__') ? [] : [Number(selected)]
-            
+
             let data;
             if (fieldKey === 'cargo_id') {
                 data = { [fieldKey]: ids.length > 0 ? ids[0] : null }
             } else {
                 data = { merge_lists: ids.length > 0, [fieldKey]: ids }
             }
-            
+
             await onSave(data)
         } catch (e) {
             setError(e.message)
@@ -264,8 +264,8 @@ export default function ContactsPage() {
                 // Construir header personalizado: con o sin prefijo
                 // Con prefix:    Authorization: Bearer crm_xxx
                 // Sin prefix:    X-API-Key: crm_xxx
-                const headerName  = cfg.headerName  ? cfg.headerName.trim()  : ''
-                const prefix      = cfg.prefix      ? cfg.prefix.trim()      : ''
+                const headerName = cfg.headerName ? cfg.headerName.trim() : ''
+                const prefix = cfg.prefix ? cfg.prefix.trim() : ''
                 const headerValue = cfg.headerValue ? cfg.headerValue.trim() : ''
                 if (headerName && headerValue) {
                     headers[headerName] = prefix ? `${prefix} ${headerValue}` : headerValue
@@ -294,7 +294,7 @@ export default function ContactsPage() {
     }
 
     const clearAllFilters = () => {
-        ['search', 'contacto_nombre', 'email', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id'].forEach((k) => updateFilter(k, ''))
+        ['search', 'contacto_nombre', 'email', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id', 'is_enriched'].forEach((k) => updateFilter(k, ''))
     }
 
     const handleBulkSave = async (updateData) => {
@@ -319,8 +319,8 @@ export default function ContactsPage() {
                         <span className="material-symbols-outlined text-lg">input</span>
                         Importar contactos
                     </button>
-                    <button 
-                        onClick={() => setModal('create')} 
+                    <button
+                        onClick={() => setModal('create')}
                         className="btn-primary-gradient text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2 active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">person_add</span>
@@ -340,15 +340,15 @@ export default function ContactsPage() {
                     <h3 className="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
                         <span className="material-symbols-outlined text-lg">tune</span> Búsqueda y Filtros
                     </h3>
-                    <button 
-                        onClick={clearAllFilters} 
+                    <button
+                        onClick={clearAllFilters}
                         className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all active:scale-95 flex items-center gap-1.5 border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40 whitespace-nowrap"
                     >
                         <span className="material-symbols-outlined text-[14px]">filter_alt_off</span>
                         Limpiar filtros
                     </button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-7 gap-4">
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">Nombre del Contacto</label>
                         <input value={filters.contacto_nombre || ''} onChange={e => updateFilter('contacto_nombre', e.target.value)} className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-stone-300" placeholder="ej. Adrian" type="text" />
@@ -372,14 +372,33 @@ export default function ContactsPage() {
                         </select>
                     </div>
                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Campaña</label>
+                        <select value={filters.campaign_id || ''} onChange={e => updateFilter('campaign_id', e.target.value)} className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer">
+                            <option value="">Todas</option>
+                            {campaigns.map(c => <option key={c.id} value={c.id}>{c.name || c.nombre}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">Cargo</label>
-                        <select 
-                            value={filters.cargo_id || ''} 
-                            onChange={e => updateFilter('cargo_id', e.target.value)} 
+                        <select
+                            value={filters.cargo_id || ''}
+                            onChange={e => updateFilter('cargo_id', e.target.value)}
                             className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer"
                         >
                             <option value="">Todos los Cargos</option>
                             {cargos.map(c => <option key={c.id} value={c.id}>{c.name || c.nombre}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Estatus (Enrichment)</label>
+                        <select
+                            value={filters.is_enriched === true ? 'true' : filters.is_enriched === false ? 'false' : ''}
+                            onChange={e => updateFilter('is_enriched', e.target.value === '' ? '' : e.target.value === 'true' )}
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer"
+                        >
+                            <option value="">Cualquier estatus</option>
+                            <option value="true">Enriquecidos</option>
+                            <option value="false">No Enriquecidos</option>
                         </select>
                     </div>
                 </div>
@@ -389,16 +408,16 @@ export default function ContactsPage() {
             <div className="space-y-3">
                 {/* Fila 1: Asignar + Eliminar */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <button 
-                        onClick={() => setAssignmentModal({ type: 'campaña', mode: 'assign' })} 
+                    <button
+                        onClick={() => setAssignmentModal({ type: 'campaña', mode: 'assign' })}
                         className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">assignment_ind</span>
                         Asignar a campaña
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
-                    <button 
-                        onClick={() => setAssignmentModal({ type: 'cargo', mode: 'assign' })} 
+                    <button
+                        onClick={() => setAssignmentModal({ type: 'cargo', mode: 'assign' })}
                         className="btn-primary-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">category</span>
@@ -422,7 +441,7 @@ export default function ContactsPage() {
                             <tr className="bg-surface-container-low">
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
                                     <div className="flex items-center gap-2">
-                                        <Checkbox 
+                                        <Checkbox
                                             checked={contacts.length > 0 && selectedIds.length === contacts.length}
                                             onChange={e => handleSelectAll(e.target.checked)}
                                         />
@@ -430,7 +449,7 @@ export default function ContactsPage() {
                                     </div>
                                 </th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">Empresa</th>
-                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Emails</th>
+                                <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Email</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Sector</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Vertical</th>
                                 <th className="py-4 px-6 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Producto</th>
@@ -448,7 +467,7 @@ export default function ContactsPage() {
                                 <tr key={c.id} className="group hover:bg-surface-container-low transition-colors cursor-pointer" onClick={() => setModal(c)}>
                                     <td className="py-5 px-6">
                                         <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
-                                            <Checkbox 
+                                            <Checkbox
                                                 checked={selectedIds.includes(c.id)}
                                                 onChange={e => handleSelect(c.id, e.target.checked)}
                                             />

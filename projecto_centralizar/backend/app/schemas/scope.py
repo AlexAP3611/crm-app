@@ -33,9 +33,11 @@ class EmpresaScopedUpdate(BaseModel):
 class ContactScopedDelete(BaseModel):
     ids: Optional[list[int]] = None
     filters: Optional[ContactFilterFields] = None
+    all: bool | None = False
 
 
 class ContactScopedUpdate(BaseModel):
     ids: Optional[list[int]] = None
     filters: Optional[ContactFilterFields] = None
+    all: bool | None = False
     data: ContactUpdate

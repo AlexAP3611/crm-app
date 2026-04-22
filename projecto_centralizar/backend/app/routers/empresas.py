@@ -163,16 +163,13 @@ async def delete_empresas_bulk(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete empresas by scope. Skips empresas with contacts. Rejects empty scope."""
-    try:
-        query = select(Empresa)
-        query = apply_scope(
-            query, model=Empresa,
-            ids=data.ids, filters=data.filters,
-            apply_filters_fn=_apply_empresa_filters,
-            allow_all=data.all is True,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    query = select(Empresa)
+    query = apply_scope(
+        query, model=Empresa,
+        ids=data.ids, filters=data.filters,
+        apply_filters_fn=_apply_empresa_filters,
+        allow_all=data.all is True,
+    )
 
     result = await db.execute(query)
     empresas = result.scalars().all()
@@ -196,20 +193,17 @@ async def update_empresas_bulk(
     db: AsyncSession = Depends(get_db),
 ):
     """Update empresas by scope. Handles M2M merge/remove/replace. Rejects empty scope."""
-    try:
-        query = select(Empresa).options(
-            selectinload(Empresa.sectors),
-            selectinload(Empresa.verticals),
-            selectinload(Empresa.products_rel),
-        )
-        query = apply_scope(
-            query, model=Empresa,
-            ids=data.ids, filters=data.filters,
-            apply_filters_fn=_apply_empresa_filters,
-            allow_all=data.all is True,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    query = select(Empresa).options(
+        selectinload(Empresa.sectors),
+        selectinload(Empresa.verticals),
+        selectinload(Empresa.products_rel),
+    )
+    query = apply_scope(
+        query, model=Empresa,
+        ids=data.ids, filters=data.filters,
+        apply_filters_fn=_apply_empresa_filters,
+        allow_all=data.all is True,
+    )
 
     result = await db.execute(query)
     empresas = result.scalars().all()

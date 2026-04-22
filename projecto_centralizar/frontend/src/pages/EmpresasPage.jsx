@@ -456,7 +456,7 @@ export default function EmpresasPage() {
             }
 
             setModalConfig({ mode: 'create', data: null })
-            loadEmpresas(debouncedFilters)
+            loadEmpresas()
         } catch (err) {
             setFormError(err.message)
         } finally {
@@ -499,12 +499,13 @@ export default function EmpresasPage() {
     }
 
     const handleDelete = async (empresa) => {
-        setConfirmDelete({ id: empresa.id, single: true, label: empresa.nombre })
+        setConfirmDelete({ ids: [empresa.id], single: true, label: empresa.nombre })
     }
 
 
 
     const filteredCount = totalEmpresas
+
     const selectionCount = selectedIds.length
 
     const actionCount = selectionCount > 0 ? selectionCount : filteredCount
@@ -539,7 +540,7 @@ export default function EmpresasPage() {
         setDeleteError(null)
         try {
             if (confirmDelete.single) {
-                await api.deleteEmpresa(confirmDelete.id)
+                await api.deleteEmpresa(confirmDelete.scope.ids[0])
             } else {
                 await api.deleteBulkEmpresas(confirmDelete.scope)
                 setSelectedIds([])
@@ -691,6 +692,47 @@ export default function EmpresasPage() {
                             {products.map(p => <option key={p.id} value={p.id}>{p.name || p.nombre}</option>)}
                         </select>
                     </div>
+
+                    {/* New Range Filters */}
+                    <div className="space-y-1.5 lg:col-span-2">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Número de empleados</label>
+                        <div className="flex gap-2">
+                            <input
+                                className="w-1/2 bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400"
+                                placeholder="Min"
+                                type="number"
+                                value={filters.numero_empleados_min}
+                                onChange={e => handleFilterChange('numero_empleados_min', e.target.value === '' ? '' : Number(e.target.value))}
+                            />
+                            <input
+                                className="w-1/2 bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400"
+                                placeholder="Max"
+                                type="number"
+                                value={filters.numero_empleados_max}
+                                onChange={e => handleFilterChange('numero_empleados_max', e.target.value === '' ? '' : Number(e.target.value))}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5 lg:col-span-2">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Facturación (€)</label>
+                        <div className="flex gap-2">
+                            <input
+                                className="w-1/2 bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400"
+                                placeholder="Min"
+                                type="number"
+                                value={filters.facturacion_min}
+                                onChange={e => handleFilterChange('facturacion_min', e.target.value === '' ? '' : Number(e.target.value))}
+                            />
+                            <input
+                                className="w-1/2 bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none placeholder:text-stone-400"
+                                placeholder="Max"
+                                type="number"
+                                value={filters.facturacion_max}
+                                onChange={e => handleFilterChange('facturacion_max', e.target.value === '' ? '' : Number(e.target.value))}
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -738,14 +780,17 @@ export default function EmpresasPage() {
                     <button onClick={() => handleEnrich('Apollo')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">auto_fix_high</span>
                         Enriquecer con Apollo {enriching === 'Apollo' && '...'}
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                     <button onClick={() => handleEnrich('Clay')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">search_insights</span>
                         Enriquecer con Clay {enriching === 'Clay' && '...'}
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                     <button onClick={() => handleEnrich('Adscore')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">contact_page</span>
                         Enriquecer con Adscore {enriching === 'Adscore' && '...'}
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
 
                     <div className="flex-1" />
@@ -753,6 +798,7 @@ export default function EmpresasPage() {
                     <button onClick={() => handleEnrich('Affino')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">send</span>
                         Enviar a Affino {enriching === 'Affino' && '...'}
+                        <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                 </div>
             </div>

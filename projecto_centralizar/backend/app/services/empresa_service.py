@@ -140,7 +140,7 @@ def _apply_empresa_filters(query, filters: EmpresaFilterParams):
     if filters.facturacion_max is not None:
         query = query.where(Empresa.facturacion <= filters.facturacion_max)
     if filters.cnae:
-        query = query.where(Empresa.cnae.startswith(filters.cnae, autoescape=True))
+        query = query.where(Empresa.cnae.startswith(filters.cnae))
     
     return query
 
@@ -153,8 +153,9 @@ async def list_empresas(
 
     # 1. Precise Count using DISTINCT to handle M2M joins in filters
     # We strip eager loads and ordering for the count query performance
-    subq = query.subquery()
-    count_stmt = select(func.count(func.distinct(subq.c.id)))
+
+    #OPCION ORIGINAL QUE NO CUENTA FILTROS
+    count_stmt = select(func.count()).select_from(query.distinct(Empresa.id).subquery())
     
     total = await db.scalar(count_stmt) or 0
 

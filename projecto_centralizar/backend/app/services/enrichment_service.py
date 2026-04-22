@@ -2,6 +2,7 @@ import time
 import logging
 from uuid import UUID
 from typing import Any, Optional
+from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import select, update
@@ -72,6 +73,8 @@ async def enrich_contact(
 
     enrichment_payload = {source: data}
     contact.notes = deep_merge(contact.notes, enrichment_payload)
+    contact.enriched = True
+    contact.enriched_at = datetime.now(timezone.utc)
 
     await session.commit()
     # Re-load with all M2M relations (refresh() would expire them)
@@ -154,6 +157,9 @@ async def enrich_contact_smart(
     if extra_data:
         contact.notes = deep_merge(contact.notes or {}, {source: extra_data})
 
+    contact.enriched = True
+    contact.enriched_at = datetime.now(timezone.utc)
+
     await session.commit()
     # Re-load with all M2M relations (refresh() would expire them)
     result2 = await session.execute(
@@ -190,20 +196,17 @@ async def trigger_company_enrichment(
     
     # 1. Resolve & Validate
     # ---------------------
-    try:
-        query = select(Empresa).options(
-            selectinload(Empresa.sectors),
-            selectinload(Empresa.verticals),
-            selectinload(Empresa.products_rel),
-        )
-        query = apply_scope(
-            query, model=Empresa,
-            ids=request.ids, filters=request.filters,
-            apply_filters_fn=_apply_empresa_filters,
-            allow_all=False,  # never enrich entire DB by accident
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    query = select(Empresa).options(
+        selectinload(Empresa.sectors),
+        selectinload(Empresa.verticals),
+        selectinload(Empresa.products_rel),
+    )
+    query = apply_scope(
+        query, model=Empresa,
+        ids=request.ids, filters=request.filters,
+        apply_filters_fn=_apply_empresa_filters,
+        allow_all=getattr(request, 'all', False) is True,
+    )
 
     result = await db.execute(query)
     empresas = list(result.scalars().unique().all())

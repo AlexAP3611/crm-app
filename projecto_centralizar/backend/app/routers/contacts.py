@@ -51,6 +51,7 @@ async def list_contacts(
     contacto_nombre: str | None = Query(None),
     email: str | None = Query(None),
     empresa_id: int | None = Query(None),
+    is_enriched: bool | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -65,6 +66,7 @@ async def list_contacts(
         contacto_nombre=contacto_nombre,
         email=email,
         empresa_id=empresa_id,
+        is_enriched=is_enriched,
         page=page,
         page_size=page_size,
     )
@@ -80,16 +82,13 @@ async def delete_contacts_bulk(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete contacts by scope. Rejects empty scope."""
-    try:
-        query = select(Contact)
-        query = apply_scope(
-            query, model=Contact,
-            ids=data.ids, filters=data.filters,
-            apply_filters_fn=_apply_contact_filters,
-            allow_all=False,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    query = select(Contact)
+    query = apply_scope(
+        query, model=Contact,
+        ids=data.ids, filters=data.filters,
+        apply_filters_fn=_apply_contact_filters,
+        allow_all=data.all is True,
+    )
 
     result = await db.execute(query)
     contacts = result.scalars().all()
@@ -105,22 +104,19 @@ async def update_contacts_bulk(
     db: AsyncSession = Depends(get_db),
 ):
     """Update contacts by scope. Rejects empty scope."""
-    try:
-        query = select(Contact).options(
-            selectinload(Contact.cargo),
-            selectinload(Contact.campaigns),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
-        )
-        query = apply_scope(
-            query, model=Contact,
-            ids=data.ids, filters=data.filters,
-            apply_filters_fn=_apply_contact_filters,
-            allow_all=False,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    query = select(Contact).options(
+        selectinload(Contact.cargo),
+        selectinload(Contact.campaigns),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+    )
+    query = apply_scope(
+        query, model=Contact,
+        ids=data.ids, filters=data.filters,
+        apply_filters_fn=_apply_contact_filters,
+        allow_all=data.all is True,
+    )
 
     result = await db.execute(query)
     contacts = result.scalars().all()

@@ -24,7 +24,6 @@ def upgrade() -> None:
         'sectors',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=100), nullable=False),
-        sa.Column('description', sa.String(length=255), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name')
     )
@@ -34,7 +33,6 @@ def upgrade() -> None:
         'verticals',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=100), nullable=False),
-        sa.Column('description', sa.String(length=255), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name')
     )
@@ -44,7 +42,6 @@ def upgrade() -> None:
         'products',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=100), nullable=False),
-        sa.Column('description', sa.String(length=255), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('name')
     )

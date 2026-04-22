@@ -13,9 +13,6 @@ contact_campaigns = Table(
 
 class Campaign(Base):
     __tablename__ = "campaigns"
-    __table_args__ = (
-        Index("ix_campaigns_nombre_lower", func.lower("nombre"), unique=True),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nombre: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -23,3 +20,5 @@ class Campaign(Base):
     contacts: Mapped[list["Contact"]] = relationship(  # noqa: F821
         secondary=contact_campaigns, back_populates="campaigns", lazy="selectin"
     )
+
+Index("ix_campaigns_nombre_lower", func.lower(Campaign.nombre), unique=True)

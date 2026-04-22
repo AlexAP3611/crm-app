@@ -136,6 +136,7 @@ class ContactFilterFields(BaseModel):
     contacto_nombre: str | None = None
     email: str | None = None
     empresa_id: int | None = None
+    is_enriched: bool | None = None
 
 
 class ContactFilterParams(ContactFilterFields):

@@ -12,28 +12,12 @@ Boundary rule: apply_scope() ONLY adds WHERE clauses.
               Never joins, permissions, or business logic.
 """
 import logging
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from pydantic import BaseModel
 from sqlalchemy.sql import Select
 
 logger = logging.getLogger(__name__)
-
-
-def _normalize_filters(filters: Optional[BaseModel]) -> Optional[BaseModel]:
-    """
-    Strip filters where all values are None or empty string.
-    Returns None if no meaningful filter remains.
-    """
-    if filters is None:
-        return None
-
-    has_value = any(
-        v is not None and v != ""
-        for v in filters.model_dump().values()
-    )
-    return filters if has_value else None
-
 
 def _dedupe_ids(ids: Optional[list[int]]) -> Optional[list[int]]:
     """Deduplicate IDs preserving order. Returns None if empty."""
@@ -47,49 +31,57 @@ def apply_scope(
     *,
     model,
     ids: Optional[list[int]] = None,
-    filters: Optional[BaseModel] = None,
+    filters: Any = None,
     apply_filters_fn: Callable = None,
     allow_all: bool = False,
 ) -> Select:
     """
     Apply scope constraints directly to a query.
 
-    Priority:
-      1. ids provided → WHERE model.id IN (deduplicated ids)
-      2. filters provided (with at least one non-empty value) → apply_filters_fn(query, filters)
-      3. neither → if allow_all: return unmodified query. Otherwise: raise ValueError.
-
-    This function ONLY adds WHERE clauses. Never joins, permissions, or business logic.
+    Rules:
+      - EMPTY -> ALL rows
+      - IDS -> filter by ids
+      - FILTERS -> filter by conditions
+      - BOTH -> AND logic
+      - ALL flag -> explicit full dataset override
     """
     clean_ids = _dedupe_ids(ids)
-    clean_filters = _normalize_filters(filters)
+    clean_filters = filters
 
+    # 1. explicit override
+    if allow_all:
+        logger.info(
+            "scope_applied",
+            extra={"model": model.__name__, "type": "all_explicit"},
+        )
+        return query
+
+    # 2. apply ids filter
     if clean_ids:
         logger.info(
             "scope_applied",
             extra={"model": model.__name__, "type": "ids", "count": len(clean_ids)},
         )
-        return query.where(model.id.in_(clean_ids))
+        query = query.where(model.id.in_(clean_ids))
 
+    # 3. apply filters
     if clean_filters and apply_filters_fn:
         logger.info(
             "scope_applied",
             extra={
                 "model": model.__name__,
                 "type": "filter",
-                "filters": clean_filters.model_dump(exclude_none=True),
+                # Extract representation safely purely for log debugging
+                "filters": clean_filters.model_dump() if hasattr(clean_filters, "model_dump") else str(clean_filters),
             },
         )
-        return apply_filters_fn(query, clean_filters)
+        query = apply_filters_fn(query, clean_filters)
 
-    if allow_all:
+    # 4. EMPTY SCOPE = ALL DATASET (NO OP)
+    if not clean_ids and not clean_filters:
         logger.info(
             "scope_applied",
-            extra={"model": model.__name__, "type": "all"},
+            extra={"model": model.__name__, "type": "empty_implicit_all"},
         )
-        return query
-
-    raise ValueError(
-        "Scope required: provide 'ids' or 'filters'. "
-        "Empty scope (all records) is not allowed for this operation."
-    )
+        
+    return query

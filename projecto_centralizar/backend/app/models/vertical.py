@@ -12,6 +12,5 @@ class Vertical(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     empresas: Mapped[list["Empresa"]] = relationship(secondary="empresa_verticals", back_populates="verticals", lazy="selectin")  # noqa: F821
