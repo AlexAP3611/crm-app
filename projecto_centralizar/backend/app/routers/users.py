@@ -30,7 +30,7 @@ import logging
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, field_validator
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -73,12 +73,12 @@ class UserItem(BaseModel):
 class UserListResponse(BaseModel):
     """
     Schema de respuesta para GET /api/users.
-    Contiene la lista completa de usuarios.
-
-    Integración frontend:
-    - UsersPage.jsx accede a response.users para poblar la tabla
+    Contiene la lista completa de usuarios con metadatos de paginación.
     """
-    users: list[UserItem]
+    items: list[UserItem]
+    total: int
+    page: int
+    page_size: int
 
 
 class RoleUpdateInput(BaseModel):
@@ -184,6 +184,8 @@ def _serialize_user(user: User) -> dict:
 async def list_users(
     admin: AdminUser,
     db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1, description="Número de página"),
+    page_size: int = Query(50, ge=1, le=200, description="Tamaño de página"),
 ):
     """
     Endpoint: GET /api/users
@@ -206,24 +208,22 @@ async def list_users(
     """
 
     # ── Paso 1: Consultar usuarios activos ──
-    # Filtramos por is_active = True para excluir usuarios eliminados lógicamente.
-    # Los usuarios "borrados" (is_active=False) no aparecen en la lista
-    # pero se mantienen en la DB para auditoría y logs históricos.
-    # ORDER BY created_at DESC para mostrar los más recientes primero.
-    result = await db.execute(
-        select(User)
-        .where(User.is_active == True)
-        .order_by(User.created_at.desc())
-    )
-    # scalars() extrae los objetos ORM de los resultados
-    # .all() los convierte en una lista Python
+    query = select(User).where(User.is_active == True)
+
+    # Conteo (Simple porque no hay joins complejos en users de momento)
+    count_stmt = select(func.count(User.id)).where(User.is_active == True)
+    total = await db.scalar(count_stmt) or 0
+
+    # Paginación y Orden estable
+    offset = (page - 1) * page_size
+    query = query.order_by(User.created_at.desc(), User.id.desc()).offset(offset).limit(page_size)
+
+    result = await db.execute(query)
     all_users = result.scalars().all()
 
-    logger.info(f"[users] Consulta de usuarios — {len(all_users)} encontrados")
+    logger.info(f"[users] Consulta de usuarios — {len(all_users)} encontrados (page={page})")
 
     # ── Paso 2: Registrar la acción en logs ──
-    # Se registra el admin que consultó y cuántos usuarios había
-    # El endpoint se incluye en metadata para trazabilidad
     await _create_log(
         db=db,
         action="Consultó lista de usuarios",
@@ -231,16 +231,19 @@ async def list_users(
         metadata={
             "endpoint": "/api/users",
             "admin_email": admin.email,
-            "total_users": len(all_users),
+            "total_users": total,
+            "page": page,
+            "page_size": page_size
         },
     )
     await db.commit()
 
     # ── Paso 3: Serializar y retornar ──
-    # Convertimos cada objeto User a un dict compatible con el schema
-    # que espera UsersPage.jsx
     return {
-        "users": [_serialize_user(u) for u in all_users]
+        "items": [_serialize_user(u) for u in all_users],
+        "total": total,
+        "page": page,
+        "page_size": page_size
     }
 
 

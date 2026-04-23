@@ -1,382 +1,636 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
+import { getToken, api } from '../api/client'
+import { settingsService } from '../api/settingsService'
 
-const AVAILABLE_APPS = ['Apollo', 'Clay', 'Adscore']
+/* ──────────────────────────────────────────────────────────
+   Service definitions — each card in External Connectivity
+   ────────────────────────────────────────────────────────── */
+const SERVICES = [
+    {
+        id: 'affino',
+        name: 'Affino',
+        icon: 'hub',                  // background watermark icon
+        defaultAuth: 'Bearer Token',
+        placeholder: 'Introduce la API Key de Affino',
+    },
+    {
+        id: 'apollo',
+        name: 'Apollo',
+        icon: 'rocket_launch',
+        defaultAuth: 'OAuth2',
+        placeholder: 'Introduce la API Key de Apollo',
+    },
+    {
+        id: 'clay',
+        name: 'Clay',
+        icon: 'layers',
+        defaultAuth: 'Bearer Token',
+        placeholder: 'Introduce la API Key de Clay',
+    },
+    {
+        id: 'adscore',
+        name: 'Adscore',
+        icon: 'verified_user',
+        defaultAuth: 'Basic Auth',
+        placeholder: 'Introduce la API Key de Adscore',
+    },
+]
 
-function WebhookRow({ integration, onChange, onRemove }) {
+const AUTH_TYPES = ['Ninguno', 'Bearer Token', 'Basic Auth', 'OAuth2', 'Header Auth']
+
+/* ──────────────────────────────────────────────────────────
+   AuthFields — Dynamic fields rendered per auth method
+   ────────────────────────────────────────────────────────── */
+function AuthFields({ authType, config, onChange }) {
+    const [showToken, setShowToken] = useState(false)
+    const [showSecret, setShowSecret] = useState(false)
+
+    const field = (key, value) => onChange({ ...config, [key]: value })
+
+    // Shared input style
+    const inputCls =
+        'w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm ' +
+        'focus:ring-2 focus:ring-cyan-600/20 focus:border-cyan-600/30 transition-all ' +
+        'outline-none placeholder:text-stone-400'
+
+    const labelCls =
+        'block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2'
+
+    /* ── Bearer Token ── */
+    if (authType === 'Bearer Token') {
+        return (
+            <div className="space-y-4">
+                <div>
+                    <label className={labelCls}>Token de acceso</label>
+                    <div className="relative">
+                        <input
+                            className={inputCls + ' pr-11'}
+                            type={showToken ? 'text' : 'password'}
+                            placeholder="Pega aquí tu Bearer Token"
+                            value={config.token || ''}
+                            onChange={(e) => field('token', e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                            onClick={() => setShowToken((v) => !v)}
+                            title={showToken ? 'Ocultar' : 'Mostrar'}
+                        >
+                            <span className="material-symbols-outlined text-lg">
+                                {showToken ? 'visibility_off' : 'visibility'}
+                            </span>
+                        </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Se enviará como <code className="bg-stone-100 px-1 rounded text-stone-600">Authorization: Bearer &lt;token&gt;</code>
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    /* ── Basic Auth ── */
+    if (authType === 'Basic Auth') {
+        return (
+            <div className="space-y-4">
+                <div>
+                    <label className={labelCls}>Usuario</label>
+                    <input
+                        className={inputCls}
+                        type="text"
+                        placeholder="Nombre de usuario"
+                        value={config.username || ''}
+                        onChange={(e) => field('username', e.target.value)}
+                    />
+                </div>
+                <div>
+                    <label className={labelCls}>Contraseña</label>
+                    <div className="relative">
+                        <input
+                            className={inputCls + ' pr-11'}
+                            type={showSecret ? 'text' : 'password'}
+                            placeholder="••••••••"
+                            value={config.password || ''}
+                            onChange={(e) => field('password', e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                            onClick={() => setShowSecret((v) => !v)}
+                        >
+                            <span className="material-symbols-outlined text-lg">
+                                {showSecret ? 'visibility_off' : 'visibility'}
+                            </span>
+                        </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Se enviará como <code className="bg-stone-100 px-1 rounded text-stone-600">Authorization: Basic &lt;base64&gt;</code>
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    /* ── OAuth2 ── */
+    if (authType === 'OAuth2') {
+        return (
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className={labelCls}>Client ID</label>
+                        <input
+                            className={inputCls}
+                            type="text"
+                            placeholder="client_id"
+                            value={config.clientId || ''}
+                            onChange={(e) => field('clientId', e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className={labelCls}>Client Secret</label>
+                        <div className="relative">
+                            <input
+                                className={inputCls + ' pr-11'}
+                                type={showSecret ? 'text' : 'password'}
+                                placeholder="••••••••"
+                                value={config.clientSecret || ''}
+                                onChange={(e) => field('clientSecret', e.target.value)}
+                            />
+                            <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                                onClick={() => setShowSecret((v) => !v)}
+                            >
+                                <span className="material-symbols-outlined text-lg">
+                                    {showSecret ? 'visibility_off' : 'visibility'}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label className={labelCls}>Token URL</label>
+                    <input
+                        className={inputCls}
+                        type="url"
+                        placeholder="https://api.example.com/oauth/token"
+                        value={config.tokenUrl || ''}
+                        onChange={(e) => field('tokenUrl', e.target.value)}
+                    />
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Endpoint al que se hará POST para obtener el access token.
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    /* ── Header Auth ── */
+    if (authType === 'Header Auth') {
+        const previewName  = config.headerName  ? config.headerName.trim()  : 'Header-Name'
+        const previewPfx   = config.prefix      ? config.prefix.trim()      : ''
+        const previewVal   = config.headerValue ? '••••••' : '<valor>'
+        const previewFull  = previewPfx ? `${previewName}: ${previewPfx} ${previewVal}` : `${previewName}: ${previewVal}`
+
+        return (
+            <div className="space-y-4">
+                {/* Header Name */}
+                <div>
+                    <label className={labelCls}>Nombre del Header</label>
+                    <input
+                        className={inputCls}
+                        type="text"
+                        placeholder="ej: Authorization, X-API-Key, X-Auth-Token"
+                        value={config.headerName || ''}
+                        onChange={(e) => field('headerName', e.target.value)}
+                    />
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Nombre exacto del header HTTP que se enviará en la petición.
+                    </p>
+                </div>
+
+                {/* Prefix (optional) */}
+                <div>
+                    <label className={labelCls}>
+                        Prefijo{' '}
+                        <span className="normal-case font-normal text-stone-400">(opcional)</span>
+                    </label>
+                    <input
+                        className={inputCls}
+                        type="text"
+                        placeholder="ej: Bearer, Token, ApiKey"
+                        value={config.prefix || ''}
+                        onChange={(e) => field('prefix', e.target.value)}
+                    />
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Si se rellena, se añade antes del valor: <code className="bg-stone-100 px-1 rounded text-stone-600">Prefijo valor</code>
+                    </p>
+                </div>
+
+                {/* Value */}
+                <div>
+                    <label className={labelCls}>Valor (token / clave)</label>
+                    <div className="relative">
+                        <input
+                            className={inputCls + ' pr-11'}
+                            type={showToken ? 'text' : 'password'}
+                            placeholder="Pega aquí tu token o clave secreta"
+                            value={config.headerValue || ''}
+                            onChange={(e) => field('headerValue', e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                            onClick={() => setShowToken((v) => !v)}
+                            title={showToken ? 'Ocultar' : 'Mostrar'}
+                        >
+                            <span className="material-symbols-outlined text-lg">
+                                {showToken ? 'visibility_off' : 'visibility'}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Live preview */}
+                <div className="rounded-lg bg-stone-50 border border-stone-200 px-4 py-3">
+                    <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Preview del header</p>
+                    <code className="text-xs text-cyan-700 font-mono break-all">{previewFull}</code>
+                </div>
+            </div>
+        )
+    }
+
+    return null
+}
+
+/* ──────────────────────────────────────────────────────────
+   ServiceCard — A single integration tile
+   ────────────────────────────────────────────────────────── */
+function ServiceCard({ service, config, onSave }) {
+    const [draftConfig, setDraftConfig] = useState(config || {})
+    const [isDirty, setIsDirty] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+
+    // Sync draft when config loads from backend, only if NOT editing
+    useEffect(() => {
+        if (!isDirty) {
+            setDraftConfig(config || {})
+        }
+    }, [config])
+
+    const authType = draftConfig.authType || service.defaultAuth
+
+    const handleAuthType = (newType) => {
+        // Reset auth-specific fields when switching auth type, keep other fields
+        const { token, username, password, clientId, clientSecret, tokenUrl, headerName, prefix, headerValue, ...rest } = draftConfig
+        setDraftConfig({ ...rest, authType: newType })
+        setIsDirty(true)
+    }
+
+    const handleAuthFields = (updatedConfig) => {
+        setDraftConfig(updatedConfig)
+        setIsDirty(true)
+    }
+
+    const handleSave = async () => {
+        try {
+            setIsSaving(true)
+            const savedConfig = await onSave(service.id, draftConfig)
+            if (savedConfig) {
+                setDraftConfig(savedConfig)
+            }
+            setIsDirty(false)
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
     return (
-        <div style={{
-            display: 'grid',
-            gridTemplateColumns: '120px 140px 1fr 1fr auto',
-            gap: '12px',
-            alignItems: 'center',
-            padding: '14px 16px',
-            background: '#f1f5f9',
-            borderRadius: 8,
-            border: '1px solid var(--color-border)',
-        }}>
-            <select
-                className="form-control"
-                value={integration.auth_type || 'Ninguno'}
-                onChange={e => onChange('auth_type', e.target.value)}
-                style={{ borderRight: '2px solid rgba(0,0,0,0.05)', paddingRight: '4px', fontSize: '0.85rem' }}
-            >
-                <option value="Ninguno">Ninguno</option>
-                <option value="BasicAuth">BasicAuth</option>
-                <option value="HeaderAuth">HeaderAuth</option>
-            </select>
-            <span style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--color-text)' }}>
-                {integration.nombre_aplicacion}
-            </span>
-            <input
-                className="form-control"
-                type="text"
-                placeholder="https://example.com/webhook"
-                value={integration.webhook}
-                onChange={e => onChange('webhook', e.target.value)}
-            />
-            <input
-                className="form-control"
-                type="password"
-                placeholder="API Key"
-                value={integration.api_key}
-                disabled={!integration.auth_type || integration.auth_type === 'Ninguno'}
-                title={(!integration.auth_type || integration.auth_type === 'Ninguno') ? 'No se requiere API Key' : ''}
-                style={(!integration.auth_type || integration.auth_type === 'Ninguno') ? { background: '#e2e8f0', cursor: 'not-allowed', opacity: 0.7 } : {}}
-                onChange={e => onChange('api_key', e.target.value)}
-            />
-            <button
-                type="button"
-                title="Eliminar integración"
-                onClick={onRemove}
-                style={{
-                    background: 'none',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    color: 'var(--color-text-muted)',
-                    padding: '6px 10px',
-                    fontSize: '1rem',
-                    lineHeight: 1,
-                    transition: 'color 0.15s, border-color 0.15s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#e53e3e'; e.currentTarget.style.borderColor = '#e53e3e' }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.borderColor = 'var(--color-border)' }}
-            >
-                ×
-            </button>
+        <div className="bg-surface-container-low rounded-xl p-8 relative overflow-hidden flex flex-col border border-outline-variant/30">
+            {/* Watermark icon */}
+            <div className="absolute top-0 right-0 p-8 opacity-[0.04] pointer-events-none">
+                <span className="material-symbols-outlined" style={{ fontSize: '5rem' }}>
+                    {service.icon}
+                </span>
+            </div>
+
+            {/* Service header */}
+            <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm border border-stone-100">
+                    <span className="material-symbols-outlined text-2xl text-cyan-700">{service.icon}</span>
+                </div>
+                <h3 className="text-xl font-bold font-headline text-stone-900 tracking-tight">{service.name}</h3>
+            </div>
+
+            {/* Form fields */}
+            <div className="space-y-6 flex-1">
+                {/* API Key / URL del servicio */}
+                <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2">
+                        Clave API del Servicio
+                    </label>
+                    <input
+                        className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-600/20 focus:border-cyan-600/30 transition-all outline-none placeholder:text-stone-400"
+                        type="text"
+                        placeholder={service.placeholder}
+                        value={draftConfig.apiKey || ''}
+                        onChange={(e) => handleAuthFields({ ...draftConfig, apiKey: e.target.value })}
+                    />
+                </div>
+
+                {/* Auth Type selector */}
+                <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2">
+                        Tipo de Autenticación
+                    </label>
+                    <select
+                        className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:ring-0 outline-none appearance-none cursor-pointer"
+                        value={authType}
+                        onChange={(e) => handleAuthType(e.target.value)}
+                        style={{
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'right 12px center',
+                            paddingRight: '36px',
+                        }}
+                    >
+                        {AUTH_TYPES.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Dynamic fields — change with auth type */}
+                <div
+                    key={authType}
+                    style={{ animation: 'fadeSlideIn 0.2s ease-out' }}
+                >
+                    <AuthFields
+                        authType={authType}
+                        config={draftConfig}
+                        onChange={handleAuthFields}
+                    />
+                </div>
+            </div>
+
+            {/* Test Connection */}
+            <div className="mt-8 flex justify-end">
+                <button
+                    className="bg-primary/10 text-primary font-bold text-sm px-4 py-2 hover:bg-primary/20 rounded-lg transition-all active:scale-95 border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    onClick={() => onSave(service.id, draftConfig)}
+                >
+                    Guardar
+                </button>
+            </div>
         </div>
     )
 }
 
-export default function SettingsPage() {
-    const [affinoKey, setAffinoKey] = useState('')
-    const [savingApis, setSavingApis] = useState(false)
+/* ──────────────────────────────────────────────────────────
+   Main Page Component — APIs & Webhooks
+   ────────────────────────────────────────────────────────── */
 
-    // CRM API key
+
+export default function SettingsPage() {
+    // Prisma CRM API Key state
     const [crmApiKey, setCrmApiKey] = useState('')
     const [copied, setCopied] = useState(false)
+    const [generating, setGenerating] = useState(false)
+    const [lastRotated, setLastRotated] = useState('')
 
-    // Dynamic integrations: [{ nombre_aplicacion, webhook, api_key }]
-    const [integrations, setIntegrations] = useState([])
-    const [savingWebhooks, setSavingWebhooks] = useState(false)
+    // External service configs
+    const [serviceConfigs, setServiceConfigs] = useState({})
+    const [testingService, setTestingService] = useState(null)
+    const [testResult, setTestResult] = useState(null)
 
-    // Dropdown state
-    const [showAppPicker, setShowAppPicker] = useState(false)
-    const pickerRef = useRef(null)
-
-    // Load from backend on mount
+    // Load persisted data
     useEffect(() => {
-        const storedAffino = localStorage.getItem('affino_api_key')
-        if (storedAffino) setAffinoKey(storedAffino)
-
-        const stored = localStorage.getItem('webhooks_integrations')
-        if (stored) {
-            try { setIntegrations(JSON.parse(stored)) } catch (e) { /* ignore */ }
-        }
-
-        // Fetch persistent API key from backend
-        fetch('/api/system/api-key', { credentials: 'include' })
-            .then(res => { if (res.ok) return res.json(); return null; })
-            .then(data => { if (data && data.api_key) setCrmApiKey(data.api_key); })
-            .catch(err => console.error("Could not fetch API key:", err));
-    }, [])
-
-    // Close picker on outside click
-    useEffect(() => {
-        function handle(e) {
-            if (pickerRef.current && !pickerRef.current.contains(e.target)) {
-                setShowAppPicker(false)
-            }
-        }
-        document.addEventListener('mousedown', handle)
-        return () => document.removeEventListener('mousedown', handle)
-    }, [])
-
-    const handleSaveApis = () => {
-        setSavingApis(true)
-        setTimeout(() => {
-            localStorage.setItem('affino_api_key', affinoKey)
-            setSavingApis(false)
-            alert('Configuración de APIs guardada')
-        }, 500)
-    }
-
-    const generateApiKey = async () => {
-        try {
-            const res = await fetch('/api/system/api-key', { method: 'POST', credentials: 'include' })
-            if (res.ok) {
-                const data = await res.json()
-                if (data.api_key) {
+        // Fetch CRM API key from backend
+        const token = getToken()
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+        fetch('/api/system/api-key', { credentials: 'include', headers })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (data && data.api_key) {
                     setCrmApiKey(data.api_key)
-                    setCopied(false)
+                    setLastRotated(data.rotated_at || '')
                 }
-            }
-        } catch (e) {
-            console.error("Failed to generate crm api key", e)
-        }
-    }
+            })
+            .catch((err) => console.error('Could not fetch API key:', err))
+
+        // Fetch external configs from DB via service (singleton/cache)
+        settingsService.getExternalConfigs()
+            .then(configs => {
+                setServiceConfigs(configs)
+            })
+            .catch(err => console.error("Could not fetch external configs:", err))
+    }, [])
 
     const handleCopyKey = () => {
+        if (!crmApiKey) return
         navigator.clipboard.writeText(crmApiKey).then(() => {
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
         })
     }
 
-    const handleSaveWebhooks = () => {
-        setSavingWebhooks(true)
-        setTimeout(() => {
-            localStorage.setItem('webhooks_integrations', JSON.stringify(integrations))
-            setSavingWebhooks(false)
-            alert('Configuración de Webhooks guardada')
-        }, 500)
+    const generateApiKey = async () => {
+        setGenerating(true)
+        try {
+            const token = getToken()
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {}
+            const res = await fetch('/api/system/api-key', { method: 'POST', credentials: 'include', headers })
+            if (res.ok) {
+                const data = await res.json()
+                if (data.api_key) {
+                    setCrmApiKey(data.api_key)
+                    setCopied(false)
+                    setLastRotated(new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }))
+                }
+            }
+        } catch (e) {
+            console.error('Failed to generate CRM API key', e)
+        } finally {
+            setGenerating(false)
+        }
     }
 
-    const addIntegration = (appName) => {
-        setIntegrations(prev => [...prev, { nombre_aplicacion: appName, webhook: '', api_key: '', auth_type: 'Ninguno' }])
-        setShowAppPicker(false)
+    const handleSaveConnection = async (serviceId, draftConfig) => {
+        setTestingService(serviceId)
+        setTestResult(null)
+        try {
+            const res = await api.updateSystemSetting(`ext_config_${serviceId}`, draftConfig)
+            // Invalidar caché y obtener nuevas configs sincronizadas
+            const updatedConfigs = await settingsService.refreshSettings()
+            const savedValue = updatedConfigs[serviceId]
+            
+            setServiceConfigs(updatedConfigs)
+            setTestResult({ serviceId, success: true })
+            
+            return savedValue
+        } catch (err) {
+            console.error(err)
+            alert("Error al guardar la configuración")
+            return null
+        } finally {
+            setTestingService(null)
+            setTimeout(() => setTestResult(null), 3000)
+        }
     }
 
-    const removeIntegration = (index) => {
-        setIntegrations(prev => prev.filter((_, i) => i !== index))
-    }
-
-    const updateIntegration = (index, field, value) => {
-        setIntegrations(prev => prev.map((item, i) =>
-            i === index ? { ...item, [field]: value } : item
-        ))
-    }
-
-    const usedApps = integrations.map(i => i.nombre_aplicacion)
-    const availableToAdd = AVAILABLE_APPS.filter(a => !usedApps.includes(a))
+    // Count active services (those with an API key)
+    const activeServices = SERVICES.filter(
+        (s) => serviceConfigs[s.id]?.apiKey?.trim()
+    ).length
 
     return (
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-            <div className="page-title-wrap">
-                <h1 className="page-title">APIs y Webhooks</h1>
-            </div>
-
-            {/* SECCIÓN 1: APIs */}
-            <div className="card" style={{ marginBottom: '24px', padding: '24px' }}>
-                <h2 style={{ fontSize: '1.25rem', marginBottom: '8px', color: 'var(--color-text)' }}>APIs</h2>
-                <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px', fontSize: '0.9rem' }}>
-                    Configuración de claves API utilizadas por herramientas externas.
-                </p>
-
-                <div className="form-group full" style={{ marginBottom: '24px' }}>
-                    <label className="form-label" style={{ fontWeight: 600 }}>Servicio</label>
-                    <input className="form-control" value="Affino" disabled style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)', cursor: 'not-allowed' }} />
-                </div>
-
-                <div className="form-group full" style={{ marginBottom: '24px' }}>
-                    <label className="form-label" style={{ fontWeight: 600 }}>API Key</label>
-                    <input
-                        type="password"
-                        className="form-control"
-                        value={affinoKey}
-                        onChange={(e) => setAffinoKey(e.target.value)}
-                        placeholder="Introduce la API key de Affino"
-                    />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
-                    <button className="btn btn-primary" onClick={handleSaveApis} disabled={savingApis}>
-                        {savingApis ? 'Guardando...' : 'Guardar'}
-                    </button>
+        <div className="p-8 pb-20 w-full">
+            {/* ─── Hero Section ─── */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                <div className="space-y-1">
+                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">
+                        APIs &amp; Webhooks
+                    </h2>
+                    <p className="text-on-surface-variant font-medium">
+                        Gestiona tus tokens de acceso globales y las conexiones con servicios externos.
+                    </p>
                 </div>
             </div>
 
-            {/* SECCIÓN 1b: API Key del CRM */}
-            <div className="card" style={{ marginBottom: '24px', padding: '24px' }}>
-                <h2 style={{ fontSize: '1.25rem', marginBottom: '8px', color: 'var(--color-text)' }}>API Key del CRM</h2>
-                <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px', fontSize: '0.9rem' }}>
-                    Genera una API key para que aplicaciones externas accedan a este CRM.
-                </p>
-
-                {crmApiKey ? (
-                    <>
-                        <div className="form-group full" style={{ marginBottom: '16px' }}>
-                            <label className="form-label" style={{ fontWeight: 600 }}>Tu API Key</label>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <input
-                                    className="form-control"
-                                    type="text"
-                                    readOnly
-                                    value={crmApiKey}
-                                    style={{
-                                        flex: 1,
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.8125rem',
-                                        color: 'var(--color-text)',
-                                        background: '#f1f5f9',
-                                        cursor: 'text',
-                                    }}
-                                />
+            {/* ─── Section 1: Prisma API Key ─── */}
+            <section className="mb-24">
+                <div className="bg-stone-50 rounded-xl p-1">
+                    <div className="bg-white rounded-lg p-8 md:p-12 shadow-sm border border-stone-100">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                            <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-4">
+                                    Clave API de Prisma
+                                </label>
+                                <div className="relative group">
+                                    <input
+                                        id="prisma-api-key"
+                                        className="w-full bg-stone-50 border-none rounded-lg px-6 py-4 font-mono text-cyan-700 text-sm focus:ring-0 outline-none"
+                                        type="text"
+                                        readOnly
+                                        value={crmApiKey || 'Aún no se ha generado ninguna clave'}
+                                        style={!crmApiKey ? { color: '#9ca3af', fontFamily: 'Inter, sans-serif', fontStyle: 'italic' } : {}}
+                                    />
+                                    {crmApiKey && (
+                                        <button
+                                            id="copy-api-key"
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-stone-200 rounded-md transition-colors"
+                                            onClick={handleCopyKey}
+                                            title="Copiar API Key"
+                                        >
+                                            <span className="material-symbols-outlined text-stone-400">
+                                                {copied ? 'check' : 'content_copy'}
+                                            </span>
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="mt-4 text-xs text-stone-400">
+                                    {lastRotated
+                                        ? `Última rotación: ${lastRotated}. Mantén esta clave confidencial.`
+                                        : 'Mantén esta clave confidencial.'}
+                                </p>
+                            </div>
+                            <div className="shrink-0">
                                 <button
-                                    className="btn btn-secondary"
-                                    onClick={handleCopyKey}
-                                    style={{ whiteSpace: 'nowrap', minWidth: 90 }}
+                                    id="generate-new-key"
+                                    className="btn-primary-gradient text-white px-8 py-4 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 font-bold text-sm border-0 outline-none focus:outline-none focus:ring-2 focus:ring-primary/50 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onClick={() => {
+                                        if (crmApiKey) {
+                                            if (window.confirm('¿Regenerar la API key? La clave anterior dejará de funcionar.')) {
+                                                generateApiKey()
+                                            }
+                                        } else {
+                                            generateApiKey()
+                                        }
+                                    }}
+                                    disabled={generating}
                                 >
-                                    {copied ? '✓ Copiado' : 'Copiar'}
+                                    {generating ? (
+                                        <span className="flex items-center gap-2">
+                                            <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                                            Generando…
+                                        </span>
+                                    ) : (
+                                        'Generar Nueva Clave'
+                                    )}
                                 </button>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
-                        	<button 
-                        	       	className="btn btn-secondary"
-                        	        onClick={() => {
-                        	            if (window.confirm('¿Regenerar la API key? La clave anterior dejará de funcionar.')) {
-                        	                generateApiKey()
-                        	            }
-                        	        }}
-                        	    >
-                                🔄 Regenerar API Key
-                            </button>
-                        </div>
-                    </>
-                ) : (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
-                        <button className="btn btn-primary" onClick={() => generateApiKey()}>
-                            Generar API Key
-                        </button>
                     </div>
-                )}
-            </div>
+                </div>
+            </section>
 
-            {/* SECCIÓN 2: Webhooks */}
-            <div className="card" style={{ padding: '24px' }}>
-                <h2 style={{ fontSize: '1.25rem', marginBottom: '8px', margin: 0, color: 'var(--color-text)' }}>Webhooks</h2>
-                <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px', fontSize: '0.9rem', marginTop: '8px' }}>
-                    Configura las integraciones con aplicaciones externas mediante webhooks y API keys.
-                </p>
-
-                {/* Column headers — only shown when there are rows */}
-                {integrations.length > 0 && (
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '120px 140px 1fr 1fr auto',
-                        gap: '12px',
-                        padding: '0 16px 8px',
-                        marginBottom: '4px',
-                    }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Autenticación</span>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aplicación</span>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Webhook URL</span>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>API Key</span>
-                        <span />
+            {/* ─── Section 2: External Connectivity ─── */}
+            <section>
+                <div className="flex items-center justify-between mb-10">
+                    <h2 className="text-2xl font-bold font-headline tracking-tight text-stone-900">Conectividad Externa</h2>
+                    <div className="flex items-center gap-2 text-stone-500 text-xs font-semibold">
+                        <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: activeServices > 0 ? '#10b981' : '#9ca3af' }}
+                        />
+                        {activeServices} {activeServices === 1 ? 'Servicio Activo' : 'Servicios Activos'}
                     </div>
-                )}
+                </div>
 
-                {/* Integration rows */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: integrations.length > 0 ? '20px' : '0' }}>
-                    {integrations.map((integration, idx) => (
-                        <WebhookRow
-                            key={integration.nombre_aplicacion}
-                            integration={integration}
-                            onChange={(field, value) => updateIntegration(idx, field, value)}
-                            onRemove={() => removeIntegration(idx)}
+                {/* Integration Bento Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {SERVICES.map((service) => (
+                        <ServiceCard
+                            key={service.id}
+                            service={service}
+                            config={serviceConfigs[service.id]}
+                            onSave={handleSaveConnection}
                         />
                     ))}
                 </div>
 
-                {/* Empty state */}
-                {integrations.length === 0 && (
-                    <div style={{
-                        textAlign: 'center',
-                        padding: '32px 16px',
-                        borderRadius: 8,
-                        border: '2px dashed var(--color-border)',
-                        color: 'var(--color-text-muted)',
-                        fontSize: '0.9375rem',
-                        marginBottom: '20px',
-                        fontStyle: 'italic',
-                    }}>
-                        No hay integraciones configuradas.
-                    </div>
-                )}
-
-                {/* Footer: add button + save */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
-                    <div style={{ position: 'relative' }} ref={pickerRef}>
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => setShowAppPicker(v => !v)}
-                            disabled={availableToAdd.length === 0}
-                            title={availableToAdd.length === 0 ? 'Todas las aplicaciones ya están añadidas' : undefined}
-                        >
-                            + Añadir integración
-                        </button>
-
-                        {showAppPicker && (
-                            <div style={{
-                                position: 'absolute',
-                                bottom: 'calc(100% + 6px)',
-                                left: 0,
-                                background: '#ffffff',
-                                border: '1px solid var(--color-border)',
-                                borderRadius: 8,
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                                minWidth: 180,
-                                zIndex: 100,
-                                overflow: 'hidden',
-                            }}>
-                                {availableToAdd.map((app, i) => (
-                                    <button
-                                        key={app}
-                                        type="button"
-                                        onClick={() => addIntegration(app)}
-                                        style={{
-                                            display: 'block',
-                                            width: '100%',
-                                            textAlign: 'left',
-                                            padding: '10px 16px',
-                                            background: 'none',
-                                            border: 'none',
-                                            borderBottom: i < availableToAdd.length - 1 ? '1px solid var(--color-border)' : 'none',
-                                            cursor: 'pointer',
-                                            color: '#111827',
-                                            fontSize: '0.9375rem',
-                                            transition: 'background 0.1s',
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
-                                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                                    >
-                                        {app}
-                                    </button>
-                                ))}
-                            </div>
+                {/* Connection save feedback toast */}
+                {(testingService || testResult) && (
+                    <div
+                        className="fixed bottom-8 right-8 z-50 bg-white rounded-xl shadow-xl border border-stone-200 px-6 py-4 flex items-center gap-3 animate-in"
+                        style={{
+                            animation: 'slideUp 0.3s ease-out',
+                        }}
+                    >
+                        {testingService && (
+                            <>
+                                <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+                                <span className="text-sm font-medium text-stone-700">
+                                    Guardando {SERVICES.find((s) => s.id === testingService)?.name}…
+                                </span>
+                            </>
+                        )}
+                        {testResult && (
+                            <>
+                                <span className="material-symbols-outlined text-emerald-500">check_circle</span>
+                                <span className="text-sm font-medium text-stone-700">
+                                    {SERVICES.find((s) => s.id === testResult.serviceId)?.name}: Configuración guardada
+                                </span>
+                            </>
                         )}
                     </div>
+                )}
+            </section>
 
-                    <button
-                        className="btn btn-primary"
-                        onClick={handleSaveWebhooks}
-                        disabled={savingWebhooks || integrations.length === 0}
-                    >
-                        {savingWebhooks ? 'Guardando...' : 'Guardar'}
-                    </button>
-                </div>
-            </div>
+            {/* Bottom spacer */}
+            <div className="h-24" />
+
+            {/* Inline keyframes */}
+            <style>{`
+                @keyframes slideUp {
+                    from { transform: translateY(20px); opacity: 0; }
+                    to   { transform: translateY(0);    opacity: 1; }
+                }
+                @keyframes fadeSlideIn {
+                    from { opacity: 0; transform: translateY(6px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
         </div>
     )
 }

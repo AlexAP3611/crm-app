@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { api } from '../api/client'
+import CompanyAutocomplete from './CompanyAutocomplete'
+import MultiSelect from './MultiSelect'
 
 import { CONTACT_COLUMNS } from '../config/fields'
 
@@ -7,6 +9,8 @@ const EMPTY = { notes: '' }
 CONTACT_COLUMNS.forEach(col => {
     if (col.type === 'm2m') {
         EMPTY[col.id_key] = []
+    } else if (col.type === 'fk') {
+        EMPTY[col.id_key] = null
     } else {
         EMPTY[col.key] = ''
     }
@@ -21,13 +25,14 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
     const [form, setForm] = useState(isEdit ? {
         ...EMPTY,
         ...contact,
+        empresa_id: contact.empresa_rel?.id || null,
         sector_ids: contact.sectors?.map((x) => x.id) ?? [],
         vertical_ids: contact.verticals?.map((x) => x.id) ?? [],
         product_ids: contact.products_rel?.map((x) => x.id) ?? [],
-        cargo_ids: contact.cargos?.map((x) => x.id) ?? [],
+        cargo_id: contact.cargo?.id || null,
         campaign_ids: contact.campaigns?.map((c) => c.id) ?? [],
         notes: initialNotes,
-    } : { ...EMPTY, sector_ids: [], vertical_ids: [], product_ids: [], cargo_ids: [], campaign_ids: [] })
+    } : { ...EMPTY, empresa_id: null, sector_ids: [], vertical_ids: [], product_ids: [], cargo_id: null, campaign_ids: [] })
 
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
@@ -47,19 +52,26 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
 
     async function handleSubmit(e) {
         e.preventDefault()
-        if (!form.company.trim()) { setError('La empresa es obligatoria'); return }
         setSaving(true)
         setError(null)
         try {
             const payload = { ...form }
-            // Convert empty strings to null for optional string fields
-            CONTACT_COLUMNS.forEach((col) => {
-                if ((col.type === 'string' || col.type === 'link') && payload[col.key] === '') {
-                    payload[col.key] = null
+            
+            // Saneamiento controlado: solo para campos FK
+            const FK_FIELDS = ["empresa_id", "cargo_id"]
+            FK_FIELDS.forEach((field) => {
+                if (payload[field] === "") {
+                    payload[field] = null
                 }
             })
 
-            // legacy properties have been removed, DB only expects array properties
+            // Strip readonly fields (delegated to Empresa, not editable)
+            CONTACT_COLUMNS.forEach((col) => {
+                if (col.readonly) {
+                    delete payload[col.key]
+                    if (col.id_key) delete payload[col.id_key]
+                }
+            })
 
             // Parse notes JSON string → object
             if (payload.notes && typeof payload.notes === 'string') {
@@ -69,17 +81,23 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                 payload.notes = null
             }
 
-            // Remove legacy products field (no longer used in form)
+            // Remove legacy and UI-only fields that don't belong in the API payload
+            delete payload.company
             delete payload.products
+            delete payload.empresa
+            delete payload.empresa_rel
+            delete payload.id
+            delete payload.enriched
+            delete payload.enriched_at
+            delete payload.created_at
+            delete payload.updated_at
 
             // Remove M2M relationship objects — backend uses *_ids fields only
             delete payload.sectors
             delete payload.verticals
             delete payload.products_rel
-            delete payload.cargos
+            delete payload.cargo
             delete payload.campaigns
-
-
 
             if (isEdit) {
                 payload.merge_lists = false
@@ -108,8 +126,43 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                 <div className="modal-grid">
                     {CONTACT_COLUMNS.map((col) => {
                         if (col.type === 'string' || col.type === 'link') {
+                            if (col.key === 'empresa') {
+                                return (
+                                    <div key={col.key} className="form-group full">
+                                        <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
+                                        <CompanyAutocomplete
+                                            value={form.empresa_rel?.nombre || ''}
+                                            onChange={(id, emp) => {
+                                                setForm(prev => {
+                                                    const next = { 
+                                                        ...prev, 
+                                                        empresa_rel: emp ? { nombre: emp.nombre } : null,
+                                                        empresa_id: id
+                                                    };
+                                                    return next;
+                                                });
+                                            }}
+                                        />
+                                    </div>
+                                )
+                            }
+                            if (col.readonly) {
+                                return (
+                                    <div key={col.key} className="form-group">
+                                        <label className="form-label">{col.label}</label>
+                                        <input
+                                            id={`field-${col.key}`}
+                                            className="form-control"
+                                            type="text"
+                                            value={form[col.key] || ''}
+                                            readOnly
+                                            style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                                        />
+                                    </div>
+                                )
+                            }
                             return (
-                                <div key={col.key} className={`form-group ${col.key === 'company' || col.key === 'linkedin' ? 'full' : ''}`}>
+                                <div key={col.key} className={`form-group ${col.key === 'linkedin' ? 'full' : ''}`}>
                                     <label className="form-label">{col.label} {col.required ? '*' : ''}</label>
                                     <input
                                         id={`field-${col.key}`}
@@ -121,6 +174,25 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                                     />
                                 </div>
                             )
+                        } else if (col.type === 'fk') {
+                            const listData = col.key === 'cargo' ? cargos : []
+                            if (!listData || listData.length === 0) return null;
+                            
+                            return (
+                                <div key={col.key} className="form-group full">
+                                    <label className="form-label">{col.label}</label>
+                                    <select 
+                                        className="form-control"
+                                        value={form[col.id_key] || ''}
+                                        onChange={(e) => set(col.id_key, e.target.value === '' ? null : Number(e.target.value))}
+                                    >
+                                        <option value="">Selecciona un {col.label.toLowerCase()}...</option>
+                                        {listData.map(opt => (
+                                            <option key={opt.id} value={opt.id}>{opt.name || opt.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )
                         } else if (col.type === 'm2m') {
                             const listData = col.key === 'sectors' ? sectors
                                 : col.key === 'verticals' ? verticals
@@ -130,21 +202,33 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
 
                             if (!listData || listData.length === 0) return null;
 
+                            if (col.readonly) {
+                                // Read-only M2M: show badges (inherited from Empresa)
+                                const selectedItems = (form[col.id_key] || []).map(id => listData.find(x => x.id === id)).filter(Boolean);
+                                return (
+                                    <div key={col.key} className="form-group full">
+                                        <label className="form-label">{col.label} <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>(desde Empresa)</span></label>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '8px 0', opacity: 0.7, minHeight: 32 }}>
+                                            {selectedItems.length > 0
+                                                ? selectedItems.map(item => (
+                                                    <span key={item.id} className="badge badge-muted">{item.name || item.nombre}</span>
+                                                ))
+                                                : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>—</span>
+                                            }
+                                        </div>
+                                    </div>
+                                )
+                            }
+
                             return (
                                 <div key={col.key} className="form-group full">
                                     <label className="form-label">{col.label}</label>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                        {listData.map((item) => (
-                                            <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={form[col.id_key]?.includes(item.id)}
-                                                    onChange={() => toggleArray(col.id_key, item.id)}
-                                                />
-                                                {item.name || item.nombre}
-                                            </label>
-                                        ))}
-                                    </div>
+                                    <MultiSelect
+                                        options={listData}
+                                        selectedIds={form[col.id_key] || []}
+                                        onChange={(newIds) => set(col.id_key, newIds)}
+                                        placeholder={`Selecciona opciones...`}
+                                    />
                                 </div>
                             )
                         }

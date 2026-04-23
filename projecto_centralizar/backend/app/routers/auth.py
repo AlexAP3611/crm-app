@@ -9,6 +9,7 @@ Endpoints:
 2. POST /api/logout          → Cierra la sesión (limpia cookie de sesión)
 3. GET  /api/me              → Devuelve los datos del usuario autenticado
 4. POST /api/change-password → Permite al usuario cambiar su contraseña
+5. POST /api/refresh         → Renueva el JWT si el token actual es válido (keepalive de sesión)
 
 Flujo de autenticación con JWT:
 1. El usuario envía email y contraseña a POST /api/login
@@ -38,6 +39,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from datetime import timedelta
 from app.auth import CurrentUser, verify_password, get_password_hash, create_access_token
 from app.database import get_db
 from app.models.user import User
@@ -393,3 +395,56 @@ async def change_password(
     )
 
     return {"message": "Contraseña actualizada correctamente"}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# REFRESH TOKEN — Renovación de sesión activa
+# ══════════════════════════════════════════════════════════════════════
+
+
+@router.post(
+    "/refresh",
+    response_model=LoginResponse,
+    summary="Renovar token JWT (keepalive de sesión)",
+)
+async def refresh_token(user: CurrentUser):
+    """
+    Endpoint: POST /api/refresh
+
+    Emite un nuevo JWT con expiración fresca para un usuario ya autenticado.
+    Solo funciona si el token actual es válido — si ha expirado, get_current_user
+    lanzará automáticamente HTTP 401 antes de llegar aquí.
+
+    Uso:
+    - El frontend llama a este endpoint cuando el usuario pulsa "Continuar sesión"
+      en el modal de aviso de inactividad (después de 25 min sin actividad).
+    - Requiere que el token no haya expirado aún (la ventana de renovación
+      es entre los 25 y 30 minutos de inactividad).
+
+    Flujo:
+    1. CurrentUser valida el JWT actual → si expiró, devuelve 401 antes de aquí
+    2. Verificar que el usuario sigue activo (is_active)
+    3. Generar nuevo JWT con expiración fresca (REFRESH_TOKEN_EXPIRE_MINUTES)
+    4. Registrar la renovación en logs para auditoría
+    5. Devolver el nuevo token al frontend
+
+    El frontend almacena el nuevo token y reinicia sus timers de inactividad.
+    """
+    from app.config import settings
+
+    # Generar nuevo token con expiración fresca
+    new_token = create_access_token(
+        user_id=user.id,
+        email=user.email,
+        role=user.role,
+        expires_delta=timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES),
+    )
+
+    logger.info(
+        f"[refresh] Token renovado para user_id={user.id} ({user.email})"
+    )
+
+    return {
+        "access_token": new_token,
+        "token_type": "bearer",
+    }

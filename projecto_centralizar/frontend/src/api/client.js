@@ -18,7 +18,6 @@
  * - NOTA: En producción, considerar httpOnly cookies para mayor seguridad
  *
  * TODO futuro:
- * - Implementar interceptor de refresh token automático
  * - Añadir retry automático en errores 5xx
  * - Cache de respuestas frecuentes
  */
@@ -64,6 +63,31 @@ export function removeToken() {
 
 
 // ══════════════════════════════════════════════════════════════════════
+// INTERCEPTOR 401 — Handler global de sesión expirada
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * Función de callback que se ejecutará cuando el backend devuelva 401.
+ * Se registra desde App.jsx para ejecutar el logout global.
+ * El flag _loggingOut previene múltiples ejecuciones si varios
+ * requests fallan simultáneamente con 401.
+ */
+let _unauthorizedHandler = null
+let _loggingOut = false
+
+/**
+ * Registra el handler global para respuestas 401.
+ * Debe llamarse una sola vez al montar AuthenticatedApp.
+ *
+ * @param {Function} handler - Función a ejecutar cuando se recibe 401
+ */
+export function setUnauthorizedHandler(handler) {
+    _unauthorizedHandler = handler
+    _loggingOut = false
+}
+
+
+// ══════════════════════════════════════════════════════════════════════
 // FUNCIÓN REQUEST — Wrapper centralizado para fetch
 // ══════════════════════════════════════════════════════════════════════
 
@@ -81,7 +105,7 @@ export function removeToken() {
  * @returns {Promise<Object|null>} Respuesta JSON o null (204)
  * @throws {Error} Si la respuesta no es 2xx
  */
-async function request(path, { headers, ...options } = {}) {
+async function request(path, { headers, signal, ...options } = {}) {
     // Construir headers con autenticación JWT automática
     // Si hay un token almacenado, se incluye en Authorization
     const authHeaders = {}
@@ -92,6 +116,7 @@ async function request(path, { headers, ...options } = {}) {
 
     const res = await fetch(`${BASE_URL}${path}`, {
         credentials: 'include',   // Enviar cookies (compatibilidad con sesiones)
+        signal,                   // Soporte para AbortController
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -103,6 +128,15 @@ async function request(path, { headers, ...options } = {}) {
     // Manejo de errores HTTP
     // Extrae el detalle del error del body JSON del backend
     if (!res.ok) {
+        // ── Interceptor 401: sesión expirada o token inválido ──
+        // Si el backend rechaza la petición con 401 y hay un handler registrado,
+        // ejecutar el logout global (una sola vez, aunque varios requests fallen).
+        if (res.status === 401 && _unauthorizedHandler && !_loggingOut) {
+            _loggingOut = true
+            // Ejecutar en el siguiente tick para no bloquear este flujo de error
+            setTimeout(() => _unauthorizedHandler(), 0)
+        }
+
         const err = await res.json().catch(() => ({ detail: res.statusText }))
         const detail = err.detail
         const msg = typeof detail === 'string'
@@ -110,12 +144,66 @@ async function request(path, { headers, ...options } = {}) {
             : Array.isArray(detail)
                 ? detail.map((d) => d.msg ?? JSON.stringify(d)).join('; ')
                 : JSON.stringify(detail) || 'Request failed'
-        throw new Error(msg)
+
+        const error = new Error(msg)
+        error.data = err // Attach structured error data for specialized handlers (e.g. enrichment validation)
+        throw error
     }
 
     // 204 No Content — no hay body que parsear
     if (res.status === 204) return null
     return res.json()
+}
+
+/**
+ * Build scope payload from current UI state.
+ * ZERO resolution logic. ZERO data fetching. Pure data transform.
+ *
+ * - selectedIds exist → { ids: [...] }
+ * - active filters exist → { filters: {...} } (stripped of page/page_size)
+ * - neither → {} (backend will decide if this is allowed per endpoint)
+ */
+const NUMERIC_FIELDS = new Set([
+    'sector_id',
+    'vertical_id',
+    'product_id',
+    'numero_empleados_min',
+    'numero_empleados_max',
+    'facturacion_min',
+    'facturacion_max',
+    'cargo_id',
+    'empresa_id',
+    'campaign_id'
+]);
+
+const normalizeValue = (k, v) => {
+    if (v === '' || v === null || v === undefined) return undefined;
+    if (typeof v === 'string' && v.trim() !== '' && NUMERIC_FIELDS.has(k) && !isNaN(v)) {
+        return Number(v);
+    }
+    return v;
+}
+
+export function buildScope(selectedIds, filters) {
+    if (selectedIds.length > 0) {
+        return { ids: selectedIds }
+    }
+    const { page, page_size, ...f } = filters
+
+    // 🔥 Purga estricta y Normalización asimétrica (solo muta a Number lo listado en NUMERIC_FIELDS)
+    const cleanFilters = Object.fromEntries(
+        Object.entries(f).flatMap(([k, v]) => {
+            const normalized = normalizeValue(k, v);
+            return normalized === undefined ? [] : [[k, normalized]];
+        })
+    )
+
+    if (Object.keys(cleanFilters).length > 0) {
+        return { filters: cleanFilters }
+    }
+
+    // 🔥 CLAVE
+    return { all: true }
 }
 
 
@@ -143,31 +231,48 @@ export const api = {
         // Limpiar el token JWT del almacenamiento local
         removeToken()
         // También limpiar la sesión del servidor (cookie)
-        return request('/logout', { method: 'POST' })
+        try {
+            return await request('/logout', { method: 'POST' })
+        } catch (_) {
+            // Si el logout falla (token ya expirado), ignorar el error
+            // — el token ya fue eliminado de localStorage
+        }
     },
     // GET /api/me → { id, email, role }
     me: () => request('/me'),
 
+    // ── Session keepalive ──
+    // Renueva el JWT emitiendo uno nuevo desde el backend.
+    // Solo funciona si el token actual aún no ha expirado.
+    // POST /api/refresh → { access_token, token_type }
+    refreshToken: async () => {
+        const data = await request('/refresh', { method: 'POST' })
+        if (data?.access_token) {
+            setToken(data.access_token)
+        }
+        return data
+    },
+
     // ── Contacts ──
-    listContacts: (params = {}) => {
+    listContacts: (params = {}, signal = undefined) => {
         const qs = new URLSearchParams(
             Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
         ).toString()
-        return request(`/contacts${qs ? `?${qs}` : ''}`)
+        return request(`/contacts${qs ? `?${qs}` : ''}`, { signal })
     },
     getContact: (id) => request(`/contacts/${id}`),
     upsertContact: (data) => request('/contacts', { method: 'POST', body: JSON.stringify(data) }),
     updateContact: (id, data) => request(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteContact: (id) => request(`/contacts/${id}`, { method: 'DELETE' }),
-    deleteBulkContacts: (data) => request('/contacts/bulk-delete', { method: 'POST', body: JSON.stringify(data) }),
-    updateBulkContacts: (data) => request('/contacts/bulk-update', { method: 'POST', body: JSON.stringify(data) }),
+    deleteBulkContacts: (scope) => request('/contacts/bulk-delete', { method: 'POST', body: JSON.stringify(scope) }),
+    updateBulkContacts: (scope, data) => request('/contacts/bulk-update', { method: 'POST', body: JSON.stringify({ ...scope, data }) }),
 
     // ── CSV ──
     exportCsvUrl: (params = {}) => {
         const qs = new URLSearchParams(
             Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
         ).toString()
-        return `${BASE_URL}/csv/export${qs ? `?${qs}` : ''}`
+        return `${BASE_URL}/csv/contacts/export${qs ? `?${qs}` : ''}`
     },
     importCsv: (file) => {
         const form = new FormData()
@@ -179,7 +284,28 @@ export const api = {
         if (token) {
             importHeaders['Authorization'] = `Bearer ${token}`
         }
-        return fetch(`${BASE_URL}/csv/import`, {
+        return fetch(`${BASE_URL}/csv/contacts/import`, {
+            method: 'POST',
+            body: form,
+            credentials: 'include',
+            headers: importHeaders,
+        }).then((r) => r.json())
+    },
+    exportEmpresasCsvUrl: (params = {}) => {
+        const qs = new URLSearchParams(
+            Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+        ).toString()
+        return `${BASE_URL}/csv/empresas/export${qs ? `?${qs}` : ''}`
+    },
+    importEmpresasCsv: (file) => {
+        const form = new FormData()
+        form.append('file', file)
+        const importHeaders = {}
+        const token = getToken()
+        if (token) {
+            importHeaders['Authorization'] = `Bearer ${token}`
+        }
+        return fetch(`${BASE_URL}/csv/empresas/import`, {
             method: 'POST',
             body: form,
             credentials: 'include',
@@ -187,13 +313,19 @@ export const api = {
         }).then((r) => r.json())
     },
 
-    // ── Lookup tables ──
+    // ── Lookup tables (Master Data) ──
     listSectors: () => request('/master-data/sectors'),
     createSector: (data) => request('/master-data/sectors', { method: 'POST', body: JSON.stringify(data) }),
+    deleteSector: (id) => request(`/master-data/sectors/${id}`, { method: 'DELETE' }),
     listVerticals: () => request('/master-data/verticals'),
     createVertical: (data) => request('/master-data/verticals', { method: 'POST', body: JSON.stringify(data) }),
+    deleteVertical: (id) => request(`/master-data/verticals/${id}`, { method: 'DELETE' }),
     listProducts: () => request('/master-data/products'),
+    createProduct: (data) => request('/master-data/products', { method: 'POST', body: JSON.stringify(data) }),
+    deleteProduct: (id) => request(`/master-data/products/${id}`, { method: 'DELETE' }),
     listCargos: () => request('/master-data/cargos'),
+    createCargo: (data) => request('/master-data/cargos', { method: 'POST', body: JSON.stringify(data) }),
+    deleteCargo: (id) => request(`/master-data/cargos/${id}`, { method: 'DELETE' }),
 
     // ── Campaigns ──
     listCampaigns: () => request('/campaigns'),
@@ -202,9 +334,29 @@ export const api = {
     updateCampaign: (id, data) => request(`/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteCampaign: (id) => request(`/campaigns/${id}`, { method: 'DELETE' }),
 
+    // ── Empresas ──
+    listEmpresas: (params = {}, signal = undefined) => {
+        const queryParams = new URLSearchParams(Object.entries(params).filter(([_, v]) => v !== undefined && v !== '' && v !== null)).toString();
+        return request('/empresas' + (queryParams ? '?' + queryParams : ''), { signal });
+    },
+    createEmpresa: (data) => request('/empresas', { method: 'POST', body: JSON.stringify(data) }),
+    updateEmpresa: (id, data) => request(`/empresas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    getEmpresaContactos: (id, page = 1, limit = 50) => {
+        const queryParams = new URLSearchParams({ page, limit, offset: (page - 1) * limit });
+        return request(`/empresas/${id}/contactos?${queryParams.toString()}`);
+    },
+    deleteEmpresa: (id) => request(`/empresas/${id}`, { method: 'DELETE' }),
+    deleteBulkEmpresas: (scope) => request('/empresas/bulk-delete', { method: 'POST', body: JSON.stringify(scope) }),
+    updateBulkEmpresas: (scope, data) => request('/empresas/bulk-update', { method: 'POST', body: JSON.stringify({ ...scope, data }) }),
+    assignEmpresaRelation: (empresaId, relationType, relationId) => request(`/empresas/${empresaId}/${relationType}/${relationId}`, { method: 'POST' }),
+    unassignEmpresaRelation: (empresaId, relationType, relationId) => request(`/empresas/${empresaId}/${relationType}/${relationId}`, { method: 'DELETE' }),
+
     // ── Enrichment ──
     enrichContact: (id, source, data) =>
         request(`/enrichment/${id}`, { method: 'POST', body: JSON.stringify({ source, data }) }),
+
+    enrichEmpresas: (data) =>
+        request('/empresas/enrich', { method: 'POST', body: JSON.stringify(data) }),
 
     // ── Access Requests ──
     requestAccess: (email, password) =>
@@ -243,4 +395,8 @@ export const api = {
                 new_password: newPassword,
             }),
         }),
+
+    // ── System ──
+    getSettingsByPrefix: (prefix) => request(`/system/settings?prefix=${prefix}`),
+    updateSystemSetting: (key, value) => request(`/system/settings/${key}`, { method: 'POST', body: JSON.stringify({ value }) }),
 }

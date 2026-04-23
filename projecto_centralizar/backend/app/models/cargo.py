@@ -8,7 +8,8 @@ class Cargo(Base):
     __tablename__ = "cargos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
 
-    contacts: Mapped[list["Contact"]] = relationship(secondary="contact_cargos", back_populates="cargos", lazy="selectin")  # noqa: F821
+
+    contacts: Mapped[list["Contact"]] = relationship(back_populates="cargo", lazy="selectin")  # noqa: F821

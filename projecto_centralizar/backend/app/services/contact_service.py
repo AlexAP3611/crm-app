@@ -1,42 +1,35 @@
 from typing import Any
+from datetime import datetime, timezone
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
 
 from app.models.campaign import Campaign
 from app.models.contact import Contact
-from app.models.sector import Sector
-from app.models.vertical import Vertical
 from app.models.cargo import Cargo
-from app.models.product import Product
+from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
 from app.schemas.contact import ContactCreate, ContactFilterParams, ContactUpdate
 from app.services.merge import deep_merge
+from app.services import cargo_service
+from app.services.contact_mapper import build_contact_kwargs
 
-from app.core.field_mapping import CONTACT_FIELD_MAP, M2M_FIELD_MAP, ENRICHMENT_PROTECTED_FIELDS
+from app.domain.relations import M2M_FIELD_MAP
+from app.core.enrichment.rules import ENRICHMENT_PROTECTED_FIELDS
+from app.core.utils import update_empresa_snapshot_in_contact
+from app.core.resolve import resolve_contact, normalize_email, normalize_linkedin
 
-def split_enrichment_data(data: dict):
-    structured = {}
-    extra = {}
-
-    for key, value in data.items():
-        if key in CONTACT_FIELD_MAP.values():
-            structured[key] = value
-        else:
-            extra[key] = value
-
-    return structured, extra
-#
 
 async def _load_contact(session: AsyncSession, contact_id: int) -> Contact | None:
     result = await session.execute(
         select(Contact)
         .options(
-            selectinload(Contact.sectors),
-            selectinload(Contact.verticals),
-            selectinload(Contact.products_rel),
-            selectinload(Contact.cargos),
+            selectinload(Contact.cargo),
             selectinload(Contact.campaigns),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
         )
         .where(Contact.id == contact_id)
     )
@@ -73,75 +66,157 @@ async def _sync_m2m(session: AsyncSession, contact: Contact, ModelClass, ids_lis
         setattr(contact, relation_name, db_items)
 
 
-async def upsert_contact(session: AsyncSession, data: ContactCreate) -> Contact:
+async def upsert_contact(
+    session: AsyncSession,
+    data: ContactCreate,
+    from_enrichment: bool = False,
+    auto_commit: bool = True,
+) -> tuple[Contact | None, str]:
     """
-    Upsert logic:
-    1. If cif provided → look up by cif
-    2. Else if dominio provided → look up by dominio
-    3. If no match → create new contact
-    Notes are always deep-merged, never replaced.
+    Upsert logic using hierarchical identity resolution.
+    
+    Architectural Rules applied:
+    - job_title resolved to cargo_id via cargo_service.get_or_create_cargo
+    - no raw string persistence for job_title
+    - notes deep-merged
     """
+    # ── 1. Resolve dependencies (cargo, normalize identity) ──
+    emp_id = data.empresa_id
+
+    norm_email = normalize_email(data.email) if data.email else None
+    norm_linkedin = normalize_linkedin(data.linkedin) if data.linkedin else None
+
+    cargo_id = data.cargo_id
+    if data.job_title:
+        # AUTHORITATIVE: Only cargo_service resolves titles
+        cargo_obj = await cargo_service.get_or_create_cargo(session, data.job_title)
+        if cargo_obj:
+            cargo_id = cargo_obj.id
+
+    # ── 2. Build ORM-safe kwargs via mapper ──
+    kwargs = build_contact_kwargs(data)
+    # Override with resolved/normalized values
+    if emp_id:
+        kwargs["empresa_id"] = emp_id
+    if norm_email:
+        kwargs["email"] = norm_email
+    if norm_linkedin:
+        kwargs["linkedin"] = norm_linkedin
+    if cargo_id:
+        kwargs["cargo_id"] = cargo_id
+
+    # Centralized update logic for both Happy Path and Recovery Path
+    async def apply_update(contact_obj: Contact):
+        for field, value in kwargs.items():
+            if value is None:
+                continue
+            # Protect email and phone: don't overwrite an existing valid value
+            if field == "email" and contact_obj.email:
+                continue
+            if field == "phone" and contact_obj.phone:
+                continue
+            setattr(contact_obj, field, value)
+
+        if data.notes:
+            contact_obj.notes = deep_merge(contact_obj.notes, data.notes)
+
+        if contact_obj.empresa_rel:
+            update_empresa_snapshot_in_contact(contact_obj, contact_obj.empresa_rel)
+            
+        if from_enrichment:
+            contact_obj.enriched = True
+            contact_obj.enriched_at = datetime.now(timezone.utc)
+            
+        for m2m_key, config in M2M_FIELD_MAP.items():
+            ids_list = getattr(data, m2m_key, None)
+            if ids_list is None and data.model_extra:
+                ids_list = data.model_extra.get(m2m_key, None)
+                
+            model_class = globals()[config["model"]]
+            await _sync_m2m(session, contact_obj, model_class, ids_list, config["relation_name"], False, False)
+
+    # ── 3. Resolve identity ──
+    resolution = await resolve_contact(
+        session,
+        email=norm_email,
+        linkedin=norm_linkedin,
+    )
+
     contact: Contact | None = None
+    action = "skipped"
 
-    if data.cif:
-        result = await session.execute(
-            select(Contact)
-            .options(
-                selectinload(Contact.sectors),
-                selectinload(Contact.verticals),
-                selectinload(Contact.campaigns),
-                selectinload(Contact.cargos),
-                selectinload(Contact.products_rel),
-            )
-            .where(Contact.cif == data.cif)
-        )
-        contact = result.scalar_one_or_none()
+    if resolution.confidence == "high":
+        contact = resolution.contact
+        await apply_update(contact)
+        action = "updated"
 
-    if contact is None and data.dominio:
-        result = await session.execute(
-            select(Contact)
-            .options(
-                selectinload(Contact.sectors),
-                selectinload(Contact.verticals),
-                selectinload(Contact.campaigns),
-                selectinload(Contact.cargos),
-                selectinload(Contact.products_rel),
-            )
-            .where(Contact.dominio == data.dominio)
-        )
-        contact = result.scalar_one_or_none()
+        final_id = contact.id
+        if auto_commit:
+            await session.commit()
+        else:
+            await session.flush()
+        return await _load_contact(session, final_id), action
 
-    payload = data.model_dump(exclude={"notes", "campaign_ids", "sector_ids", "vertical_ids", "cargo_ids", "product_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns"}, exclude_unset=True)
+    try:
+        if not norm_email and not norm_linkedin:
+            return None, "skipped"
 
-    if contact is None:
-        # Create
-        contact = Contact(**payload, notes=data.notes)
+        contact = Contact(**kwargs, notes=data.notes)
         session.add(contact)
         await session.flush()
-        # Reload with all M2M relations initialized (as empty lists)
-        # so that _sync_m2m's setattr() won't trigger lazy loading.
         contact = await _load_contact(session, contact.id)
-    else:
-        # Update — completely replace notes
-        for field, value in payload.items():
-            setattr(contact, field, value)
+        action = "created"
+
+        if contact and contact.empresa_rel:
+            update_empresa_snapshot_in_contact(contact, contact.empresa_rel)
+
+        if from_enrichment:
+            contact.enriched = True
+            contact.enriched_at = datetime.now(timezone.utc)
+
+        # Sync M2M associations
+        for m2m_key, config in M2M_FIELD_MAP.items():
+            ids_list = getattr(data, m2m_key, None)
+            if ids_list is None and data.model_extra:
+                ids_list = data.model_extra.get(m2m_key, None)
+                
+            model_class = globals()[config["model"]]
+            await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], False, False)
+
+        final_id = contact.id
+        if auto_commit:
+            await session.commit()
+        else:
+            await session.flush()
+        return await _load_contact(session, final_id), action
         
-        if "notes" in data.model_fields_set:
-            contact.notes = data.notes
-
-    # Sync M2M associations
-    extra_fields = payload.keys() | data.model_extra.keys() if data.model_extra else payload.keys()
-    
-    for m2m_key, config in M2M_FIELD_MAP.items():
-        ids_list = getattr(data, m2m_key, None)
-        if ids_list is None and data.model_extra:
-            ids_list = data.model_extra.get(m2m_key, None)
+    except IntegrityError:
+        await session.rollback()
+        
+        query = select(Contact.id)
+        if norm_email:
+            query = query.where(Contact.email == norm_email)
+        elif norm_linkedin:
+            query = query.where(Contact.linkedin_normalized == norm_linkedin)
+        else:
+            raise
             
-        model_class = globals()[config["model"]]
-        await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], False, False)
-
-    await session.commit()
-    return await _load_contact(session, contact.id)  # type: ignore[return-value]
+        existing_id = (await session.execute(query)).scalar_one_or_none()
+        
+        if existing_id:
+            contact = await _load_contact(session, existing_id)
+            if contact:
+                await apply_update(contact)
+                final_id = contact.id
+                if auto_commit:
+                    await session.commit()
+                else:
+                    await session.flush()
+                return await _load_contact(session, final_id), "updated"
+            else:
+                raise
+        else:
+            raise
 
 
 async def get_contact(session: AsyncSession, contact_id: int) -> Contact | None:
@@ -155,18 +230,30 @@ async def update_contact(
     if contact is None:
         return None
 
-    payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "sector_ids", "vertical_ids", "cargo_ids", "product_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns"}, 
-        exclude_unset=True
-    )
-    for field, value in payload.items():
+    # ── Build ORM-safe kwargs via mapper ──
+    kwargs = build_contact_kwargs(data)
+
+    base_notes = data.notes if "notes" in data.model_fields_set else contact.notes
+
+    # Apply only valid ORM fields to the contact
+    for field, value in kwargs.items():
         setattr(contact, field, value)
 
-    # Completely replace notes
-    if "notes" in data.model_fields_set:
-        contact.notes = data.notes
+    # --- AUTHORITATIVE Cargo Resolution (on Update) ---
+    if data.job_title:
+        cargo_obj = await cargo_service.get_or_create_cargo(session, data.job_title)
+        if cargo_obj:
+            contact.cargo_id = cargo_obj.id
 
-    # Sync M2M if provided
+    contact.notes = base_notes
+
+    final_emp_id = kwargs.get("empresa_id") or contact.empresa_id
+    if final_emp_id:
+        empresa_obj = await session.get(Empresa, final_emp_id)
+        if empresa_obj:
+            await session.refresh(empresa_obj, ["sectors", "verticals", "products_rel"])
+            update_empresa_snapshot_in_contact(contact, empresa_obj)
+
     is_merge = data.merge_lists
     is_remove = getattr(data, 'remove_lists', False)
     
@@ -191,150 +278,108 @@ async def delete_contact(session: AsyncSession, contact_id: int) -> bool:
     await session.commit()
     return True
 
-
-async def delete_contacts_bulk(session: AsyncSession, contact_ids: list[int]) -> int:
-    result = await session.execute(select(Contact).where(Contact.id.in_(contact_ids)))
-    contacts = result.scalars().all()
-    count = 0
-    for c in contacts:
-        await session.delete(c)
-        count += 1
-    await session.commit()
-    return count
+ 
 
 
-async def bulk_update_contacts(
-    session: AsyncSession, contact_ids: list[int], data: ContactUpdate
-) -> int:
-    """Update multiple contacts by ID list with the same data."""
-    result = await session.execute(
-        select(Contact)
-        .options(
-            selectinload(Contact.sectors),
-            selectinload(Contact.verticals),
-            selectinload(Contact.products_rel),
-            selectinload(Contact.cargos),
-            selectinload(Contact.campaigns),
+def _apply_contact_filters(query, filters: ContactFilterParams):
+    """
+    Private utility to apply filters to a Contact query.
+    Centralizes filtering logic for both paged views and unpaginated exports.
+    """
+    if filters.empresa_id is not None:
+        query = query.where(Contact.empresa_id == filters.empresa_id)
+
+    if filters.contacto_nombre:
+        term = f"%{filters.contacto_nombre}%"
+        query = query.where(
+            or_(
+                Contact.first_name.ilike(term),
+                Contact.last_name.ilike(term)
+            )
         )
-        .where(Contact.id.in_(contact_ids))
-    )
-    contacts = result.scalars().all()
 
-    payload = data.model_dump(
-        exclude={"notes", "campaign_ids", "sector_ids", "vertical_ids", "cargo_ids", "product_ids", "merge_lists", "remove_lists", "created_at", "updated_at", "sectors", "verticals", "products_rel", "cargos", "campaigns"}, 
-        exclude_unset=True
-    )
+    from sqlalchemy.sql import exists
 
-    is_merge = data.merge_lists
-    is_remove = getattr(data, 'remove_lists', False)
+    if filters.sector_id is not None:
+        query = query.where(
+            exists().where(
+                (empresa_sectors.c.empresa_id == Contact.empresa_id) &
+                (empresa_sectors.c.sector_id == filters.sector_id)
+            )
+        )
+    if filters.vertical_id is not None:
+        query = query.where(
+            exists().where(
+                (empresa_verticals.c.empresa_id == Contact.empresa_id) &
+                (empresa_verticals.c.vertical_id == filters.vertical_id)
+            )
+        )
+    if filters.product_id is not None:
+        query = query.where(
+            exists().where(
+                (empresa_products.c.empresa_id == Contact.empresa_id) &
+                (empresa_products.c.product_id == filters.product_id)
+            )
+        )
 
-    for contact in contacts:
-        for field, value in payload.items():
-            setattr(contact, field, value)
+    if filters.cargo_id is not None:
+        query = query.where(Contact.cargo_id == filters.cargo_id)
+    if filters.campaign_id is not None:
+        from app.models.campaign import contact_campaigns as ccamp_table
+        query = query.where(
+            exists().where(
+                (ccamp_table.c.contact_id == Contact.id) &
+                (ccamp_table.c.campaign_id == filters.campaign_id)
+            )
+        )
 
-        if "notes" in data.model_fields_set:
-            contact.notes = data.notes
+    if filters.email:
+        term = f"%{filters.email}%"
+        query = query.where(
+            or_(
+                Contact.email.ilike(term),
+                Contact.empresa_rel.has(Empresa.email.ilike(term))
+            )
+        )
+        
+    if filters.search:
+        term = f"%{filters.search}%"
+        query = query.where(
+            or_(
+                Contact.empresa_rel.has(Empresa.nombre.ilike(term)),
+                Contact.first_name.ilike(term),
+                Contact.last_name.ilike(term),
+                Contact.empresa_rel.has(Empresa.email.ilike(term)),
+                Contact.email.ilike(term),
+            )
+        )
 
-        for m2m_key, config in M2M_FIELD_MAP.items():
-            ids_list = getattr(data, m2m_key, None)
-            if ids_list is None and data.model_extra:
-                ids_list = data.model_extra.get(m2m_key, None)
-                
-            if ids_list is not None:
-                model_class = globals()[config["model"]]
-                await _sync_m2m(session, contact, model_class, ids_list, config["relation_name"], is_merge, is_remove)
-
-    await session.commit()
-    return len(contacts)
-    
-async def enrich_contact(
-    session: AsyncSession,
-    contact_id: int,
-    enrichment_data: dict
-) -> Contact | None:
-
-    contact = await _load_contact(session, contact_id)
-
-    if contact is None:
-        return None
-
-    # 🔹 1. separar datos
-    structured, extra = split_enrichment_data(enrichment_data)
-
-    # 🔹 2. actualizar campos estructurados (protegiendo company/dominio)
-    protected_redirected: dict[str, str] = {}
-    for field, value in structured.items():
-        if value is not None:
-            current_val = getattr(contact, field, None)
-            if field in ENRICHMENT_PROTECTED_FIELDS and current_val:
-                protected_redirected[f"_enrichment_{field}"] = str(value)
-            else:
-                setattr(contact, field, value)
-
-    # 🔹 3. guardar el resto en notes (incluyendo campos protegidos redirigidos)
-    all_extra = {**extra, **protected_redirected}
-    if all_extra:
-        contact.notes = deep_merge(contact.notes or {}, all_extra)
-
-    await session.commit()
-
-    return await _load_contact(session, contact_id)
+    if filters.is_enriched is True:
+        query = query.where(Contact.enriched.is_(True))
+    elif filters.is_enriched is False:
+        query = query.where(Contact.enriched.is_(False))
+        
+    return query
 
 async def list_contacts(
     session: AsyncSession, filters: ContactFilterParams
 ) -> dict[str, Any]:
     query = select(Contact).options(
-        selectinload(Contact.sectors),
-        selectinload(Contact.verticals),
-        selectinload(Contact.products_rel),
-        selectinload(Contact.cargos),
+        selectinload(Contact.cargo),
         selectinload(Contact.campaigns),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
+        selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
     )
 
-    if filters.sector_id is not None:
-        from app.models.contact import contact_sectors as cs_table
-        query = query.join(cs_table, Contact.id == cs_table.c.contact_id).where(
-            cs_table.c.sector_id == filters.sector_id
-        )
-    if filters.vertical_id is not None:
-        from app.models.contact import contact_verticals as cv_table
-        query = query.join(cv_table, Contact.id == cv_table.c.contact_id).where(
-            cv_table.c.vertical_id == filters.vertical_id
-        )
-    if filters.product_id is not None:
-        from app.models.contact import contact_products as cp_table
-        query = query.join(cp_table, Contact.id == cp_table.c.contact_id).where(
-            cp_table.c.product_id == filters.product_id
-        )
-    if filters.cargo_id is not None:
-        from app.models.contact import contact_cargos as ccargo_table
-        query = query.join(ccargo_table, Contact.id == ccargo_table.c.contact_id).where(
-            ccargo_table.c.cargo_id == filters.cargo_id
-        )
-    if filters.campaign_id is not None:
-        from app.models.campaign import contact_campaigns as ccamp_table
-        query = query.join(ccamp_table, Contact.id == ccamp_table.c.contact_id).where(
-            ccamp_table.c.campaign_id == filters.campaign_id
-        )
-    if filters.search:
-        term = f"%{filters.search}%"
-        query = query.where(
-            or_(
-                Contact.company.ilike(term),
-                Contact.first_name.ilike(term),
-                Contact.last_name.ilike(term),
-                Contact.email_generic.ilike(term),
-                Contact.email_contact.ilike(term),
-            )
-        )
+    query = _apply_contact_filters(query, filters)
 
-    # Total count (using a count over the filtered subquery without stripping options from main query)
-    count_query = select(func.count()).select_from(query.with_only_columns(Contact.id).subquery())
-    count_result = await session.execute(count_query)
-    total = count_result.scalar_one()
+    # Precise Count using DISTINCT to handle joins in search/filters
+    count_stmt = select(func.count()).select_from(query.distinct(Contact.id).subquery())
+    total = await session.scalar(count_stmt) or 0
 
-    # Pagination
     offset = (filters.page - 1) * filters.page_size
+    # Order by ID DESC is already stable
     query = query.order_by(Contact.id.desc()).offset(offset).limit(filters.page_size)
 
     result = await session.execute(query)
@@ -346,3 +391,50 @@ async def list_contacts(
         "page_size": filters.page_size,
         "items": items,
     }
+
+
+# ── Explicit model map for bulk M2M resolution (avoids fragile globals()) ──
+_BULK_MODEL_MAP = {
+    "Campaign": Campaign,
+}
+
+
+async def bulk_update_contacts(
+    session: AsyncSession, contact_ids: list[int], data: ContactUpdate
+) -> int:
+    """Batch update contacts by IDs. Handles scalar fields + M2M merge/remove/replace."""
+    result = await session.execute(
+        select(Contact)
+        .options(selectinload(Contact.campaigns))
+        .where(Contact.id.in_(contact_ids))
+    )
+    contacts = list(result.scalars().unique().all())
+
+    is_merge = data.merge_lists
+    is_remove = getattr(data, "remove_lists", False)
+
+    # ── Scalar fields (FK updates like cargo_id) ──
+    SCALAR_FIELDS = ("cargo_id",)
+
+    for contact in contacts:
+        # Apply scalar updates
+        for field in SCALAR_FIELDS:
+            if field in data.model_fields_set:
+                setattr(contact, field, getattr(data, field))
+
+        # Apply M2M updates (campaigns)
+        for m2m_key, config in M2M_FIELD_MAP.items():
+            if not hasattr(data, m2m_key):
+                continue
+            ids_list = getattr(data, m2m_key, None)
+            if ids_list is not None:
+                model_class = _BULK_MODEL_MAP[config["model"]]
+                await _sync_m2m(
+                    session, contact, model_class,
+                    ids_list, config["relation_name"],
+                    is_merge, is_remove,
+                )
+
+    await session.commit()
+    return len(contacts)
+

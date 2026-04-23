@@ -1,53 +1,26 @@
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
 
 from app.database import get_db
-from app.services import enrichment_service
 from app.auth import get_current_user
+from app.services import enrichment_service, enrichment_ingest_service
+from app.schemas.enrichment import (
+    EnrichRequest,
+    BulkEnrichRequest,
+    BulkEnrichmentResponse,
+    BulkEnrichmentResultItem,
+    IngestRequest,
+    IngestResponse,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/enrichment",
     tags=["Enrichment"],
     dependencies=[Depends(get_current_user)]
 )
-
-
-class EnrichRequest(BaseModel):
-    source: str
-    data: dict[str, Any]
-
-
-class BulkContactItem(BaseModel):
-    """
-    Only id_contacto is required. All other fields are optional and handled
-    dynamically — known columns are written to DB, the rest go into notes[source].
-    """
-    model_config = {"extra": "allow"}
-
-    id_contacto: int
-
-
-class BulkContactData(BaseModel):
-    contacts: list[BulkContactItem]
-
-
-class BulkEnrichRequest(BaseModel):
-    source: str
-    data: BulkContactData
-
-
-class BulkEnrichmentResultItem(BaseModel):
-    id_contacto: int
-    status: str
-    message: str | None = None
-
-
-class BulkEnrichmentResponse(BaseModel):
-    results: list[BulkEnrichmentResultItem]
-
 
 @router.post("/bulk", response_model=BulkEnrichmentResponse)
 async def bulk_enrich(
@@ -56,8 +29,7 @@ async def bulk_enrich(
 ):
     """
     Enrich multiple contacts:
-    - nombre_empresa -> company column
-    - dominio -> dominio column
+    - web -> web column
     - vertical -> M2M relationship
     - everything else -> notes[source] as strings
     """
@@ -88,6 +60,7 @@ async def bulk_enrich(
                     status="success"
                 ))
         except Exception as e:
+            logger.error(f"Error bulk_enrich contact {contact_item.id_contacto}: {e}")
             results.append(BulkEnrichmentResultItem(
                 id_contacto=contact_item.id_contacto,
                 status="error",
@@ -97,7 +70,7 @@ async def bulk_enrich(
     return BulkEnrichmentResponse(results=results)
 
 
-@router.post("/{contact_id}")
+@router.post("/contact/{contact_id}")
 async def enrich_contact(
     contact_id: int,
     body: EnrichRequest,
@@ -112,7 +85,20 @@ async def enrich_contact(
         raise HTTPException(status_code=404, detail="Contact not found")
     return {
         "id": contact.id,
-        "company": contact.company,
+        "empresa_id": contact.empresa_id,
         "notes": contact.notes,
         "message": f"Enriched with '{body.source}' data",
     }
+
+
+@router.post("/ingest", response_model=IngestResponse)
+async def ingest_enrichment(
+    body: IngestRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Ingest bulk enrichment from n8n.
+    Protected strictly by router-level Depends(get_current_user).
+    Delegated completely to service layer.
+    """
+    return await enrichment_ingest_service.bulk_ingest(db, body)

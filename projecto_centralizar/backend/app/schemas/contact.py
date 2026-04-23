@@ -1,25 +1,18 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ContactCreate(BaseModel):
-    company: str
+    empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
-    job_title: str | None = None
-    cif: str | None = None
-    dominio: str | None = None
-    email_generic: str | None = None
-    email_contact: str | None = None
+    job_title: str | None = None  # transient input for cargo resolution
+    email: str | None = None
     phone: str | None = None
     linkedin: str | None = None
-    products: list[str] | None = None  # legacy JSONB
-    product_ids: list[int] = []
-    cargo_ids: list[int] = []
-    sector_ids: list[int] = []
-    vertical_ids: list[int] = []
+    cargo_id: int | None = None
     notes: dict[str, Any] | None = None
     campaign_ids: list[int] = []
     # Timestamps — declared so Pydantic coerces ISO strings to datetime
@@ -28,23 +21,21 @@ class ContactCreate(BaseModel):
 
     model_config = {"extra": "allow"}
 
+    @field_validator("empresa_id", "cargo_id", mode="before")
+    @classmethod
+    def convert_empty_strings(cls, v):
+        return None if v == "" else v
+
 
 class ContactUpdate(BaseModel):
-    company: str | None = None
+    empresa_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
-    job_title: str | None = None
-    cif: str | None = None
-    dominio: str | None = None
-    email_generic: str | None = None
-    email_contact: str | None = None
+    job_title: str | None = None  # transient input for cargo resolution
+    email: str | None = None
     phone: str | None = None
     linkedin: str | None = None
-    products: list[str] | None = None  # legacy JSONB
-    product_ids: list[int] | None = None
-    cargo_ids: list[int] | None = None
-    sector_ids: list[int] | None = None
-    vertical_ids: list[int] | None = None
+    cargo_id: int | None = None
     notes: dict[str, Any] | None = None
     merge_lists: bool = True
     remove_lists: bool = False
@@ -55,14 +46,10 @@ class ContactUpdate(BaseModel):
 
     model_config = {"extra": "allow"}
 
-
-class ContactBulkDelete(BaseModel):
-    ids: list[int]
-
-
-class ContactBulkUpdate(BaseModel):
-    ids: list[int]
-    data: ContactUpdate
+    @field_validator("empresa_id", "cargo_id", mode="before")
+    @classmethod
+    def convert_empty_strings(cls, v):
+        return None if v == "" else v
 
 
 class CampaignRef(BaseModel):
@@ -100,26 +87,32 @@ class CargoRef(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class EmpresaRef(BaseModel):
+    id: int
+    nombre: str
+
+    model_config = {"from_attributes": True}
+
+
 class ContactResponse(BaseModel):
     id: int
-    company: str
+    empresa_rel: EmpresaRef | None = None
     first_name: str | None
     last_name: str | None
-    job_title: str | None
-    cif: str | None
-    dominio: str | None
-    email_generic: str | None
-    email_contact: str | None
+    # Raw job_title removed. Use cargo.name for display.
+    email: str | None
     phone: str | None
     linkedin: str | None
-    products: list[str] | None
+    # Product JSONB field removed. Products are managed at Empresa level.
     notes: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
+    enriched: bool
+    enriched_at: datetime | None
     sectors: list[SectorRef]
     verticals: list[VerticalRef]
     products_rel: list[ProductRef]
-    cargos: list[CargoRef]
+    cargo: CargoRef | None = None
     campaigns: list[CampaignRef]
 
     model_config = {"from_attributes": True}
@@ -132,12 +125,26 @@ class ContactListResponse(BaseModel):
     items: list[ContactResponse]
 
 
-class ContactFilterParams(BaseModel):
+class ContactFilterFields(BaseModel):
+    """Pure business filters. No pagination. Used by bulk scope and inherited by ContactFilterParams."""
     sector_id: int | None = None
     vertical_id: int | None = None
     campaign_id: int | None = None
     product_id: int | None = None
     cargo_id: int | None = None
     search: str | None = None
+    contacto_nombre: str | None = None
+    email: str | None = None
+    empresa_id: int | None = None
+    is_enriched: bool | None = None
+
+
+class ContactFilterParams(ContactFilterFields):
+    """List-only: adds pagination on top of filter fields."""
     page: int = 1
     page_size: int = 50
+
+    @field_validator("page_size")
+    @classmethod
+    def cap_page_size(cls, v: int) -> int:
+        return min(v, 200)

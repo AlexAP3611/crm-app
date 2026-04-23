@@ -18,13 +18,21 @@ async def list_campaigns(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Campaign).order_by(Campaign.nombre))
     return result.scalars().all()
 
+from app.services import campaign_service
+from app.core.exceptions import DuplicateEntityError
+
 @router.post("", response_model=CampaignResponse, status_code=201)
 async def create_campaign(data: CampaignCreate, db: AsyncSession = Depends(get_db)):
-    campaign = Campaign(**data.model_dump())
-    db.add(campaign)
-    await db.commit()
-    await db.refresh(campaign)
-    return campaign
+    try:
+        campaign = await campaign_service.create_strict(db, data.nombre)
+        await db.commit()
+        await db.refresh(campaign)
+        return campaign
+    except DuplicateEntityError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.put("/{campaign_id}", response_model=CampaignResponse)
 async def update_campaign(campaign_id: int, data: CampaignUpdate, db: AsyncSession = Depends(get_db)):
