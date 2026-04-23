@@ -2,36 +2,64 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from app.models.product import Product
+from app.core.exceptions import DuplicateEntityError
 
-async def resolve_by_name(session: AsyncSession, name: str, auto_create: bool = True) -> Product | None:
-    """
-    Resolve a Product by its name (case-insensitive).
-    If it doesn't exist and auto_create is True, create it.
-    """
+def normalize_name(name: str) -> str:
+    """Synchronous normalization."""
+    return name.strip()
+
+async def get_by_name(session: AsyncSession, name: str) -> Product | None:
+    """Case-insensitive lookup matching DB index."""
+    if not name:
+        return None
+    normalized = normalize_name(name)
+    stmt = select(Product).where(func.lower(Product.name) == normalized.lower())
+    result = await session.execute(stmt)
+    return result.scalars().first()
+
+async def create_strict(session: AsyncSession, name: str) -> Product:
+    """Strict creation with race condition handling."""
+    if not name:
+        raise ValueError("El nombre no puede estar vacío")
+        
+    normalized = normalize_name(name)
+    if not normalized:
+        raise ValueError("El nombre no puede estar vacío")
+    
+    # 1. Pre-emptive check
+    existing = await get_by_name(session, normalized)
+    if existing:
+        raise DuplicateEntityError(f"El producto '{normalized}' ya existe")
+        
+    # 2. Try to create
+    try:
+        async with session.begin_nested():
+            entity = Product(name=normalized)
+            session.add(entity)
+            await session.flush()
+        return entity
+    except IntegrityError:
+        existing = await get_by_name(session, normalized)
+        if existing:
+            raise DuplicateEntityError(f"El producto '{normalized}' ya existe")
+        raise
+
+
+async def get_or_create(session: AsyncSession, name: str) -> Product | None:
+    """Idempotent get or create for imports/enrichment."""
     if not name:
         return None
         
-    cleaned_name = name.strip()
+    normalized = normalize_name(name)
     
-    # 1. First attempt: Case-insensitive search
-    stmt = select(Product).where(func.lower(Product.name) == cleaned_name.lower())
-    result = await session.execute(stmt)
-    product = result.scalars().first()
-    
+    # 1. Attempt to find
+    product = await get_by_name(session, normalized)
     if product:
         return product
         
-    if not auto_create:
-        return None
-        
-    # 2. Second attempt: Create new product using a savepoint to handle concurrency
+    # 2. Attempt to create
     try:
-        async with session.begin_nested():
-            new_product = Product(name=cleaned_name)
-            session.add(new_product)
-            await session.flush()
-            return new_product
-    except IntegrityError:
-        # Another process created it between step 1 and 2
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        return await create_strict(session, normalized)
+    except DuplicateEntityError:
+        return await get_by_name(session, normalized)
+

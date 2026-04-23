@@ -160,7 +160,7 @@ async def list_empresas(
     total = await db.scalar(count_stmt) or 0
 
     # 2. Results with Eager Loading and Stable Sort (Name + ID as tie-breaker)
-    query = query.options(
+    query = query.options( 
         selectinload(Empresa.sectors),
         selectinload(Empresa.verticals),
         selectinload(Empresa.products_rel),

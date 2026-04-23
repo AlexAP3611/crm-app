@@ -174,19 +174,22 @@ async def import_empresas_from_rows(session: AsyncSession, rows: list[dict]) -> 
 
                 # 3. Resolve human-readable names to IDs (Sectors, Verticals, Products)
                 if mapped.get("sector_name"):
-                    sector = await sector_service.resolve_by_name(session, mapped["sector_name"])
+                    sector = await sector_service.get_or_create(session, mapped["sector_name"])
                     if sector:
                         payload["sector_ids"] = [sector.id]
+
                 
                 if mapped.get("vertical_name"):
-                    vertical = await vertical_service.resolve_by_name(session, mapped["vertical_name"])
+                    vertical = await vertical_service.get_or_create(session, mapped["vertical_name"])
                     if vertical:
                         payload["vertical_ids"] = [vertical.id]
+
                         
                 if mapped.get("product_name"):
-                    product = await product_service.resolve_by_name(session, mapped["product_name"])
+                    product = await product_service.get_or_create(session, mapped["product_name"])
                     if product:
                         payload["product_ids"] = [product.id]
+
 
                 # 4. Fallback for direct IDs if present
                 for m2m_key in EMPRESA_M2M_FIELD_MAP.keys():

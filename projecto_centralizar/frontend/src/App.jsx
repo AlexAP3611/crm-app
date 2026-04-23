@@ -143,17 +143,9 @@ function AuthenticatedApp({ onLogout, userRole, userEmail }) {
             <main className="ml-64 w-full min-h-screen flex flex-col relative">
                 {/* Top Nav Bar Shell */}
                 <header className="w-full h-16 sticky top-0 z-40 bg-stone-50/80 backdrop-blur-xl flex justify-between items-center px-8 border-b border-stone-200/20">
-                    <div className="flex items-center flex-1 max-w-xl">
-                        <div className="relative w-full group">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-cyan-600 transition-colors">search</span>
-                            <input 
-                                className="w-full bg-stone-100 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-cyan-600/20 transition-all outline-none" 
-                                placeholder="Search accounts, leads, or tasks..." 
-                                type="text"
-                            />
-                        </div>
-                    </div>
+                    <div className="flex-1"></div>
                     <div className="flex items-center gap-4 ml-8">
+
                         <div className="flex items-center gap-3">
                             <div className="text-right hidden sm:block">
                                 <p className="text-xs font-bold text-stone-900 leading-none">{userEmail}</p>

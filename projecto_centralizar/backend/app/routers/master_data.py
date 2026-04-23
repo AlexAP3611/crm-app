@@ -15,6 +15,9 @@ from app.schemas.master_data import (
     MasterDataCreate,
     MasterDataResponse,
 )
+from app.core.exceptions import DuplicateEntityError
+from app.services import sector_service, vertical_service, product_service
+
 
 router = APIRouter(
     prefix="/api/master-data",
@@ -27,22 +30,17 @@ async def get_all_entities(db: AsyncSession, model_class):
     result = await db.execute(select(model_class).order_by(model_class.name))
     return result.scalars().all()
 
-async def create_entity(db: AsyncSession, model_class, data: MasterDataCreate):
-    # Check for duplicate
-    stmt = select(model_class).where(model_class.name.ilike(data.name))
-    existing = await db.execute(stmt)
-    if existing.scalars().first():
-        raise HTTPException(status_code=400, detail="Ya existe una entidad con este nombre")
-    
-    new_entity = model_class(**data.model_dump())
-    db.add(new_entity)
+async def create_entity(db: AsyncSession, service, data: MasterDataCreate):
     try:
+        new_entity = await service.create_strict(db, data.name)
         await db.commit()
         await db.refresh(new_entity)
         return new_entity
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=400, detail="Ya existe una entidad con este nombre")
+    except DuplicateEntityError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 async def delete_entity(db: AsyncSession, model_class, entity_id: int, relation_attr_name: str):
     # Retrieve the entity and its related items to check for existing relations
@@ -68,7 +66,8 @@ async def list_sectors(db: AsyncSession = Depends(get_db)):
 
 @router.post("/sectors", response_model=MasterDataResponse)
 async def create_sector(data: MasterDataCreate, db: AsyncSession = Depends(get_db)):
-    return await create_entity(db, Sector, data)
+    return await create_entity(db, sector_service, data)
+
 
 @router.delete("/sectors/{item_id}", status_code=204)
 async def delete_sector(item_id: int, db: AsyncSession = Depends(get_db)):
@@ -82,7 +81,8 @@ async def list_verticals(db: AsyncSession = Depends(get_db)):
 
 @router.post("/verticals", response_model=MasterDataResponse)
 async def create_vertical(data: MasterDataCreate, db: AsyncSession = Depends(get_db)):
-    return await create_entity(db, Vertical, data)
+    return await create_entity(db, vertical_service, data)
+
 
 @router.delete("/verticals/{item_id}", status_code=204)
 async def delete_vertical(item_id: int, db: AsyncSession = Depends(get_db)):
@@ -96,7 +96,8 @@ async def list_products(db: AsyncSession = Depends(get_db)):
 
 @router.post("/products", response_model=MasterDataResponse)
 async def create_product(data: MasterDataCreate, db: AsyncSession = Depends(get_db)):
-    return await create_entity(db, Product, data)
+    return await create_entity(db, product_service, data)
+
 
 @router.delete("/products/{item_id}", status_code=204)
 async def delete_product(item_id: int, db: AsyncSession = Depends(get_db)):

@@ -18,6 +18,8 @@ from app.models.sector import Sector
 from app.models.cargo import Cargo
 from app.models.campaign import Campaign
 from app.models.product import Product
+from app.services import sector_service, vertical_service, product_service, campaign_service
+
 
 from app.services import empresa_service
 from app.services.scope import apply_scope
@@ -127,19 +129,26 @@ async def enrich_contact_smart(
 
         if key in M2M_FIELD_MAP:
             config = M2M_FIELD_MAP[key]
-            model_class = globals()[config["model"]]
             relation_name = config["relation_name"]
             
-            # Assuming payload value is a strictly matching string (like old 'vertical')
             if value:
-                res = await session.execute(select(model_class).where(model_class.name == str(value)))
-                entity = res.scalar_one_or_none()
+                # Use dedicated services for idempotent resolution
+                entity = None
+                if config["model"] == "Campaign":
+                    entity = await campaign_service.get_or_create(session, str(value))
+                elif config["model"] == "Sector":
+                    entity = await sector_service.get_or_create(session, str(value))
+                elif config["model"] == "Vertical":
+                    entity = await vertical_service.get_or_create(session, str(value))
+                elif config["model"] == "Product":
+                    entity = await product_service.get_or_create(session, str(value))
                 
                 if entity:
                     current = list(getattr(contact, relation_name, None) or [])
                     if entity not in current:
                         current.append(entity)
                         setattr(contact, relation_name, current)
+
 
         elif key in CONTACT_FIELD_MAP:
             db_col = CONTACT_FIELD_MAP[key]
