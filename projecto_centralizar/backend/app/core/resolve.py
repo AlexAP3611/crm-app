@@ -1,12 +1,8 @@
 """
-Contact Identity Resolution — hierarchical matching (email → linkedin).
+Contact Identity Normalization helpers.
 
-This module is PURE IDENTIFICATION. It never creates or modifies contacts.
-The caller (upsert_contact) is solely responsible for mutations.
-
-RULES:
-- resolve_contact is strictly READ-ONLY
-- Email/LinkedIn matches return a full Contact ORM object (high confidence)
+This module contains pure normalization logic for identity fields (email, linkedin, phone).
+Resolution logic is handled in the service layer (contact_service.py).
 """
 from __future__ import annotations
 
@@ -64,84 +60,13 @@ def normalize_linkedin(url: str | None) -> str | None:
     return cleaned
 
 
-# ── Resolution result ─────────────────────────────────────────────────
-
-@dataclass(frozen=True)
-class ResolveResult:
+def normalize_phone(phone: str | None) -> str | None:
     """
-    Result of contact identity resolution.
-
-    For email/linkedin matches (high confidence):
-      - contact: the matched Contact ORM object
-      - match_type: "email" or "linkedin"
-      - confidence: "high"
-
-    For no match:
-      - contact: None
-      - match_type: None
-      - confidence: None
+    Basic phone normalization.
+    Strips whitespace, dashes, and parentheses.
     """
-    contact: Contact | None
-    match_type: Literal["email", "linkedin"] | None
-    confidence: Literal["high"] | None
-
-
-# Singleton for "no match found"
-NO_MATCH = ResolveResult(contact=None, match_type=None, confidence=None)
-
-
-def _contact_query():
-    """Base query with all eager-loaded relations."""
-    return (
-        select(Contact)
-        .options(
-            selectinload(Contact.cargo),
-            selectinload(Contact.campaigns),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
-            selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
-        )
-    )
-
-
-async def resolve_contact(
-    session: AsyncSession,
-    *,
-    email: str | None = None,
-    linkedin: str | None = None,
-) -> ResolveResult:
-    """
-    Hierarchical contact resolution. NEVER modifies data.
-
-    Priority cascade:
-      1. EMAIL (exact, normalised) → high confidence, returns Contact
-      2. LINKEDIN (exact, normalised) → high confidence, returns Contact
-      3. No match → NO_MATCH
-    """
-
-    # ── 1. EMAIL MATCH (highest priority) ──────────────────────────
-    norm_email = normalize_email(email)
-    if norm_email:
-        result = await session.execute(
-            _contact_query().where(
-                func.lower(Contact.email) == norm_email
-            )
-        )
-        contact = result.scalar_one_or_none()
-        if contact:
-            return ResolveResult(contact=contact, match_type="email", confidence="high")
-
-    # ── 2. LINKEDIN MATCH (exact normalised comparison) ────────────
-    norm_linkedin = normalize_linkedin(linkedin)
-    if norm_linkedin is not None:
-        result = await session.execute(
-            _contact_query().where(
-                Contact.linkedin_normalized == norm_linkedin
-            )
-        )
-        contact = result.scalar_one_or_none()
-        if contact:
-            return ResolveResult(contact=contact, match_type="linkedin", confidence="high")
-
-    # ── 3. NO MATCH ────────────────────────────────────────────────
-    return NO_MATCH
+    if not phone:
+        return None
+    # Remove common non-numeric separators but keep '+' if present
+    cleaned = re.sub(r'[\s\-\(\)\.]', '', phone)
+    return cleaned if cleaned else None

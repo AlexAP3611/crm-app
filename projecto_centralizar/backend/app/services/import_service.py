@@ -17,11 +17,18 @@ logger = logging.getLogger(__name__)
 STRICT_IMPORT = True
 
 def is_valid_name(name: str | None) -> bool:
-    """Blocks placeholder names like N/A, Unknown, etc. to prevent DB pollution."""
+    """
+    Blocks placeholder names to prevent DB pollution.
+    Hardened to skip N/A, -, test, client, etc.
+    """
     if not name:
         return False
-    placeholders = {"n/a", "unknown", "desconocido", "desconocida", "-", "."}
-    return name.strip().lower() not in placeholders
+    blocked = {
+        "n/a", "unknown", "desconocido", "desconocida", "-", ".", 
+        "test", "prueba", "client", "cliente", "empresa", "company"
+    }
+    cleaned = name.strip().lower()
+    return cleaned not in blocked and len(cleaned) > 1
 
 def safe_str(val):
     """
@@ -37,86 +44,112 @@ def safe_str(val):
         
     return str(val).strip() or None
 
+def has_contact_identifier(row: dict) -> bool:
+    """
+    Deterministic check: contact must have at least one valid identity channel.
+    """
+    email = safe_str(row.get("email"))
+    phone = safe_str(row.get("phone"))
+    linkedin = safe_str(row.get("linkedin"))
+    return bool(email or phone or linkedin)
+
+async def resolve_empresa_for_contact(session: AsyncSession, row: dict) -> int | None:
+    """
+    Encapsulates Empresa resolution logic (CIF > Web > Name).
+    Creates a minimal Empresa only if the name is valid.
+    """
+    # 1. Direct ID if provided
+    emp_id_raw = row.get("empresa_id")
+    if emp_id_raw:
+        try:
+            return int(emp_id_raw)
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Extract resolution candidates
+    emp_name = safe_str(row.get("empresa_nombre") or row.get("empresa"))
+    emp_cif = safe_str(row.get("empresa_cif") or row.get("cif"))
+    emp_web = safe_str(row.get("empresa_web") or row.get("web"))
+
+    if not (emp_cif or emp_web or emp_name):
+        return None
+
+    # 3. Resolve via service
+    auto_create = is_valid_name(emp_name)
+    resolution = await empresa_service.resolve_empresa(
+        session,
+        cif=emp_cif,
+        web=emp_web,
+        empresa_nombre=emp_name,
+        auto_create=auto_create
+    )
+
+    if resolution:
+        # Consistency check for CIF matches
+        if STRICT_IMPORT and resolution.matched_by == "cif" and emp_name:
+            db_name = normalize_company_name(resolution.empresa.nombre).lower()
+            row_name = normalize_company_name(emp_name).lower()
+            if db_name != row_name:
+                logger.warning(f"Empresa CIF match '{emp_cif}' has name mismatch: Row '{emp_name}' vs DB '{resolution.empresa.nombre}'")
+        
+        return resolution.empresa.id
+
+    return None
+
 async def import_contacts_from_rows(session: AsyncSession, rows: list[dict]) -> dict[str, int]:
+    """
+    Robust contact import pipeline.
+    Prioritizes Data Safety over Completeness.
+    """
     created = 0
     updated = 0
     skipped = 0
 
     for row_idx, row in enumerate(rows):
         try:
-            # 1. Resolve Empresa
-            empresa_id = None
-            emp_id_raw = row.get("empresa_id")
-            
-            # Extract resolution candidates
-            emp_name = safe_str(row.get("empresa_nombre") or row.get("empresa"))
-            emp_cif = safe_str(row.get("empresa_cif"))
-            emp_web = safe_str(row.get("empresa_web"))
-            
-            if emp_id_raw:
-                try:
-                    empresa_id = int(emp_id_raw)
-                except ValueError:
-                    pass
-
-            if not empresa_id and (emp_cif or emp_web or emp_name):
-                # Only attempt creation if name is valid
-                auto_create = is_valid_name(emp_name)
-                
-                resolution = await empresa_service.resolve_empresa(
-                    session,
-                    cif=emp_cif,
-                    web=emp_web,
-                    empresa_nombre=emp_name,
-                    auto_create=auto_create
-                )
-                
-                if resolution:
-                    # Strict consistency check
-                    if STRICT_IMPORT and resolution.matched_by != "new":
-                        emp = resolution.empresa
-                        # If we matched by CIF, but Names are provided and different, warn or skip
-                        if emp_cif and emp.cif == emp_cif.strip():
-                            if emp_name and normalize_company_name(emp.nombre).lower() != normalize_company_name(emp_name).lower():
-                                logger.warning(f"Row {row_idx}: Potential mismatch. Row Name '{emp_name}' != DB Name '{emp.nombre}' for CIF {emp_cif}. Using DB entity.")
-
-                    empresa_id = resolution.empresa.id
-            
-            if not empresa_id:
+            # 1. Identity Check (Mandatory: Email OR Phone OR LinkedIn)
+            if not has_contact_identifier(row):
                 skipped += 1
-                logger.warning(f"Row {row_idx}: Skipped due to missing/unresolvable Empresa info.")
+                logger.warning(f"Row {row_idx}: Skipped - Missing contact identifiers (email, phone, or linkedin).")
                 continue
 
-            # 2. Build Payload
+            # 2. Empresa Resolution (Mandatory)
+            empresa_id = await resolve_empresa_for_contact(session, row)
+            if not empresa_id:
+                skipped += 1
+                logger.warning(f"Row {row_idx}: Skipped - Could not resolve or create a valid Empresa.")
+                continue
+
+            # 3. Build Payload
             payload = {"empresa_id": empresa_id}
             
-            cargo_id_raw = row.get("cargo_id")
-            if cargo_id_raw:
-                try: payload["cargo_id"] = int(cargo_id_raw)
-                except ValueError: pass
-
+            # Map standard fields
             for col in CONTACT_VIEW_FIELDS:
                 val = row.get(col)
                 if val is not None and val != "":
                     payload[col] = val
-                    
+            
+            # Handle M2M
             for m2m_key, config in M2M_FIELD_MAP.items():
                 val = row.get(m2m_key)
                 if val:
                     try:
-                        # Append strategy: merge with existing (handled by upsert logic if from_enrichment=True or similar, 
-                        # but here we pass it to ContactCreate which goes to upsert_contact)
                         payload[m2m_key] = [int(x.strip()) for x in str(val).split(",") if x.strip()]
-                        payload["merge_lists"] = True # Explicitly signal non-destructive merge
+                        payload["merge_lists"] = True
                     except Exception:
                         pass
 
             data = ContactCreate(**payload)
             
-            # 3. Call Service
+            # 4. Upsert (Deterministic Resolution hierarchy handled inside service)
             contact, action = await contact_service.upsert_contact(session, data, auto_commit=False)
             
-            # 4. Immediate Constraint Check
+            if not contact:
+                skipped += 1
+                logger.error(f"Row {row_idx}: Upsert failed to return a contact entity.")
+                continue
+
+            # 5. Flush per row to catch constraints without breaking batch
             await session.flush()
 
             if action == "created":
@@ -127,10 +160,13 @@ async def import_contacts_from_rows(session: AsyncSession, rows: list[dict]) -> 
                 skipped += 1
 
         except Exception as e:
+            # Row-level isolation: rollback current row state and continue
             await session.rollback()
             skipped += 1
-            logger.error(f"Failed to import contact row {row_idx} ({row.get('email', 'N/A')}): {str(e)}")
+            contact_ref = row.get('email') or row.get('phone') or row.get('linkedin', 'N/A')
+            logger.error(f"Row {row_idx} ({contact_ref}): Failed during import: {str(e)}")
 
+    # Final commit for the successful rows in the batch
     await session.commit()
     return {"created": created, "updated": updated, "skipped": skipped}
 

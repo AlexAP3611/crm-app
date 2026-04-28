@@ -52,7 +52,10 @@ class IngestEmpresaInput(BaseModel):
     sector: list[str] = []
     vertical: list[str] = []
     producto: list[str] = []
-    contactos: list[IngestContactInput] = []
+    contactos: list[IngestContactInput] = Field(
+        default_factory=list,
+        description="Lista de contactos asociados a la empresa"
+    )
 
 class IngestRequest(BaseModel):
     empresas: list[IngestEmpresaInput]

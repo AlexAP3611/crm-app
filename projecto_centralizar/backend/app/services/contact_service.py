@@ -18,7 +18,7 @@ from app.services.contact_mapper import build_contact_kwargs
 from app.domain.relations import M2M_FIELD_MAP
 from app.core.enrichment.rules import ENRICHMENT_PROTECTED_FIELDS
 from app.core.utils import update_empresa_snapshot_in_contact
-from app.core.resolve import resolve_contact, normalize_email, normalize_linkedin
+from app.core.resolve import normalize_email, normalize_linkedin, normalize_phone
 
 
 async def _load_contact(session: AsyncSession, contact_id: int) -> Contact | None:
@@ -107,15 +107,27 @@ async def upsert_contact(
 
     # Centralized update logic for both Happy Path and Recovery Path
     async def apply_update(contact_obj: Contact):
+        """
+        Applies non-destructive updates.
+        Existing valid fields are NOT overwritten by null/empty values.
+        """
         for field, value in kwargs.items():
-            if value is None:
+            # Skip M2M or complex fields handled separately
+            if field in ["notes", "merge_lists", "remove_lists"]:
                 continue
-            # Protect email and phone: don't overwrite an existing valid value
-            if field == "email" and contact_obj.email:
+                
+            new_val = value
+            existing_val = getattr(contact_obj, field, None)
+
+            # Non-destructive rule: don't overwrite existing valid data with nothing
+            if new_val is None or (isinstance(new_val, str) and not new_val.strip()):
                 continue
-            if field == "phone" and contact_obj.phone:
+
+            # Skip if same value
+            if existing_val == new_val:
                 continue
-            setattr(contact_obj, field, value)
+                
+            setattr(contact_obj, field, new_val)
 
         if data.notes:
             contact_obj.notes = deep_merge(contact_obj.notes, data.notes)
@@ -135,18 +147,44 @@ async def upsert_contact(
             model_class = globals()[config["model"]]
             await _sync_m2m(session, contact_obj, model_class, ids_list, config["relation_name"], False, False)
 
-    # ── 3. Resolve identity ──
-    resolution = await resolve_contact(
-        session,
-        email=norm_email,
-        linkedin=norm_linkedin,
-    )
-
+    # ── 3. Resolve identity (Strict Hierarchy: Email > LinkedIn > Phone) ──
     contact: Contact | None = None
     action = "skipped"
+    match_type = None
 
-    if resolution.confidence == "high":
-        contact = resolution.contact
+    # Priority 1: EMAIL
+    if norm_email:
+        contact = (await session.execute(
+            select(Contact).where(func.lower(Contact.email) == norm_email)
+        )).scalar_one_or_none()
+        if contact: match_type = "email"
+
+    # Priority 2: LINKEDIN
+    if not contact and norm_linkedin:
+        contact = (await session.execute(
+            select(Contact).where(Contact.linkedin_normalized == norm_linkedin)
+        )).scalar_one_or_none()
+        if contact: match_type = "linkedin"
+
+    # Priority 3: PHONE (Fallback only if Email/LinkedIn are missing or not matched)
+    if not contact:
+        norm_phone = normalize_phone(data.phone)
+        if norm_phone:
+            # Query-based fallback
+            results = (await session.execute(
+                select(Contact).where(Contact.phone == norm_phone)
+            )).scalars().all()
+            
+            if len(results) == 1:
+                contact = results[0]
+                match_type = "phone"
+            elif len(results) > 1:
+                # Ambiguity detected -> Safe choice: Create new (handled below)
+                contact = None
+
+    if contact:
+        # Load relations for update
+        contact = await _load_contact(session, contact.id)
         await apply_update(contact)
         action = "updated"
 
@@ -158,7 +196,7 @@ async def upsert_contact(
         return await _load_contact(session, final_id), action
 
     try:
-        if not norm_email and not norm_linkedin:
+        if not norm_email and not norm_linkedin and not normalize_phone(data.phone):
             return None, "skipped"
 
         contact = Contact(**kwargs, notes=data.notes)
@@ -193,28 +231,19 @@ async def upsert_contact(
     except IntegrityError:
         await session.rollback()
         
-        query = select(Contact.id)
+        # Recovery path: re-query after collision
+        contact = None
         if norm_email:
-            query = query.where(Contact.email == norm_email)
-        elif norm_linkedin:
-            query = query.where(Contact.linkedin_normalized == norm_linkedin)
-        else:
-            raise
+            contact = (await session.execute(select(Contact).where(Contact.email == norm_email))).scalar_one_or_none()
+        if not contact and norm_linkedin:
+            contact = (await session.execute(select(Contact).where(Contact.linkedin_normalized == norm_linkedin))).scalar_one_or_none()
             
-        existing_id = (await session.execute(query)).scalar_one_or_none()
-        
-        if existing_id:
-            contact = await _load_contact(session, existing_id)
-            if contact:
-                await apply_update(contact)
-                final_id = contact.id
-                if auto_commit:
-                    await session.commit()
-                else:
-                    await session.flush()
-                return await _load_contact(session, final_id), "updated"
-            else:
-                raise
+        if contact:
+            contact = await _load_contact(session, contact.id)
+            await apply_update(contact)
+            if auto_commit: await session.commit()
+            else: await session.flush()
+            return await _load_contact(session, contact.id), "updated"
         else:
             raise
 
