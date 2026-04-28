@@ -315,14 +315,22 @@ export default function ContactsPage() {
                     <p className="text-on-surface-variant font-medium">Gestionando {total?.toLocaleString() || 0} contactos en el CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <a href="/templates/contactos_template.csv" download
+                    <button onClick={() => {
+                        const link = document.createElement("a");
+                        link.href = "/templates/contacts_import_template.xlsx";
+                        link.download = "contacts_import_template.xlsx";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }}
                         className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
                     >
                         <span className="material-symbols-outlined text-lg">download</span>
                         Plantilla
-                    </a>
+                    </button>
                     <CSVExport filters={filters} icon="ios_share" className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer" label="Exportar contactos" />
-                    <button onClick={() => setShowImportModal(true)} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
+                    <button onClick={() => setShowImportModal(true)}
+                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
                         <span className="material-symbols-outlined text-lg">input</span>
                         Importar contactos
                     </button>

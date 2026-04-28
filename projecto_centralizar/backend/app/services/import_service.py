@@ -10,6 +10,7 @@ from app.core.view_fields.contact_view_fields import CONTACT_VIEW_FIELDS
 from app.core.view_fields.empresa_view_fields import EMPRESA_VIEW_FIELDS
 from app.domain.relations import M2M_FIELD_MAP, EMPRESA_M2M_FIELD_MAP
 from app.core.domain_mappers.empresa_mapper import normalize_empresa_row
+from app.core.domain_mappers.contact_mapper import normalize_contact_row
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +49,9 @@ def has_contact_identifier(row: dict) -> bool:
     """
     Deterministic check: contact must have at least one valid identity channel.
     """
-    email = safe_str(row.get("email"))
-    phone = safe_str(row.get("phone"))
-    linkedin = safe_str(row.get("linkedin"))
+    email = row.get("email")
+    phone = row.get("phone")
+    linkedin = row.get("linkedin")
     return bool(email or phone or linkedin)
 
 async def resolve_empresa_for_contact(session: AsyncSession, row: dict, mode: str = "commit") -> tuple[int | None, str | None]:
@@ -66,9 +67,9 @@ async def resolve_empresa_for_contact(session: AsyncSession, row: dict, mode: st
         except (ValueError, TypeError):
             pass
 
-    emp_name = safe_str(row.get("empresa_nombre") or row.get("empresa"))
-    emp_cif = safe_str(row.get("empresa_cif") or row.get("cif"))
-    emp_web = safe_str(row.get("empresa_web") or row.get("web"))
+    emp_name = row.get("empresa_nombre")
+    emp_cif = row.get("empresa_cif")
+    emp_web = row.get("empresa_web")
 
     if not (emp_cif or emp_web or emp_name):
         return None, None
@@ -121,6 +122,9 @@ async def import_contacts_from_rows(
 
     for row_idx, row in enumerate(rows):
         try:
+            # 0. Normalize Row
+            row = normalize_contact_row(row)
+
             # 1. Identity Check
             if not has_contact_identifier(row):
                 summary["skipped"] += 1
