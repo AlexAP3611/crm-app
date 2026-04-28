@@ -79,23 +79,46 @@ async def import_csv(
 ):
     """
     Import contacts from a CSV or XLSX file.
-    The file should have columns matching the Contact model fields.
-    Relationships like id and empresa_id should be integers.
     """
-    # Allowed types: CSV, Excel (legacy), Excel (modern)
     allowed_types = [
         "text/csv", 
         "application/vnd.ms-excel", 
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     ]
     if file.content_type not in allowed_types:
-        # Fallback check for extensions in case content_type is generic
         if not (file.filename.lower().endswith(".csv") or file.filename.lower().endswith(".xlsx")):
             raise HTTPException(status_code=400, detail="Invalid file type. Only CSV and XLSX allowed.")
 
     content = await file.read()
     from app.services import import_service
     rows = csv_service.parse_file(content, file.filename)
-    result = await import_service.import_contacts_from_rows(db, rows)
+    result = await import_service.import_contacts_from_rows(db, rows, mode="commit")
 
     return result
+
+@router.post("/import/preview", summary="Preview Contact Import Impact")
+async def preview_import_csv(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Simulate contact import without database persistence.
+    Returns counts of created/updated/skipped rows and skip reasons.
+    """
+    allowed_types = [
+        "text/csv", 
+        "application/vnd.ms-excel", 
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ]
+    if file.content_type not in allowed_types:
+        if not (file.filename.lower().endswith(".csv") or file.filename.lower().endswith(".xlsx")):
+            raise HTTPException(status_code=400, detail="Invalid file type.")
+
+    content = await file.read()
+    from app.services import import_service
+    rows = csv_service.parse_file(content, file.filename)
+    
+    # Run in preview mode (zero flush/commit guaranteed)
+    summary = await import_service.import_contacts_from_rows(db, rows, mode="preview")
+    
+    return summary

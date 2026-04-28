@@ -66,6 +66,44 @@ async def _sync_m2m(session: AsyncSession, contact: Contact, ModelClass, ids_lis
         setattr(contact, relation_name, db_items)
 
 
+async def resolve_contact(session: AsyncSession, data: ContactCreate) -> Contact | None:
+    """
+    Implements the same resolution hierarchy as upsert_contact but without any writes.
+    Deterministic Hierarchy: Email > LinkedIn > Phone.
+    """
+    norm_email = normalize_email(data.email) if data.email else None
+    norm_linkedin = normalize_linkedin(data.linkedin) if data.linkedin else None
+
+    # Priority 1: EMAIL
+    if norm_email:
+        result = await session.execute(
+            select(Contact).where(func.lower(Contact.email) == norm_email)
+        )
+        contact = result.scalar_one_or_none()
+        if contact: return contact
+
+    # Priority 2: LINKEDIN
+    if norm_linkedin:
+        result = await session.execute(
+            select(Contact).where(Contact.linkedin_normalized == norm_linkedin)
+        )
+        contact = result.scalar_one_or_none()
+        if contact: return contact
+
+    # Priority 3: PHONE
+    norm_phone = normalize_phone(data.phone)
+    if norm_phone:
+        results = (await session.execute(
+            select(Contact).where(Contact.phone == norm_phone)
+        )).scalars().all()
+        
+        if len(results) == 1:
+            return results[0]
+        # Ambiguity detected -> No resolution
+        
+    return None
+
+
 async def upsert_contact(
     session: AsyncSession,
     data: ContactCreate,

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { useContacts, useLookups } from '../hooks/useContacts'
 import ContactModal from '../components/ContactModal'
-import { CSVImport, CSVExport } from '../components/CSV'
+import ImportContactsModal from '../components/ImportContactsModal'
+import { CSVExport } from '../components/CSV'
 import { api, buildScope } from '../api/client'
 import RowMenu from '../components/RowMenu'
 import Checkbox from '../components/Checkbox'
@@ -314,6 +315,12 @@ export default function ContactsPage() {
                     <p className="text-on-surface-variant font-medium">Gestionando {total?.toLocaleString() || 0} contactos en el CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <a href="/templates/contactos_template.csv" download
+                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                    >
+                        <span className="material-symbols-outlined text-lg">download</span>
+                        Plantilla
+                    </a>
                     <CSVExport filters={filters} icon="ios_share" className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer" label="Exportar contactos" />
                     <button onClick={() => setShowImportModal(true)} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
                         <span className="material-symbols-outlined text-lg">input</span>
@@ -393,7 +400,7 @@ export default function ContactsPage() {
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">Estatus (Enrichment)</label>
                         <select
                             value={filters.is_enriched === true ? 'true' : filters.is_enriched === false ? 'false' : ''}
-                            onChange={e => updateFilter('is_enriched', e.target.value === '' ? '' : e.target.value === 'true' )}
+                            onChange={e => updateFilter('is_enriched', e.target.value === '' ? '' : e.target.value === 'true')}
                             className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer"
                         >
                             <option value="">Cualquier estatus</option>
@@ -609,7 +616,10 @@ export default function ContactsPage() {
 
             {/* CSV Import Modal */}
             {showImportModal && (
-                <CSVImport onClose={() => setShowImportModal(false)} onImported={() => { setShowImportModal(false); refresh() }} />
+                <ImportContactsModal
+                    onClose={() => setShowImportModal(false)}
+                    onImported={() => { refresh() }}
+                />
             )}
 
         </div>
