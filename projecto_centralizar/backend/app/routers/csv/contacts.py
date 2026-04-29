@@ -94,7 +94,12 @@ async def import_csv(
     rows = csv_service.parse_file(content, file.filename)
     result = await import_service.import_contacts_from_rows(db, rows, mode="commit")
 
-    return result
+    # Map ImportSummary → legacy dict contract for backward compatibility
+    return {
+        "created": result.to_create,
+        "updated": result.to_update,
+        "skipped": result.skipped,
+    }
 
 @router.post("/import/preview", summary="Preview Contact Import Impact")
 async def preview_import_csv(

@@ -14,6 +14,12 @@ CONTACT_ALIASES = {
     "phone": ["phone", "telefono", "tel", "mobile", "cellphone"],
     "linkedin": ["linkedin", "linkedin_url", "url_linkedin", "linkedin profile"],
     
+    # Cargo (texto libre → se resuelve vía cargo_service en import pipeline)
+    "cargo": ["cargo", "job_title", "puesto", "titulo", "position", "role", "job title"],
+
+    # Campaña (texto libre → se resuelve vía campaign_service en import pipeline)
+    "campaña": ["campaña", "campaign", "campana", "campaing", "campaign_name"],
+
     # Associated Empresa fields (normalized for resolve_empresa_for_contact)
     "empresa_nombre": ["empresa", "company", "company_name", "nombre_empresa", "empresa_nombre"],
     "empresa_cif": ["cif", "vat", "cif_empresa", "empresa_cif"],

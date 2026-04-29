@@ -5,8 +5,11 @@ from app.models.campaign import Campaign
 from app.core.exceptions import DuplicateEntityError
 
 def normalize_name(name: str) -> str:
-    """Synchronous normalization."""
-    return name.strip()
+    """Normalize campaign name: strip whitespace and collapse internal spaces."""
+    import re
+    name = name.strip()
+    name = re.sub(r'\s+', ' ', name)
+    return name
 
 async def get_by_name(session: AsyncSession, name: str) -> Campaign | None:
     """Case-insensitive lookup matching DB index."""

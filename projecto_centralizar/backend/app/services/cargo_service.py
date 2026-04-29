@@ -41,6 +41,11 @@ def _get_canonical_name(raw_value: str) -> str | None:
         return None
     return ALIAS_MAP.get(norm, norm)
 
+def normalize_cargo_name(raw_title: str) -> str | None:
+    """Public API: normalize a raw cargo title to its canonical form.
+    Used by import pipeline for cache key computation and preview logic."""
+    return _get_canonical_name(raw_title)
+
 def _get_display_name(raw_value: str, norm: str) -> str:
     # Use title case if it was an alias expansion, otherwise keep original casing (trimmed)
     return norm.title() if norm != normalize_job_title(raw_value) else raw_value.strip()

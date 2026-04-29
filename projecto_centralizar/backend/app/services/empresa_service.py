@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
 from app.schemas.empresa import EmpresaListResponse, EmpresaFilterParams, EmpresaCreate
-from app.core.utils import normalize_company_name
+from app.core.utils import normalize_company_name, normalize_web
 
 class ResolveEmpresaResult(NamedTuple):
     empresa: Empresa
@@ -24,32 +24,36 @@ async def resolve_empresa(
     Resolves an Empresa by ID, CIF, Website, or Name.
     Strict priority: CIF > Web > Nombre.
     Email is NOT used for identity resolution.
-    Returns ResolveEmpresaResult. If auto_create=False and not found, returns None.
-    If auto_create=True, always returns ResolveEmpresaResult.
     """
     if empresa_id:
         emp = (await db.execute(select(Empresa).where(Empresa.id == empresa_id))).scalar_one_or_none()
         if emp:
-            return ResolveEmpresaResult(empresa=emp, created=False, matched_by="cif") # Default to cif or generic for id match
+            return ResolveEmpresaResult(empresa=emp, created=False, matched_by="cif")
             
     existing_emp = None
     matched_by = None
     
-    if cif:
+    # 1. CIF Resolution (Primary)
+    if cif and cif.strip():
         existing_emp = (await db.execute(select(Empresa).where(Empresa.cif == cif.strip()))).scalar_one_or_none()
         if existing_emp:
             matched_by = "cif"
     
+    # 2. WEB Resolution (Normalized)
     if not existing_emp and web:
-        existing_emp = (await db.execute(select(Empresa).where(Empresa.web == web.strip()))).scalar_one_or_none()
-        if existing_emp:
-            matched_by = "web"
+        norm_web = normalize_web(web)
+        if norm_web:
+            existing_emp = (await db.execute(select(Empresa).where(Empresa.web == norm_web))).scalar_one_or_none()
+            if existing_emp:
+                matched_by = "web"
         
+    # 3. NAME Resolution (Normalized)
     if not existing_emp and empresa_nombre:
         norm_name = normalize_company_name(empresa_nombre)
-        existing_emp = (await db.execute(select(Empresa).where(func.lower(Empresa.nombre) == norm_name.lower()))).scalar_one_or_none()
-        if existing_emp:
-            matched_by = "name"
+        if norm_name:
+            existing_emp = (await db.execute(select(Empresa).where(func.lower(Empresa.nombre) == norm_name.lower()))).scalar_one_or_none()
+            if existing_emp:
+                matched_by = "name"
 
     if existing_emp:
         return ResolveEmpresaResult(empresa=existing_emp, created=False, matched_by=matched_by)

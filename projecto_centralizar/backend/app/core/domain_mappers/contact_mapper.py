@@ -7,7 +7,8 @@ from app.core.mappings.contact_aliases import CONTACT_ALIASES
 # Type-aware field categorization
 STRING_FIELDS = {
     "first_name", "last_name", "email", "phone", "linkedin",
-    "empresa_nombre", "empresa_cif", "empresa_web"
+    "empresa_nombre", "empresa_cif", "empresa_web",
+    "cargo", "campaña"
 }
 NUMERIC_FIELDS = set()  # Reserved for future use
 
