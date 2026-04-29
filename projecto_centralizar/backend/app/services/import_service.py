@@ -227,69 +227,70 @@ async def import_empresas_from_rows(
 
     for row_idx, row in enumerate(rows):
         try:
-            mapped = normalize_empresa_row(row)
-            nombre = mapped.get("nombre")
-            if not is_valid_name(nombre):
-                summary["skipped"] += 1
-                summary["skip_details"].append(SkipDetail(row=row_idx, reason="Missing or invalid 'nombre' (placeholder)"))
-                continue
+            # Savepoint per row: if one row fails, only that row is rolled back
+            async with session.begin_nested():
+                mapped = normalize_empresa_row(row)
+                nombre = mapped.get("nombre")
+                if not is_valid_name(nombre):
+                    summary["skipped"] += 1
+                    summary["skip_details"].append(SkipDetail(row=row_idx, reason="Missing or invalid 'nombre' (placeholder)"))
+                    continue
 
-            payload = {}
-            for col in EMPRESA_VIEW_FIELDS:
-                val = mapped.get(col)
-                if val is not None and val != "":
-                    if col == "web": payload[col] = normalize_web(val)
-                    elif col == "nombre": payload[col] = normalize_company_name(val)
-                    elif col == "numero_empleados":
-                        try: payload[col] = int(val)
-                        except ValueError: pass
-                    elif col == "facturacion":
-                        try: payload[col] = float(val)
-                        except ValueError: pass
-                    else: payload[col] = val
+                payload = {}
+                for col in EMPRESA_VIEW_FIELDS:
+                    val = mapped.get(col)
+                    if val is not None and val != "":
+                        if col == "web": payload[col] = normalize_web(val)
+                        elif col == "nombre": payload[col] = normalize_company_name(val)
+                        else: payload[col] = val
 
-            # Resolve readable names (In-memory/Read-only for preview)
-            sector_ids, vertical_ids, product_ids = [], [], []
-            if mapped.get("sector_name"):
-                sector = await sector_service.get_or_create(session, mapped["sector_name"], auto_create=(mode=="commit"))
-                if sector: sector_ids = [sector.id]
-            if mapped.get("vertical_name"):
-                vertical = await vertical_service.get_or_create(session, mapped["vertical_name"], auto_create=(mode=="commit"))
-                if vertical: vertical_ids = [vertical.id]
-            if mapped.get("product_name"):
-                product = await product_service.get_or_create(session, mapped["product_name"], auto_create=(mode=="commit"))
-                if product: product_ids = [product.id]
+                # Resolve readable names (In-memory/Read-only for preview)
+                sector_ids, vertical_ids, product_ids = [], [], []
+                if mode == "commit" and mapped.get("sector_name"):
+                    sector = await sector_service.get_or_create(session, mapped["sector_name"])
+                    if sector: sector_ids = [sector.id]
+                if mode == "commit" and mapped.get("vertical_name"):
+                    vertical = await vertical_service.get_or_create(session, mapped["vertical_name"])
+                    if vertical: vertical_ids = [vertical.id]
+                if mode == "commit" and mapped.get("product_name"):
+                    product = await product_service.get_or_create(session, mapped["product_name"])
+                    if product: product_ids = [product.id]
 
-            data = EmpresaCreate(**payload, sector_ids=sector_ids, vertical_ids=vertical_ids, product_ids=product_ids)
+                data = EmpresaCreate(**payload, sector_ids=sector_ids, vertical_ids=vertical_ids, product_ids=product_ids)
 
-            if mode == "preview":
-                # Logic Replay
-                existing = await empresa_service.resolve_empresa(session, cif=data.cif, web=data.web, empresa_nombre=data.nombre, auto_create=False)
-                if existing:
-                    summary["to_update"] += 1
-                else:
+                if mode == "preview":
+                    # Logic Replay
+                    existing = await empresa_service.resolve_empresa(session, cif=data.cif, web=data.web, empresa_nombre=data.nombre, auto_create=False)
+                    if existing:
+                        summary["to_update"] += 1
+                    else:
+                        summary["to_create"] += 1
+                        summary["empresa_preview"].append(EmpresaPreview(name=data.nombre, action="would_create"))
+                    continue
+
+                # Commit Mode
+                empresa, action = await empresa_service.upsert_empresa(session, data)
+                if action == "created":
                     summary["to_create"] += 1
-                    summary["empresa_preview"].append(EmpresaPreview(name=data.nombre, action="would_create"))
-                continue
+                elif action == "updated":
+                    summary["to_update"] += 1
 
-            # Commit Mode
-            empresa, action = await empresa_service.upsert_empresa(session, data)
-            if action == "created":
-                summary["to_create"] += 1
-            elif action == "updated":
-                summary["to_update"] += 1
-            
-            m2m_sync_queue.append((empresa, data))
+                m2m_sync_queue.append((empresa, data))
 
         except Exception as e:
-            if mode == "commit": await session.rollback()
             summary["skipped"] += 1
             summary["skip_details"].append(SkipDetail(row=row_idx, reason=str(e)))
             logger.error(f"Empresa row {row_idx}: {str(e)}")
 
     if mode == "commit":
-        await session.flush()
-        for emp, data_in in m2m_sync_queue:
-            await empresa_mapper._sync_empresa_m2m(session, emp.id, data_in.sector_ids, data_in.vertical_ids, data_in.product_ids)
+        try:
+            await session.flush()
+            for emp, data_in in m2m_sync_queue:
+                await empresa_mapper._sync_empresa_m2m(session, emp.id, data_in.sector_ids, data_in.vertical_ids, data_in.product_ids)
+            await session.commit()
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Empresa import commit failed: {e}")
+            raise
 
     return ImportSummary(**summary)
