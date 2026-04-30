@@ -306,6 +306,21 @@ export const api = {
             headers: importHeaders,
         }).then((r) => r.json())
     },
+    previewImportEmpresas: (file) => {
+        const form = new FormData()
+        form.append('file', file)
+        const importHeaders = {}
+        const token = getToken()
+        if (token) {
+            importHeaders['Authorization'] = `Bearer ${token}`
+        }
+        return fetch(`${BASE_URL}/csv/empresas/import/preview`, {
+            method: 'POST',
+            body: form,
+            credentials: 'include',
+            headers: importHeaders,
+        }).then((r) => r.json())
+    },
     exportEmpresasCsvUrl: (params = {}) => {
         const qs = new URLSearchParams(
             Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')

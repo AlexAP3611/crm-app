@@ -9,7 +9,8 @@ import MultiSelect from '../components/MultiSelect'
 import ContactModal from '../components/ContactModal'
 import Checkbox from '../components/Checkbox'
 import { settingsService } from '../api/settingsService'
-import { EmpresaCSVImport, EmpresaCSVExport } from '../components/CSV'
+import { EmpresaCSVExport } from '../components/CSV'
+import ImportEmpresasModal from '../components/ImportEmpresasModal'
 
 
 function EmpresaConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
@@ -1192,22 +1193,13 @@ export default function EmpresasPage() {
 
             {/* CSV Import Modal */}
             {showImportModal && (
-                <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[100] flex justify-center items-center p-4" onClick={() => setShowImportModal(false)}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-stone-200/70" onClick={e => e.stopPropagation()}>
-                        <div className="px-6 py-5 flex items-center justify-between border-b border-stone-100">
-                            <h2 className="font-bold text-stone-900 text-lg">Importar empresas</h2>
-                            <button onClick={() => setShowImportModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg text-stone-400 hover:bg-stone-100 transition-colors">
-                                <span className="material-symbols-outlined text-lg">close</span>
-                            </button>
-                        </div>
-                        <div className="p-6">
-                            <EmpresaCSVImport onImported={() => {
-                                setShowImportModal(false);
-                                loadEmpresas(debouncedFilters);
-                            }} />
-                        </div>
-                    </div>
-                </div>
+                <ImportEmpresasModal 
+                    onClose={() => setShowImportModal(false)}
+                    onImported={() => {
+                        setShowImportModal(false);
+                        loadEmpresas(debouncedFilters);
+                    }}
+                />
             )}
         </div>
     )

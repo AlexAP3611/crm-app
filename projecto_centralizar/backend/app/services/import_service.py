@@ -367,38 +367,51 @@ async def import_empresas_from_rows(
             # Resolve M2M entities (get-or-create using cache)
             resolved_sectors = []
             if s_name := mapped.get("sector_name"):
-                sector = await sector_service.get_or_create(session, s_name, cache=sector_cache)
-                if sector: resolved_sectors = [sector]
+                if mode == "commit":
+                    sector = await sector_service.get_or_create(session, s_name, cache=sector_cache)
+                    if sector: resolved_sectors = [sector]
                 
                 if mode == "preview":
                     key = sector_service.normalize_name(s_name).lower()
                     if key not in preview_new_sectors:
                         preview_new_sectors.add(key)
                         existing = key in sector_cache
+                        if not existing:
+                            # DB lookup without create
+                            existing_obj = await sector_service.prefill_sector_cache(session, {s_name})
+                            existing = bool(existing_obj)
                         summary["sector_preview"].append(SectorPreview(name=s_name, action="exists" if existing else "would_create"))
 
             resolved_verticals = []
             if v_name := mapped.get("vertical_name"):
-                vertical = await vertical_service.get_or_create(session, v_name, cache=vertical_cache)
-                if vertical: resolved_verticals = [vertical]
+                if mode == "commit":
+                    vertical = await vertical_service.get_or_create(session, v_name, cache=vertical_cache)
+                    if vertical: resolved_verticals = [vertical]
                 
                 if mode == "preview":
                     key = vertical_service.normalize_name(v_name).lower()
                     if key not in preview_new_verticals:
                         preview_new_verticals.add(key)
                         existing = key in vertical_cache
+                        if not existing:
+                            existing_obj = await vertical_service.prefill_vertical_cache(session, {v_name})
+                            existing = bool(existing_obj)
                         summary["vertical_preview"].append(VerticalPreview(name=v_name, action="exists" if existing else "would_create"))
 
             resolved_products = []
             if p_name := mapped.get("product_name"):
-                product = await product_service.get_or_create(session, p_name, cache=product_cache)
-                if product: resolved_products = [product]
+                if mode == "commit":
+                    product = await product_service.get_or_create(session, p_name, cache=product_cache)
+                    if product: resolved_products = [product]
                 
                 if mode == "preview":
                     key = product_service.normalize_name(p_name).lower()
                     if key not in preview_new_products:
                         preview_new_products.add(key)
                         existing = key in product_cache
+                        if not existing:
+                            existing_obj = await product_service.prefill_product_cache(session, {p_name})
+                            existing = bool(existing_obj)
                         summary["product_preview"].append(ProductPreview(name=p_name, action="exists" if existing else "would_create"))
 
             # Build Empresa Payload
