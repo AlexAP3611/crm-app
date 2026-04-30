@@ -12,7 +12,7 @@ from app.services import cargo_service, contact_service
 
 logger = logging.getLogger(__name__)
 
-async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[IngestContactInput], cargo_cache: dict[str, any]):
+async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[IngestContactInput], cargo_cache: dict[str, any], source: str):
     created = 0
     updated = 0
     skipped = 0
@@ -31,6 +31,10 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
         cargo = await cargo_service.get_or_create_cargo(db, contact_in.job_title, cache=cargo_cache)
         cargo_id = cargo.id if cargo else None
 
+        # NEW: Capture fields that are not in the predefined schema (behave like Bulk Enrich)
+        extra_data = contact_in.model_extra
+        notes_payload = {source: extra_data} if extra_data else None
+
         contact_data = ContactCreate(
             empresa_id=empresa_id,
             first_name=contact_in.first_name,
@@ -39,7 +43,8 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
             linkedin=linkedin,
             job_title=contact_in.job_title,
             cargo_id=cargo_id,
-            phone=contact_in.phone
+            phone=contact_in.phone,
+            notes=notes_payload
         )
         try:
             contact, action = await contact_service.upsert_contact(
@@ -123,7 +128,7 @@ async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
             empresa_processed += 1
             
             # Pass cargo_cache to maintain session-level performance
-            created, updated, skipped = await process_contacts(db, empresa.id, emp_in.contactos, cargo_cache)
+            created, updated, skipped = await process_contacts(db, empresa.id, emp_in.contactos, cargo_cache, body.source)
             contact_created += created
             contact_updated += updated
             contact_skipped += skipped

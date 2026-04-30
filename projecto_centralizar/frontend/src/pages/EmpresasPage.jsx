@@ -589,6 +589,19 @@ export default function EmpresasPage() {
                     <p className="text-on-surface-variant font-medium">Gestionando {totalEmpresas.toLocaleString()} entidades corporativas en Prisma CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button onClick={() => {
+                        const link = document.createElement("a");
+                        link.href = "/templates/empresas_import_template.xlsx";
+                        link.download = "empresas_import_template.xlsx";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }}
+                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                    >
+                        <span className="material-symbols-outlined text-lg">download</span>
+                        Plantilla
+                    </button>
                     <EmpresaCSVExport filters={filters} icon="ios_share" className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer" label="Exportar empresas" />
                     <button onClick={() => setShowImportModal(true)} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
                         <span className="material-symbols-outlined text-lg">input</span>

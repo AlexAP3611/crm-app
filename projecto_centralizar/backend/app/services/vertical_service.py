@@ -17,6 +17,10 @@ async def get_or_create(session: AsyncSession, name: str, cache: dict[str, Verti
     """Idempotent get-or-create for verticals."""
     return await _service.get_or_create(session, name, cache=cache)
 
+async def create_strict(session: AsyncSession, name: str) -> Vertical:
+    """Strict creation for verticals."""
+    return await _service.create_strict(session, name)
+
 async def get_by_name(session: AsyncSession, name: str) -> Vertical | None:
     """Legacy lookup support."""
     norm = normalize_name(name)

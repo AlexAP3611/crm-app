@@ -58,6 +58,7 @@ class IngestEmpresaInput(BaseModel):
     )
 
 class IngestRequest(BaseModel):
+    source: str = "enrichment_ingest"
     empresas: list[IngestEmpresaInput]
 
 class IngestResponse(BaseModel):

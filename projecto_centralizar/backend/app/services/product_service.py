@@ -17,6 +17,10 @@ async def get_or_create(session: AsyncSession, name: str, cache: dict[str, Produ
     """Idempotent get-or-create for products."""
     return await _service.get_or_create(session, name, cache=cache)
 
+async def create_strict(session: AsyncSession, name: str) -> Product:
+    """Strict creation for products."""
+    return await _service.create_strict(session, name)
+
 async def get_by_name(session: AsyncSession, name: str) -> Product | None:
     """Legacy lookup support."""
     norm = normalize_name(name)

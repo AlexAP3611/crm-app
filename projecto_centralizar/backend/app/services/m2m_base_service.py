@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from app.database import Base
+from app.core.exceptions import DuplicateEntityError
 
 ModelT = TypeVar("ModelT", bound=Base)
 
@@ -95,13 +96,7 @@ class M2MEntityService:
     ) -> ModelT | None:
         """
         Idempotent get-or-create for a single entity name.
-        
-        Flow:
-          1. Normalize → compute cache key
-          2. Check caller-owned cache (fast path)
-          3. DB select (medium path)
-          4. DB insert with race-condition handling (slow path)
-          5. Populate cache for subsequent calls
+        Uses create_strict internally if the entity is not found.
         """
         normalized = self.normalize_name(raw_name)
         if not normalized:
@@ -115,30 +110,57 @@ class M2MEntityService:
 
         # 2. DB lookup
         result = await session.execute(
-            select(self.model).where(
-                func.lower(self.model.name) == key
-            )
+            select(self.model).where(func.lower(self.model.name) == key)
         )
         entity = result.scalars().first()
 
         if not entity:
-            # 3. Attempt to create
+            # 3. Attempt to create via create_strict
             try:
-                async with session.begin_nested():
-                    entity = self.model(name=normalized)
-                    session.add(entity)
-                    await session.flush()
-            except IntegrityError:
-                # 4. Race condition fallback: someone else created it
+                entity = await self.create_strict(session, raw_name)
+            except (DuplicateEntityError, ValueError):
+                # Race condition or validation error: try lookup one last time
                 result = await session.execute(
-                    select(self.model).where(
-                        func.lower(self.model.name) == key
-                    )
+                    select(self.model).where(func.lower(self.model.name) == key)
                 )
                 entity = result.scalars().first()
 
-        # 5. Populate cache
+        # 4. Populate cache
         if cache is not None and entity:
             cache[key] = entity
 
         return entity
+
+    async def create_strict(
+        self, session: AsyncSession, raw_name: str
+    ) -> ModelT:
+        """
+        Strict creation for UI/Manual input.
+        Raises DuplicateEntityError if already exists (case-insensitive).
+        """
+        if not raw_name:
+            raise ValueError("El nombre no puede estar vacío")
+
+        normalized = self.normalize_name(raw_name)
+        if not normalized:
+            raise ValueError("El nombre no puede estar vacío")
+
+        key = normalized.lower()
+
+        # 1. Pre-emptive check
+        result = await session.execute(
+            select(self.model).where(func.lower(self.model.name) == key)
+        )
+        if result.scalars().first():
+            raise DuplicateEntityError(f"El valor '{normalized}' ya existe")
+
+        # 2. Try to create
+        try:
+            async with session.begin_nested():
+                entity = self.model(name=normalized)
+                session.add(entity)
+                await session.flush()
+            return entity
+        except IntegrityError:
+            # Race condition fallback
+            raise DuplicateEntityError(f"El valor '{normalized}' ya existe")

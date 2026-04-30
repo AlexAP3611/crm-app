@@ -17,6 +17,10 @@ async def get_or_create(session: AsyncSession, name: str, cache: dict[str, Secto
     """Idempotent get-or-create for sectors."""
     return await _service.get_or_create(session, name, cache=cache)
 
+async def create_strict(session: AsyncSession, name: str) -> Sector:
+    """Strict creation for sectors."""
+    return await _service.create_strict(session, name)
+
 async def get_by_name(session: AsyncSession, name: str) -> Sector | None:
     """Legacy lookup support."""
     # We can use get_or_create without creating (by checking cache or DB)

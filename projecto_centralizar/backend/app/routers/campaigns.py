@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.campaign import Campaign
@@ -50,11 +51,19 @@ async def update_campaign(campaign_id: int, data: CampaignUpdate, db: AsyncSessi
 
 @router.delete("/{campaign_id}", status_code=204)
 async def delete_campaign(campaign_id: int, db: AsyncSession = Depends(get_db)):
-    campaign = await db.get(Campaign, campaign_id)
+    # Load campaign with contacts to check for associations
+    stmt = select(Campaign).options(selectinload(Campaign.contacts)).where(Campaign.id == campaign_id)
+    result = await db.execute(stmt)
+    campaign = result.scalars().first()
+    
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaña no encontrada")
         
-    # Optional constraint warning: SQLAlchemy ON DELETE CASCADE might be set up
-    # for contact_campaigns depending on setup, but typically we just let db cascade.
+    if campaign.contacts:
+        raise HTTPException(
+            status_code=400, 
+            detail="No se puede eliminar esta campaña porque tiene contactos asignados."
+        )
+
     await db.delete(campaign)
     await db.commit()
