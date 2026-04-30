@@ -119,7 +119,12 @@ function EmpresaBulkAssignmentModal({ type, targetCount, options = [], onClose, 
     )
 }
 
-const EMPTY_FORM = { nombre: '', cif: '', email: '', phone: '', web: '', sector_ids: [], vertical_ids: [], product_ids: [], cargo_ids: [], campaign_ids: [], numero_empleados: '', facturacion: '', cnae: '' }
+const EMPTY_FORM = { 
+    nombre: '', cif: '', email: '', phone: '', web: '', 
+    sector_ids: [], vertical_ids: [], product_ids: [], 
+    numero_empleados: '', facturacion: '', cnae: '',
+    facebook: '', web_competidor_1: '', web_competidor_2: '', web_competidor_3: ''
+}
 const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', page: 1, page_size: 50 }
 
 function EmpresaContactosRow({ empresaId, onEditContact, onDeleteContact }) {
@@ -333,8 +338,8 @@ export default function EmpresasPage() {
         } catch (err) {
             console.error('Enrichment failed:', err);
 
-            // Handle Structured Validation Errors (MISSING_WEB)
-            if (err.data && err.data.error_code === 'MISSING_WEB') {
+            // Handle Structured Validation Errors (MISSING_WEB or ADSCORE_VALIDATION_FAILED)
+            if (err.data && (err.data.error_code === 'MISSING_WEB' || err.data.error_code === 'ADSCORE_VALIDATION_FAILED')) {
                 setEnrichError(err.data.message);
                 setInvalidCompanies(err.data.invalid_companies || []);
             } else {
@@ -448,6 +453,10 @@ export default function EmpresasPage() {
                 numero_empleados: formData.numero_empleados ? parseInt(formData.numero_empleados, 10) : null,
                 facturacion: formData.facturacion ? parseFloat(formData.facturacion) : null,
                 cnae: formData.cnae || null,
+                facebook: formData.facebook || null,
+                web_competidor_1: formData.web_competidor_1 || null,
+                web_competidor_2: formData.web_competidor_2 || null,
+                web_competidor_3: formData.web_competidor_3 || null,
             }
 
             if (modalConfig.mode === 'create') {
@@ -495,6 +504,10 @@ export default function EmpresasPage() {
                 sector_ids: empresa.sectors?.map(s => s.id) || [],
                 vertical_ids: empresa.verticals?.map(v => v.id) || [],
                 product_ids: empresa.products_rel?.map(p => p.id) || [],
+                facebook: empresa.facebook || '',
+                web_competidor_1: empresa.web_competidor_1 || '',
+                web_competidor_2: empresa.web_competidor_2 || '',
+                web_competidor_3: empresa.web_competidor_3 || '',
             }
         })
     }
@@ -826,13 +839,24 @@ export default function EmpresasPage() {
                     </div>
                     {invalidCompanies.length > 0 && (
                         <div className="bg-surface-container-lowest/50 rounded-lg p-3 space-y-1 mt-2">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-on-error-container/70 mb-2">Empresas sin web:</p>
-                            <ul className="list-disc list-inside space-y-0.5">
-                                {invalidCompanies.map(emp => (
-                                    <li key={emp.id} className="font-medium">
-                                        {emp.nombre} <span className="text-[10px] opacity-70">(ID: {emp.id})</span>
-                                    </li>
-                                ))}
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-on-error-container/70 mb-2">Empresas con datos incompletos:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                                {invalidCompanies.map(emp => {
+                                    const reasons = {
+                                        missing_web: "Falta Web principal",
+                                        missing_facebook: "Falta Facebook",
+                                        missing_competitors: "Falta Web Competidor",
+                                        missing_fb_and_competitors: "Falta Facebook y Competidores"
+                                    }
+                                    return (
+                                        <li key={emp.id} className="font-medium text-xs">
+                                            {emp.nombre} 
+                                            <span className="ml-2 px-1.5 py-0.5 bg-error/10 text-error text-[10px] rounded font-bold uppercase">
+                                                {reasons[emp.reason] || emp.reason}
+                                            </span>
+                                        </li>
+                                    )
+                                })}
                             </ul>
                         </div>
                     )}
@@ -1043,7 +1067,35 @@ export default function EmpresasPage() {
                                     </div>
                                 </div>
                             </section>
-
+ 
+                            <hr className="border-outline-variant/30" />
+ 
+                            {/* Section: Social & Competitors */}
+                            <section className="space-y-6">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="material-symbols-outlined text-primary">hub</span>
+                                    <h3 className="font-headline font-bold text-lg">Social y Competencia</h3>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facebook URL</label>
+                                        <input name="facebook" value={modalConfig.data.facebook || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://facebook.com/..." />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web Competidor 1</label>
+                                        <input name="web_competidor_1" value={modalConfig.data.web_competidor_1 || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://competidor1.com" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web Competidor 2</label>
+                                        <input name="web_competidor_2" value={modalConfig.data.web_competidor_2 || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://competidor2.com" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web Competidor 3</label>
+                                        <input name="web_competidor_3" value={modalConfig.data.web_competidor_3 || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://competidor3.com" />
+                                    </div>
+                                </div>
+                            </section>
+ 
                             <hr className="border-outline-variant/30" />
 
                             {/* Section: Industry Taxonomy */}

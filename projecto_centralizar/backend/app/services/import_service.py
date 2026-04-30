@@ -2,6 +2,7 @@ import logging
 from typing import Literal, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.importer.coordinator import PipelineCoordinator
 from app.models.contact import Contact
 from app.schemas.contact import ContactCreate
 from app.schemas.empresa import EmpresaCreate
@@ -22,6 +23,14 @@ from app.core.domain_mappers.contact_mapper import normalize_contact_row
 
 logger = logging.getLogger(__name__)
 
+
+def _clean_import_value(v):
+    """Sanitizes raw CSV/Excel values to prevent Pydantic validation crashes."""
+    if v is None: return None
+    if isinstance(v, str) and v.strip() == "": return None
+    # Handle common Excel/Pandas "NaN" leakage
+    if str(v).lower() in ["nan", "null", "none"]: return None
+    return v
 
 def is_valid_name(name: str | None) -> bool:
     """
@@ -420,11 +429,18 @@ async def import_empresas_from_rows(
             for col in EMPRESA_VIEW_FIELDS:
                 val = mapped.get(col)
                 if val is not None and val != "":
-                    if col == "web": payload[col] = normalize_web(val)
+                    if col in ["web", "web_competidor_1", "web_competidor_2", "web_competidor_3"]: 
+                        payload[col] = normalize_web(val)
                     elif col == "nombre": payload[col] = normalize_company_name(val)
                     else: payload[col] = val
+            
+            # Sanitization Layer: Clean values and ensure we only send what EmpresaCreate expects
+            clean_payload = {
+                k: _clean_import_value(v) for k, v in payload.items()
+                if k in EmpresaCreate.model_fields
+            }
 
-            data = EmpresaCreate(**payload)
+            data = EmpresaCreate(**clean_payload)
 
             if mode == "preview":
                 resolution = await empresa_service.resolve_empresa(session, cif=data.cif, web=data.web, empresa_nombre=data.nombre, auto_create=False)
@@ -455,7 +471,7 @@ async def import_empresas_from_rows(
                 await savepoint.rollback()
             summary["skipped"] += 1
             summary["skip_details"].append(SkipDetail(row=row_idx, reason=str(e)))
-            logger.error(f"Empresa row {row_idx} failed: {e}")
+            logger.exception(f"Empresa row {row_idx} failed")
 
     if mode == "commit":
         try:
@@ -466,3 +482,15 @@ async def import_empresas_from_rows(
             raise
 
     return ImportSummary(**summary)
+
+async def import_empresas_v3(
+    session: AsyncSession,
+    rows: List[dict],
+    mode: Literal["preview", "commit"] = "preview"
+):
+    """
+    New version of the import pipeline using the 3.1 Ingestion Architecture.
+    """
+    coordinator = PipelineCoordinator(session, mode=mode)
+    result = await coordinator.ingest_empresas(rows)
+    return result

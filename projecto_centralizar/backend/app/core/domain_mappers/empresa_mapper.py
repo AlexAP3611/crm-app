@@ -15,12 +15,17 @@ EMPRESA_FIELD_MAP = {
     "product_name": ["producto", "product"],
     "numero_empleados": ["numero_empleados", "employees", "size"],
     "facturacion": ["facturacion", "revenue", "turnover"],
-    "cnae": ["cnae", "industry_code"]
+    "cnae": ["cnae", "industry_code"],
+    "facebook": ["facebook", "fb_url", "facebook_url", "Facebook"],
+    "web_competidor_1": ["competidor_1", "competitor_1", "web_competidor_1", "competidor 1", "Dominio competidor 1"],
+    "web_competidor_2": ["competidor_2", "competitor_2", "web_competidor_2", "competidor 2", "Dominio competidor 2"],
+    "web_competidor_3": ["competidor_3", "competitor_3", "web_competidor_3", "competidor 3", "Dominio competidor 3"]
 }
 
 # Type-aware field categorization
 STRING_FIELDS = {"nombre", "phone", "email", "web", "cif", "cnae",
-                 "sector_name", "vertical_name", "product_name"}
+                 "sector_name", "vertical_name", "product_name",
+                 "facebook", "web_competidor_1", "web_competidor_2", "web_competidor_3"}
 INT_FIELDS = {"numero_empleados"}
 FLOAT_FIELDS = {"facturacion"}
 

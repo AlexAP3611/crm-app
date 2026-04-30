@@ -64,8 +64,10 @@ async def import_empresas_csv(
     content = await file.read()
     from app.services import csv_service, import_service
     rows = csv_service.parse_file(content, file.filename)
-    result = await import_service.import_empresas_from_rows(db, rows, mode="commit")
-    return result
+    
+    # Use Pipeline 3.1
+    pipeline_result = await import_service.import_empresas_v3(db, rows, mode="commit")
+    return pipeline_result.to_import_summary(rows)
 
 @router.post("/import/preview", summary="Preview Empresa Import Impact")
 async def preview_import_empresas_csv(
@@ -73,7 +75,7 @@ async def preview_import_empresas_csv(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Simulate empresa import without database persistence.
+    Simulate empresa import without database persistence using Pipeline 3.1.
     """
     allowed_types = [
         "text/csv", 
@@ -88,5 +90,6 @@ async def preview_import_empresas_csv(
     from app.services import csv_service, import_service
     rows = csv_service.parse_file(content, file.filename)
     
-    summary = await import_service.import_empresas_from_rows(db, rows, mode="preview")
-    return summary
+    # Use Pipeline 3.1
+    pipeline_result = await import_service.import_empresas_v3(db, rows, mode="preview")
+    return pipeline_result.to_import_summary(rows)

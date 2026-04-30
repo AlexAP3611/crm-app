@@ -41,3 +41,4 @@ class ImportSummary(BaseModel):
     product_preview: List[ProductPreview] = []
     cargo_preview: List[CargoPreview] = []
     campaign_preview: List[CampaignPreview] = []
+    failed_rows_csv: Optional[str] = None

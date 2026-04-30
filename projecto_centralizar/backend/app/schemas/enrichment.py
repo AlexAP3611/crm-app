@@ -86,6 +86,7 @@ class CompanyEnrichErrorResponse(BaseModel):
     status: str = "failed"
     error_code: str
     message: str
+    detail: Optional[str] = None
     blocking: bool = True
     invalid_companies: list[InvalidCompany] = []
 

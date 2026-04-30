@@ -224,18 +224,46 @@ async def trigger_company_enrichment(
         raise HTTPException(status_code=400, detail="No se encontraron empresas para enriquecer.")
 
     invalid_companies = []
+    is_adscore = request.tool_key.lower() == "adscore"
+
     for emp in empresas:
+        # Global validation: Web is required for all tools
         if not emp.web or not str(emp.web).strip():
             invalid_companies.append(
                 InvalidCompany(id=emp.id, nombre=emp.nombre, reason="missing_web")
             )
+            continue
+            
+        # Tool-specific validation: Adscore requires Facebook AND at least 1 competitor
+        if is_adscore:
+            has_facebook = bool(emp.facebook and str(emp.facebook).strip())
+            has_competitor = any([
+                emp.web_competidor_1 and str(emp.web_competidor_1).strip(),
+                emp.web_competidor_2 and str(emp.web_competidor_2).strip(),
+                emp.web_competidor_3 and str(emp.web_competidor_3).strip()
+            ])
+            
+            if not has_facebook or not has_competitor:
+                if not has_facebook and not has_competitor:
+                    reason = "missing_fb_and_competitors"
+                elif not has_facebook:
+                    reason = "missing_facebook"
+                else:
+                    reason = "missing_competitors"
+                    
+                invalid_companies.append(
+                    InvalidCompany(id=emp.id, nombre=emp.nombre, reason=reason)
+                )
 
     # 2. Abnormal Exit (Strict Validation)
     # ------------------------------------
     if invalid_companies:
+        error_code = "ADSCORE_VALIDATION_FAILED" if is_adscore else "MISSING_WEB"
+        msg = f"No se puede iniciar el enriquecimiento: {len(invalid_companies)} empresas no cumplen los requisitos."
         return CompanyEnrichErrorResponse(
-            error_code="MISSING_WEB",
-            message=f"No se puede iniciar el enriquecimiento: {len(invalid_companies)} empresas no tienen web.",
+            error_code=error_code,
+            message=msg,
+            detail=msg,
             invalid_companies=invalid_companies,
             blocking=True
         )

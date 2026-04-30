@@ -41,6 +41,12 @@ class Empresa(Base):
     numero_empleados: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     facturacion: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cnae: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    
+    # --- Social & Competitors ---
+    facebook: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    web_competidor_1: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    web_competidor_2: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    web_competidor_3: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # --- M2M Relationships (formerly on Contact) ---
     sectors: Mapped[list["Sector"]] = relationship(  # noqa: F821

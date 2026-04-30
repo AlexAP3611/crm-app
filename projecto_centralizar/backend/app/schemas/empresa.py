@@ -39,6 +39,10 @@ class EmpresaBase(BaseModel):
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
     cnae: Optional[str] = None
+    facebook: Optional[str] = None
+    web_competidor_1: Optional[str] = None
+    web_competidor_2: Optional[str] = None
+    web_competidor_3: Optional[str] = None
     sector_ids: list[int] = []
     vertical_ids: list[int] = []
     product_ids: list[int] = []
@@ -55,6 +59,10 @@ class EmpresaUpdate(BaseModel):
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
     cnae: Optional[str] = None
+    facebook: Optional[str] = None
+    web_competidor_1: Optional[str] = None
+    web_competidor_2: Optional[str] = None
+    web_competidor_3: Optional[str] = None
     sector_ids: Optional[list[int]] = None
     vertical_ids: Optional[list[int]] = None
     product_ids: Optional[list[int]] = None
@@ -71,6 +79,10 @@ class EmpresaCreateResponse(BaseModel):
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
     cnae: Optional[str] = None
+    facebook: Optional[str] = None
+    web_competidor_1: Optional[str] = None
+    web_competidor_2: Optional[str] = None
+    web_competidor_3: Optional[str] = None
     sectors: list[SectorRef] = []
     verticals: list[VerticalRef] = []
     products_rel: list[ProductRef] = []

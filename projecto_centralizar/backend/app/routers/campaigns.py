@@ -61,7 +61,7 @@ async def delete_campaign(campaign_id: int, db: AsyncSession = Depends(get_db)):
         
     if campaign.contacts:
         raise HTTPException(
-            status_code=400, 
+            status_code=409, 
             detail="No se puede eliminar esta campaña porque tiene contactos asignados."
         )
 
