@@ -2,6 +2,7 @@ from typing import Any, Optional, Literal
 from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 from app.schemas.empresa import EmpresaFilterFields
+from app.schemas.contact import ContactFilterFields
 
 class EnrichRequest(BaseModel):
     source: str
@@ -96,3 +97,17 @@ class CompanyEnrichSuccessResponse(BaseModel):
     total: int
     sent: int
     invalid: int
+
+# --- Contact Enrichment / Export ---
+
+class ContactEnrichRequest(BaseModel):
+    tool_key: str
+    enrichment_run_id: UUID = Field(default_factory=uuid4)
+    ids: Optional[list[int]] = None
+    filters: Optional[ContactFilterFields] = None
+
+class ContactEnrichSuccessResponse(BaseModel):
+    status: str = "success"
+    enrichment_run_id: UUID
+    total: int
+    sent: int

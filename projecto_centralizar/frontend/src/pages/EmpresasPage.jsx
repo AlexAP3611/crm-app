@@ -821,12 +821,6 @@ export default function EmpresasPage() {
                     </button>
 
                     <div className="flex-1" />
-
-                    <button onClick={() => handleEnrich('Affino')} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
-                        <span className="material-symbols-outlined text-lg">send</span>
-                        Enviar a Affino {enriching === 'Affino' && '...'}
-                        <span className="bg-transparent px-1">{actionCount}</span>
-                    </button>
                 </div>
             </div>
 

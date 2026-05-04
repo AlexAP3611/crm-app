@@ -453,6 +453,20 @@ export default function ContactsPage() {
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                 </div>
+
+                {/* Fila 2: Enriquecimiento / Exportación */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex-1"></div>
+                    <button
+                        onClick={() => handleEnrich('Affino')}
+                        disabled={enriching}
+                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                    >
+                        <span className="material-symbols-outlined text-lg">send</span>
+                        Enviar a Affino {enriching === 'Affino' && '...'}
+                        <span className="bg-transparent px-1">{actionCount}</span>
+                    </button>
+                </div>
             </div>
 
             {/* Main Data Table (Editorial Style) */}

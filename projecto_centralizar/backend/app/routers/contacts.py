@@ -14,6 +14,7 @@ from app.schemas.contact import (
     ContactUpdate,
 )
 from app.schemas.scope import ContactScopedDelete, ContactScopedUpdate
+from app.schemas.enrichment import ContactEnrichRequest, ContactEnrichSuccessResponse
 from app.services import contact_service
 from app.services import enrichment_service
 from app.services.scope import apply_scope
@@ -174,3 +175,15 @@ async def delete_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
     deleted = await contact_service.delete_contact(db, contact_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Contact not found")
+
+
+@router.post("/enrich", response_model=ContactEnrichSuccessResponse)
+async def enrich_contacts(
+    request: ContactEnrichRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Enrich a set of contacts using an external tool (Affino).
+    Supports specific IDs or dynamic filters.
+    """
+    return await enrichment_service.trigger_contact_enrichment(db, request)

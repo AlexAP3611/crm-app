@@ -388,6 +388,9 @@ export const api = {
     enrichEmpresas: (data) =>
         request('/empresas/enrich', { method: 'POST', body: JSON.stringify(data) }),
 
+    enrichContacts: (data) =>
+        request('/contacts/enrich', { method: 'POST', body: JSON.stringify(data) }),
+
     // ── Access Requests ──
     requestAccess: (email, password) =>
         request('/request-access', { method: 'POST', body: JSON.stringify({ email, password }) }),

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from app.models.contact import Contact
 from app.models.empresa import Empresa
@@ -25,6 +25,7 @@ from app.services import empresa_service
 from app.services.scope import apply_scope
 from app.services.empresa_service import _apply_empresa_filters
 from app.services.empresa_export_mapper import map_to_export_payload
+from app.services.affino_export_mapper import map_contacts_to_affino_payload
 from app.services.merge import deep_merge
 
 from app.core.webhook_client import webhook_client
@@ -36,7 +37,9 @@ from app.schemas.enrichment import (
     CompanyEnrichRequest, 
     CompanyEnrichErrorResponse, 
     InvalidCompany,
-    CompanyEnrichSuccessResponse
+    CompanyEnrichSuccessResponse,
+    ContactEnrichRequest,
+    ContactEnrichSuccessResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -363,6 +366,111 @@ async def trigger_company_enrichment(
                 .where(Empresa.id.in_([e.id for e in empresas]))
                 .values(enrichment_status="failed")
             )
+            await db.commit()
+            raise HTTPException(status_code=424, detail=f"El webhook de {request.tool_key} falló (Status {response.status_code}).")
+
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        duration = int((time.time() - start_time) * 1000)
+        log_entry.status = "failed"
+        log_entry.error_log = f"Execution error: {str(e)}"
+        log_entry.metrics["duration_ms"] = duration
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"Error al ejecutar enriquecimiento: {str(e)}")
+
+
+async def trigger_contact_enrichment(
+    db: AsyncSession,
+    request: ContactEnrichRequest
+) -> Any:
+    """
+    Export contacts to an external tool (Affino).
+    Optimized with joinedload to fetch company data in one go.
+    """
+    # 1. Resolve Contacts
+    query = select(Contact).options(
+        joinedload(Contact.empresa_rel),
+        selectinload(Contact.cargo),
+        selectinload(Contact.campaigns)
+    )
+    query = apply_scope(
+        query, model=Contact,
+        ids=request.ids, filters=request.filters,
+        apply_filters_fn=_apply_contact_filters,
+        allow_all=getattr(request, 'all', False) is True,
+    )
+
+    result = await db.execute(query)
+    contacts = list(result.scalars().unique().all())
+
+    if not contacts:
+        raise HTTPException(status_code=400, detail="No se encontraron contactos para enviar.")
+
+    # 2. Idempotency Check
+    run_id = request.enrichment_run_id
+    existing_log = await db.get(EnrichmentLog, run_id)
+    if existing_log:
+        return ContactEnrichSuccessResponse(
+            enrichment_run_id=run_id,
+            total=existing_log.metrics.get("total", 0),
+            sent=existing_log.metrics.get("sent", 0)
+        )
+
+    # 3. Log Intent
+    log_entry = EnrichmentLog(
+        run_id=run_id,
+        tool=request.tool_key,
+        status="pending",
+        metrics={"total": len(contacts), "sent": 0}
+    )
+    db.add(log_entry)
+    await db.commit()
+
+    # 4. Execute Webhook
+    setting_key = f"ext_config_{request.tool_key.lower()}"
+    res = await db.execute(select(Setting).where(Setting.key == setting_key))
+    setting = res.scalar_one_or_none()
+    
+    if not setting:
+        log_entry.status = "failed"
+        log_entry.error_log = f"Config not found: {setting_key}"
+        await db.commit()
+        raise HTTPException(status_code=400, detail=f"Configuración de webhook no encontrada para '{request.tool_key}'.")
+
+    cfg = setting.value if isinstance(setting.value, dict) else {}
+    webhook_url = cfg.get("webhook_url") or cfg.get("apiKey")
+    
+    if not webhook_url:
+        log_entry.status = "failed"
+        log_entry.error_log = "Webhook URL missing."
+        await db.commit()
+        raise HTTPException(status_code=400, detail=f"La configuración de '{request.tool_key}' no tiene una URL válida.")
+
+    payload = map_contacts_to_affino_payload(contacts, run_id, request.tool_key)
+    
+    start_time = time.time()
+    try:
+        response = await webhook_client.send_payload(webhook_url, payload, request.tool_key)
+        duration = int((time.time() - start_time) * 1000)
+        
+        if response.is_success:
+            log_entry.status = "success"
+            log_entry.metrics = {
+                "total": len(contacts), 
+                "sent": len(contacts), 
+                "duration_ms": duration
+            }
+            await db.commit()
+            
+            return ContactEnrichSuccessResponse(
+                enrichment_run_id=run_id,
+                total=len(contacts),
+                sent=len(contacts)
+            )
+        else:
+            log_entry.status = "failed"
+            log_entry.error_log = f"Webhook status {response.status_code}: {response.text[:500]}"
+            log_entry.metrics["duration_ms"] = duration
             await db.commit()
             raise HTTPException(status_code=424, detail=f"El webhook de {request.tool_key} falló (Status {response.status_code}).")
 
