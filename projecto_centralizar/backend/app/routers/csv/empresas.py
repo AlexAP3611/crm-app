@@ -67,7 +67,8 @@ async def import_empresas_csv(
     
     # Use Pipeline 3.1
     pipeline_result = await import_service.import_empresas_v3(db, rows, mode="commit")
-    return pipeline_result.to_import_summary(rows)
+    
+    return pipeline_result
 
 @router.post("/import/preview", summary="Preview Empresa Import Impact")
 async def preview_import_empresas_csv(
@@ -92,4 +93,4 @@ async def preview_import_empresas_csv(
     
     # Use Pipeline 3.1
     pipeline_result = await import_service.import_empresas_v3(db, rows, mode="preview")
-    return pipeline_result.to_import_summary(rows)
+    return pipeline_result

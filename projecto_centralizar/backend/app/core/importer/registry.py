@@ -40,3 +40,16 @@ EMPRESA_REGISTRY.register("web_competidor_3", ["competidor_3", "competitor_3", "
 EMPRESA_REGISTRY.register("sector_name", ["sector", "industria", "industry"], priority=10)
 EMPRESA_REGISTRY.register("vertical_name", ["vertical", "subsector"], priority=10)
 EMPRESA_REGISTRY.register("product_name", ["producto", "product", "servicio"], priority=10)
+
+# Contact canonical fields
+CONTACT_REGISTRY = FieldAliasRegistry()
+CONTACT_REGISTRY.register("first_name", ["nombre", "contact_name", "first_name", "full_name", "nombre completo", "contacto"], priority=20)
+CONTACT_REGISTRY.register("last_name", ["apellido", "last_name", "surname", "apellidos"], priority=20)
+CONTACT_REGISTRY.register("email", ["email", "correo", "mail", "email_address", "correo electrónico"], priority=20)
+CONTACT_REGISTRY.register("phone", ["phone", "telefono", "tel", "mobile", "celular", "teléfono"], priority=20)
+CONTACT_REGISTRY.register("linkedin", ["linkedin", "linkedin_url", "perfil linkedin", "li_url"], priority=20)
+CONTACT_REGISTRY.register("job_title", ["cargo", "job_title", "puesto", "position", "rol"], priority=10)
+CONTACT_REGISTRY.register("empresa_nombre", ["empresa", "company", "empresa_nombre", "nombre empresa"], priority=10)
+CONTACT_REGISTRY.register("campaña", ["campaña", "campaign", "campana", "origen"], priority=10)
+CONTACT_REGISTRY.register("city", ["ciudad", "city", "poblacion"], priority=10)
+CONTACT_REGISTRY.register("country", ["pais", "country"], priority=10)

@@ -26,7 +26,7 @@ class BusinessInterrogator:
                 severity="BLOCKER"
             ))
 
-        # Rule 2: Deduplication check (Lookup in Cache)
+        # Rule 2: Existence check (Lookup in Cache)
         existing = self.cache.get_by_identity(
             cif=sanitized_row.get("cif"),
             web=sanitized_row.get("web"),
@@ -34,9 +34,11 @@ class BusinessInterrogator:
         )
         
         if existing:
-            # Not an error, but metadata for the orchestrator
-            # We store this information to be used by the Domain Persistence layer
-            pass
+            errors.append(IngestionError(
+                code="EXISTING_ENTITY",
+                message=f"La empresa ya existe (ID: {existing.id}, Nombre: '{existing.nombre}'). Se procederá a actualizar sus datos.",
+                severity="INFO"
+            ))
 
         # Rule 3: CIF Format (Basic check if present)
         cif = sanitized_row.get("cif")

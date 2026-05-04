@@ -78,7 +78,7 @@ async def import_csv(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Import contacts from a CSV or XLSX file.
+    Import contacts from a CSV or XLSX file using Pipeline v3.
     """
     allowed_types = [
         "text/csv", 
@@ -90,16 +90,12 @@ async def import_csv(
             raise HTTPException(status_code=400, detail="Invalid file type. Only CSV and XLSX allowed.")
 
     content = await file.read()
-    from app.services import import_service
+    from app.core.importer.coordinator import ContactCoordinator
     rows = csv_service.parse_file(content, file.filename)
-    result = await import_service.import_contacts_from_rows(db, rows, mode="commit")
-
-    # Map ImportSummary → legacy dict contract for backward compatibility
-    return {
-        "created": result.to_create,
-        "updated": result.to_update,
-        "skipped": result.skipped,
-    }
+    
+    coordinator = ContactCoordinator(db, mode="commit")
+    result = await coordinator.ingest_contacts(rows)
+    return result
 
 @router.post("/import/preview", summary="Preview Contact Import Impact")
 async def preview_import_csv(
@@ -107,8 +103,7 @@ async def preview_import_csv(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Simulate contact import without database persistence.
-    Returns counts of created/updated/skipped rows and skip reasons.
+    Simulate contact import without database persistence using Pipeline v3.
     """
     allowed_types = [
         "text/csv", 
@@ -120,10 +115,9 @@ async def preview_import_csv(
             raise HTTPException(status_code=400, detail="Invalid file type.")
 
     content = await file.read()
-    from app.services import import_service
+    from app.core.importer.coordinator import ContactCoordinator
     rows = csv_service.parse_file(content, file.filename)
     
-    # Run in preview mode (zero flush/commit guaranteed)
-    summary = await import_service.import_contacts_from_rows(db, rows, mode="preview")
-    
+    coordinator = ContactCoordinator(db, mode="preview")
+    summary = await coordinator.ingest_contacts(rows)
     return summary

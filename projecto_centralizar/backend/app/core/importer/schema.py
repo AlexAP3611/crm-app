@@ -13,13 +13,14 @@ class RowResult(BaseModel):
     errors: List[IngestionError] = []
     warnings: List[IngestionError] = []
     entity_id: Optional[int] = None  # ID of the created/updated entity
-    action: Optional[Literal["created", "updated", "ignored"]] = None
+    action: Optional[Literal["created", "updated", "ignored", "merged"]] = None
 
 class IngestionSummary(BaseModel):
     total: int = 0
     success: int = 0
     failed: int = 0
     skipped: int = 0
+    merged: int = 0
 
 class PipelineResult(BaseModel):
     summary: IngestionSummary
@@ -38,12 +39,15 @@ class PipelineResult(BaseModel):
         failed_csv = self.generate_failed_rows_csv(raw_rows) if raw_rows else None
 
         for res in self.results:
-            if res.status == "error":
-                reason = "; ".join([e.message for e in res.errors])
+            messages = []
+            if res.errors:
+                messages.extend([f"[ERROR] {e.message}" for e in res.errors])
+            if res.warnings:
+                messages.extend([f"[WARN] {e.message}" for e in res.warnings])
+            
+            if messages:
+                reason = " | ".join(messages)
                 skip_details.append(SkipDetail(row=res.row_idx, reason=reason))
-            elif res.status == "success":
-                # For preview mode mapping
-                pass
 
         return {
             "total_rows": self.summary.total,

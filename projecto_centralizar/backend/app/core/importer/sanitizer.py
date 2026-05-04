@@ -1,18 +1,14 @@
-from typing import Dict, Any, List, Optional
-from app.core.utils import normalize_web, normalize_company_name
+from typing import Dict, Any
 
 class StatelessSanitizer:
     """
-    Cleans and normalizes canonical data without database side effects.
+    Dumb cleaner for raw input.
     Handles NaN, empty strings, and basic type coercion.
+    No business logic, no complex normalizations.
     """
     def __init__(self):
-        # Fields that need specific normalization
-        self.web_fields = {"web", "web_competidor_1", "web_competidor_2", "web_competidor_3"}
-        self.name_fields = {"nombre", "empresa_nombre", "name"}
-        
         # Domain-Aware Type Enforcement
-        self.force_str_fields = {"phone", "telefono" "cif", "email", "cnae", "facebook"}
+        self.force_str_fields = {"phone", "telefono", "cif", "email", "cnae", "facebook"}
         self.int_fields = {"numero_empleados"}
         self.float_fields = {"facturacion"}
 
@@ -27,8 +23,7 @@ class StatelessSanitizer:
 
     def sanitize_row(self, canonical_row: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Applies cleaning and normalization to a canonical row.
-        Ensures types are domain-compatible before Pydantic validation.
+        Cleans raw canonical row.
         """
         sanitized: Dict[str, Any] = {}
         
@@ -37,17 +32,11 @@ class StatelessSanitizer:
             if val is None:
                 continue
 
-            # 1. Force String for textual identifiers (Addresses Pydantic int vs str error)
+            # 1. Force String for textual identifiers
             if key in self.force_str_fields:
                 sanitized[key] = str(val).strip()
 
-            # 2. Specific Normalizations
-            elif key in self.web_fields:
-                sanitized[key] = normalize_web(str(val))
-            elif key in self.name_fields:
-                sanitized[key] = normalize_company_name(str(val))
-                
-            # 3. Numeric Coercion
+            # 2. Numeric Coercion
             elif key in self.int_fields:
                 try:
                     sanitized[key] = int(float(val))

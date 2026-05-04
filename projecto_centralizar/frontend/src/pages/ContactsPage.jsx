@@ -363,7 +363,7 @@ export default function ContactsPage() {
                         Limpiar filtros
                     </button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-7 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-8 gap-4">
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-on-surface-variant uppercase">Nombre del Contacto</label>
                         <input value={filters.contacto_nombre || ''} onChange={e => updateFilter('contacto_nombre', e.target.value)} className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none placeholder:text-stone-300" placeholder="ej. Adrian" type="text" />
@@ -384,6 +384,13 @@ export default function ContactsPage() {
                         <select value={filters.vertical_id || ''} onChange={e => updateFilter('vertical_id', e.target.value)} className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer">
                             <option value="">Todas las Verticales</option>
                             {verticals.map(h => <option key={h.id} value={h.id}>{h.name || h.nombre}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Producto</label>
+                        <select value={filters.product_id || ''} onChange={e => updateFilter('product_id', e.target.value)} className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer">
+                            <option value="">Todos los Productos</option>
+                            {products.map(p => <option key={p.id} value={p.id}>{p.name || p.nombre}</option>)}
                         </select>
                     </div>
                     <div className="space-y-1.5">

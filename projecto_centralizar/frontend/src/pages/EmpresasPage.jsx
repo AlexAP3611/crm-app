@@ -1248,7 +1248,7 @@ export default function EmpresasPage() {
                 <ImportEmpresasModal 
                     onClose={() => setShowImportModal(false)}
                     onImported={() => {
-                        setShowImportModal(false);
+                        // Refresh data in background but DON'T close the modal yet
                         loadEmpresas(debouncedFilters);
                     }}
                 />

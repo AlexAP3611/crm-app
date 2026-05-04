@@ -53,7 +53,8 @@ async def prefetch_empresas(db: AsyncSession, identifiers: Dict[str, Set[Any]]) 
     if identifiers.get("nombre"):
         # Case-insensitive name match
         names = [n.lower() for n in identifiers["nombre"]]
-        conditions.append(Empresa.nombre.ilike(or_(*[f"%{n}%" for n in names]))) # Caution: ilike in bulk can be slow, but better than N queries
+        if names:
+            conditions.append(or_(*[Empresa.nombre.ilike(f"%{n}%") for n in names])) # Caution: ilike in bulk can be slow, but better than N queries
 
     if not conditions:
         return cache
