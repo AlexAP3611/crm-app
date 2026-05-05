@@ -23,6 +23,10 @@ def map_to_export_payload(empresas: list[Empresa], run_id: UUID, tool: str) -> d
                 "email": emp.email or None,
                 "cif": emp.cif or None,
                 "cnae": emp.cnae or None,
+                "facebook": emp.facebook or None,
+                "web_competidor_1": emp.web_competidor_1 or None,
+                "web_competidor_2": emp.web_competidor_2 or None,
+                "web_competidor_3": emp.web_competidor_3 or None,
                 "sector": [s.name or s.nombre for s in emp.sectors],
                 "vertical": [v.name or v.nombre for v in emp.verticals],
                 "producto": [p.name or p.nombre for p in emp.products_rel]

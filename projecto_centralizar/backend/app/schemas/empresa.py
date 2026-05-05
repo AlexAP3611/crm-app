@@ -86,6 +86,8 @@ class EmpresaCreateResponse(BaseModel):
     sectors: list[SectorRef] = []
     verticals: list[VerticalRef] = []
     products_rel: list[ProductRef] = []
+    enrichment_status: Optional[str] = None
+    last_enriched_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

@@ -4,7 +4,6 @@ import RowMenu from '../components/RowMenu'
 import { useLookups } from '../hooks/useContacts'
 import { useDebounce } from '../hooks/useDebounce'
 import { useQueryParams } from '../hooks/useQueryParams'
-import { ActiveFilters } from '../components/ActiveFilters'
 import MultiSelect from '../components/MultiSelect'
 import ContactModal from '../components/ContactModal'
 import Checkbox from '../components/Checkbox'
@@ -268,6 +267,51 @@ function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess 
     );
 }
 
+function EntityValidationBanner({ message, entities = [], onClose }) {
+    if (!message && entities.length === 0) return null;
+
+    const reasons = {
+        missing_web: "Falta Web principal",
+        missing_facebook: "Falta Facebook",
+        missing_competitors: "Falta Web Competidor",
+        "missing_web&missing_facebook&missing_competitors": "Faltan todos los campos requeridos",
+        "missing_facebook&missing_competitors": "Falta Facebook y Competidores",
+        "missing_web&missing_facebook": "Falta Web y Facebook",
+        "missing_web&missing_competitors": "Falta Web y Competidores"
+    };
+
+    return (
+        <div className="p-4 bg-error-container text-on-error-container rounded-xl text-sm border border-error/20 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between font-bold">
+                <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg">warning</span>
+                    {message || "Requisitos no cumplidos"}
+                </div>
+                {onClose && (
+                    <button onClick={onClose} className="hover:bg-error/10 p-1 rounded-lg transition-colors">
+                        <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                )}
+            </div>
+            {entities.length > 0 && (
+                <div className="bg-surface-container-lowest/50 rounded-lg p-3 space-y-1 mt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-error-container/70 mb-2">Elementos con datos incompletos:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                        {entities.map(ent => (
+                            <li key={ent.id} className="font-medium text-xs">
+                                {ent.nombre} 
+                                <span className="ml-2 px-1.5 py-0.5 bg-error/10 text-error text-[10px] rounded font-bold uppercase">
+                                    {reasons[ent.reason] || ent.reason}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function EmpresasPage() {
     const [empresas, setEmpresas] = useState([])
     const [loading, setLoading] = useState(true)
@@ -303,7 +347,7 @@ export default function EmpresasPage() {
     const [enriching, setEnriching] = useState(null)
     const [enrichError, setEnrichError] = useState(null)
     const [enrichMessage, setEnrichMessage] = useState(null)
-    const [invalidCompanies, setInvalidCompanies] = useState([])
+    const [invalidEntities, setInvalidEntities] = useState([])
 
     // ===============================
     // BULK SCOPE CENTRALIZADO
@@ -324,7 +368,7 @@ export default function EmpresasPage() {
     const handleEnrich = async (tool) => {
         setEnrichError(null)
         setEnrichMessage(null)
-        setInvalidCompanies([])
+        setInvalidEntities([])
         setEnriching(tool)
 
         try {
@@ -338,10 +382,10 @@ export default function EmpresasPage() {
         } catch (err) {
             console.error('Enrichment failed:', err);
 
-            // Handle Structured Validation Errors (MISSING_WEB or ADSCORE_VALIDATION_FAILED)
-            if (err.data && (err.data.error_code === 'MISSING_WEB' || err.data.error_code === 'ADSCORE_VALIDATION_FAILED')) {
+            // Handle Structured Validation Errors (Centralized ToolValidationError)
+            if (err.data && err.data.invalid_entities) {
                 setEnrichError(err.data.message);
-                setInvalidCompanies(err.data.invalid_companies || []);
+                setInvalidEntities(err.data.invalid_entities);
             } else {
                 setEnrichError(err.message || 'Error desconocido al iniciar enriquecimiento');
             }
@@ -350,15 +394,6 @@ export default function EmpresasPage() {
         }
     }
 
-    // Option maps for chips formatting
-    const lookupMaps = useMemo(() => {
-        const createMap = (arr) => arr.reduce((acc, curr) => { acc[curr.id] = (curr.name || curr.nombre); return acc; }, {});
-        return {
-            sector_id: createMap(sectors),
-            vertical_id: createMap(verticals),
-            product_id: createMap(products),
-        }
-    }, [sectors, verticals, products, campaigns, cargos]);
 
     useEffect(() => {
         setQueryParams(debouncedFilters)
@@ -410,14 +445,6 @@ export default function EmpresasPage() {
         clearQueryParams()
     }
 
-    const handleRemoveFilter = (key, clearAll = false) => {
-        if (clearAll) {
-            resetFilters()
-        } else {
-            handleFilterChange(key, '')
-            removeQueryParam(key)
-        }
-    }
 
     const toggleRow = (id) => {
         const newSet = new Set(expandedRows)
@@ -513,7 +540,7 @@ export default function EmpresasPage() {
     }
 
     const handleDelete = async (empresa) => {
-        setConfirmDelete({ ids: [empresa.id], single: true, label: empresa.nombre })
+        setConfirmDelete({ scope: { ids: [empresa.id] }, count: 1, single: true, label: empresa.nombre })
     }
 
 
@@ -556,8 +583,13 @@ export default function EmpresasPage() {
             if (confirmDelete.single) {
                 await api.deleteEmpresa(confirmDelete.scope.ids[0])
             } else {
-                await api.deleteBulkEmpresas(confirmDelete.scope)
+                const result = await api.deleteBulkEmpresas(confirmDelete.scope)
                 setSelectedIds([])
+                if (result && result.deleted === 0) {
+                    setDeleteError('No se pudo eliminar ninguna empresa. Las empresas con contactos asociados no se pueden eliminar.')
+                } else if (result && result.skipped > 0) {
+                    setDeleteError(`Se eliminaron ${result.deleted} empresas. ${result.skipped} no se pudieron eliminar porque tienen contactos asociados.`)
+                }
             }
             setConfirmDelete(null)
             loadEmpresas(debouncedFilters)
@@ -631,9 +663,13 @@ export default function EmpresasPage() {
                 </div>
             </div>
 
-            {error && <div className="p-4 bg-error-container text-on-error-container rounded-lg font-medium text-sm">{error}</div>}
+            <EntityValidationBanner 
+                message={enrichError} 
+                entities={invalidEntities} 
+                onClose={() => { setEnrichError(null); setInvalidEntities([]); }} 
+            />
 
-            <ActiveFilters filters={filters} onRemove={handleRemoveFilter} optionsMap={lookupMaps} />
+            {error && <div className="p-4 bg-error-container text-on-error-container rounded-lg font-medium text-sm">{error}</div>}
 
             {/* Advanced Filter Strip */}
             <div className="bg-surface-container-low p-6 rounded-2xl border border-stone-200/50 space-y-6">
@@ -825,37 +861,6 @@ export default function EmpresasPage() {
             </div>
 
             {deleteError && <div className="p-3 bg-error-container text-on-error-container rounded text-sm mt-2">{deleteError}</div>}
-            {enrichError && (
-                <div className="p-4 bg-error-container text-on-error-container rounded-xl text-sm mt-2 border border-error/20 space-y-3">
-                    <div className="flex items-center gap-2 font-bold">
-                        <span className="material-symbols-outlined text-lg">warning</span>
-                        {enrichError}
-                    </div>
-                    {invalidCompanies.length > 0 && (
-                        <div className="bg-surface-container-lowest/50 rounded-lg p-3 space-y-1 mt-2">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-on-error-container/70 mb-2">Empresas con datos incompletos:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                                {invalidCompanies.map(emp => {
-                                    const reasons = {
-                                        missing_web: "Falta Web principal",
-                                        missing_facebook: "Falta Facebook",
-                                        missing_competitors: "Falta Web Competidor",
-                                        missing_fb_and_competitors: "Falta Facebook y Competidores"
-                                    }
-                                    return (
-                                        <li key={emp.id} className="font-medium text-xs">
-                                            {emp.nombre} 
-                                            <span className="ml-2 px-1.5 py-0.5 bg-error/10 text-error text-[10px] rounded font-bold uppercase">
-                                                {reasons[emp.reason] || emp.reason}
-                                            </span>
-                                        </li>
-                                    )
-                                })}
-                            </ul>
-                        </div>
-                    )}
-                </div>
-            )}
             {enrichMessage && <div className="p-4 bg-teal-100 text-teal-800 rounded-xl text-sm mt-2 border border-teal-200 font-medium flex items-center gap-2">
                 <span className="material-symbols-outlined text-lg">check_circle</span>
                 {enrichMessage}
@@ -909,7 +914,18 @@ export default function EmpresasPage() {
                                                             {emp.nombre ? emp.nombre.charAt(0).toUpperCase() : '?'}
                                                         </div>
                                                         <div>
-                                                            <p className="text-sm font-bold text-on-surface leading-tight hover:text-cyan-700 transition-colors" onClick={() => handleEdit(emp)}>{emp.nombre}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-sm font-bold text-on-surface leading-tight hover:text-cyan-700 transition-colors" onClick={() => handleEdit(emp)}>{emp.nombre}</p>
+                                                                {emp.enrichment_status === 'sent' && (
+                                                                    <span className="material-symbols-outlined text-[14px] text-amber-500 animate-pulse" title="Enviado: esperando datos de vuelta...">schedule</span>
+                                                                )}
+                                                                {emp.enrichment_status === 'success' && (
+                                                                    <span className="material-symbols-outlined text-[14px] text-teal-500" title="Enriquecimiento completado">check_circle</span>
+                                                                )}
+                                                                {emp.enrichment_status === 'failed' && (
+                                                                    <span className="material-symbols-outlined text-[14px] text-red-500" title="Fallo en el proceso">error</span>
+                                                                )}
+                                                            </div>
                                                             <div className="text-[10px] text-stone-400 font-medium flex items-center gap-1 mt-0.5">
                                                                 <span className="material-symbols-outlined text-[12px]">group</span>
                                                                 Ver contactos

@@ -15,11 +15,15 @@ from app.schemas.contact import (
 )
 from app.schemas.scope import ContactScopedDelete, ContactScopedUpdate
 from app.schemas.enrichment import ContactEnrichRequest, ContactEnrichSuccessResponse
+from app.schemas.tool import ToolExecutionRequest, ToolExecutionResponse, ToolKey
 from app.services import contact_service
 from app.services import enrichment_service
+from app.services import integration_service
 from app.services.scope import apply_scope
 from app.services.contact_service import _apply_contact_filters
 from app.auth import get_current_user
+from app.services.validators import ToolValidationErrorException
+from fastapi import Response
 
 router = APIRouter(
     prefix="/api/contacts", 
@@ -183,7 +187,64 @@ async def enrich_contacts(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Enrich a set of contacts using an external tool (Affino).
-    Supports specific IDs or dynamic filters.
+    [DEPRECATED] Use /tools/execute or semantic aliases instead.
+    Enrich a set of contacts using an external tool.
     """
-    return await enrichment_service.trigger_contact_enrichment(db, request)
+    # Map legacy request to new service
+    tool_req = ToolExecutionRequest(
+        tool_key=ToolKey(request.tool_key),
+        enrichment_run_id=request.enrichment_run_id,
+        ids=request.ids,
+        filters=request.filters,
+        all=getattr(request, 'all', False)
+    )
+    try:
+        res = await integration_service.execute_contact_tool(db, tool_req)
+        return ContactEnrichSuccessResponse(
+            enrichment_run_id=res.run_id,
+            total=0, # Legacy response doesn't match perfectly but it's deprecated
+            sent=0
+        )
+    except ToolValidationErrorException as e:
+        return Response(
+            content=e.error.model_dump_json(),
+            status_code=400,
+            media_type="application/json"
+        )
+
+@router.post("/tools/execute", response_model=ToolExecutionResponse)
+async def execute_tool(
+    request: ToolExecutionRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Execute an external tool (Integration Hub).
+    Direction-agnostic (Inbound/Outbound).
+    """
+    try:
+        return await integration_service.execute_contact_tool(db, request)
+    except ToolValidationErrorException as e:
+        return Response(
+            content=e.error.model_dump_json(),
+            status_code=400,
+            media_type="application/json"
+        )
+
+@router.post("/export/affino", response_model=ToolExecutionResponse)
+async def export_affino(
+    request: ToolExecutionRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Semantic alias for Affino Export.
+    Forces tool_key to 'Affino'.
+    """
+    request.tool_key = ToolKey.AFFINO
+    try:
+        return await integration_service.execute_contact_tool(db, request)
+    except ToolValidationErrorException as e:
+        return Response(
+            content=e.error.model_dump_json(),
+            status_code=400,
+            media_type="application/json"
+        )

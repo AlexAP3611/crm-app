@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload, joinedload
 
 from app.models.contact import Contact
 from app.models.empresa import Empresa
-from app.models.enrichment_log import EnrichmentLog
+from app.models.enrichment_log import IntegrationLog as EnrichmentLog
 from app.models.setting import Setting
 from app.models.vertical import Vertical
 from app.models.sector import Sector
@@ -23,6 +23,8 @@ from app.services import sector_service, vertical_service, product_service, camp
 
 from app.services import empresa_service
 from app.services.scope import apply_scope
+from app.services.validators import get_validator, ToolValidationErrorException
+from app.schemas.tool import ToolKey, ToolValidationError
 from app.services.empresa_service import _apply_empresa_filters
 from app.services.empresa_export_mapper import map_to_export_payload
 from app.services.affino_export_mapper import map_contacts_to_affino_payload
@@ -35,8 +37,6 @@ from app.core.enrichment.rules import ENRICHMENT_PROTECTED_FIELDS
 
 from app.schemas.enrichment import (
     CompanyEnrichRequest, 
-    CompanyEnrichErrorResponse, 
-    InvalidCompany,
     CompanyEnrichSuccessResponse,
     ContactEnrichRequest,
     ContactEnrichSuccessResponse
@@ -226,50 +226,21 @@ async def trigger_company_enrichment(
     if not empresas:
         raise HTTPException(status_code=400, detail="No se encontraron empresas para enriquecer.")
 
-    invalid_companies = []
-    is_adscore = request.tool_key.lower() == "adscore"
-
-    for emp in empresas:
-        # Global validation: Web is required for all tools
-        if not emp.web or not str(emp.web).strip():
-            invalid_companies.append(
-                InvalidCompany(id=emp.id, nombre=emp.nombre, reason="missing_web")
-            )
-            continue
-            
-        # Tool-specific validation: Adscore requires Facebook AND at least 1 competitor
-        if is_adscore:
-            has_facebook = bool(emp.facebook and str(emp.facebook).strip())
-            has_competitor = any([
-                emp.web_competidor_1 and str(emp.web_competidor_1).strip(),
-                emp.web_competidor_2 and str(emp.web_competidor_2).strip(),
-                emp.web_competidor_3 and str(emp.web_competidor_3).strip()
-            ])
-            
-            if not has_facebook or not has_competitor:
-                if not has_facebook and not has_competitor:
-                    reason = "missing_fb_and_competitors"
-                elif not has_facebook:
-                    reason = "missing_facebook"
-                else:
-                    reason = "missing_competitors"
-                    
-                invalid_companies.append(
-                    InvalidCompany(id=emp.id, nombre=emp.nombre, reason=reason)
-                )
-
-    # 2. Abnormal Exit (Strict Validation)
-    # ------------------------------------
-    if invalid_companies:
-        error_code = "ADSCORE_VALIDATION_FAILED" if is_adscore else "MISSING_WEB"
-        msg = f"No se puede iniciar el enriquecimiento: {len(invalid_companies)} empresas no cumplen los requisitos."
-        return CompanyEnrichErrorResponse(
-            error_code=error_code,
-            message=msg,
-            detail=msg,
-            invalid_companies=invalid_companies,
-            blocking=True
-        )
+    # 1.5. Validate (Delegated)
+    validator = get_validator(request.tool_key)
+    if validator:
+        invalid_entities = await validator.validate(empresas)
+        if invalid_entities:
+            # Note: We keep ADSCORE_VALIDATION_FAILED code for backward compatibility with FE if needed, 
+            # but using ToolValidationError allows for generic handling.
+            is_adscore = request.tool_key.lower() == "adscore"
+            error_code = "ADSCORE_VALIDATION_FAILED" if is_adscore else "MISSING_WEB"
+            raise ToolValidationErrorException(ToolValidationError(
+                error_code=error_code,
+                message=f"No se puede iniciar el enriquecimiento: {len(invalid_entities)} empresas no cumplen los requisitos.",
+                invalid_entities=invalid_entities,
+                blocking=True
+            ))
 
     # 3. Idempotency Check
     # --------------------
@@ -343,7 +314,7 @@ async def trigger_company_enrichment(
                 .values(
                     last_enriched_at=log_entry.created_at,
                     last_enrichment_tool=request.tool_key,
-                    enrichment_status="success"
+                    enrichment_status="sent"
                 )
             )
             await db.commit()

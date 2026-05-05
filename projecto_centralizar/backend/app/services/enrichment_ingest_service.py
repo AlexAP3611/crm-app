@@ -132,6 +132,11 @@ async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
             contact_created += created
             contact_updated += updated
             contact_skipped += skipped
+
+            # Finalize: Mark as success and update timestamp now that data is actually here
+            from datetime import datetime, timezone
+            empresa.enrichment_status = "success"
+            empresa.last_enriched_at = datetime.now(timezone.utc)
         except Exception as e:
             logger.error(
                 f"[INGEST ERROR] Empresa {emp_in.empresa_id}: {e}",

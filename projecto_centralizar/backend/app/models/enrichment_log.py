@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
-class EnrichmentLog(Base):
+class IntegrationLog(Base):
     __tablename__ = "enrichment_logs"
 
     run_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)

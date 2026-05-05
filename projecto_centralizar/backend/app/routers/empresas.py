@@ -178,14 +178,17 @@ async def delete_empresas_bulk(
         return {"deleted": 0}
 
     count = 0
+    skipped = 0
     for empresa in empresas:
         contacts_count = await db.scalar(select(func.count(Contact.id)).where(Contact.empresa_id == empresa.id))
         if contacts_count == 0:
             await db.delete(empresa)
             count += 1
+        else:
+            skipped += 1
 
     await db.commit()
-    return {"deleted": count}
+    return {"deleted": count, "skipped": skipped}
 
 @router.post("/bulk-update")
 async def update_empresas_bulk(
@@ -374,6 +377,9 @@ async def unassign_product(id: int, product_id: int, db: AsyncSession = Depends(
     await db.commit()
     return refreshed
 
+from app.services.validators import ToolValidationErrorException
+from fastapi import Response
+
 @router.post("/enrich", response_model=CompanyEnrichSuccessResponse)
 async def enrich_empresas(
     request: CompanyEnrichRequest,
@@ -383,16 +389,11 @@ async def enrich_empresas(
     Enrich a set of empresas using an external tool.
     Supports specific IDs or dynamic filters with STRICT validation.
     """
-    from fastapi import Response
-    
-    result = await enrichment_service.trigger_company_enrichment(db, request)
-    
-    # Handle structured validation errors
-    if isinstance(result, CompanyEnrichErrorResponse):
+    try:
+        return await enrichment_service.trigger_company_enrichment(db, request)
+    except ToolValidationErrorException as e:
         return Response(
-            content=result.model_dump_json(),
+            content=e.error.model_dump_json(),
             status_code=400,
             media_type="application/json"
         )
-    
-    return result

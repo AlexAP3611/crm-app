@@ -119,7 +119,48 @@ function BulkAssignmentModal({ type, targetCount, options = [], onClose, onSave 
                 </div>
             </div>
         </div>
-    )
+    );
+}
+
+function EntityValidationBanner({ message, entities = [], onClose }) {
+    if (!message && entities.length === 0) return null;
+
+    const reasons = {
+        missing_email: "Falta Email",
+        missing_company: "Falta Empresa",
+        "missing_email&missing_company": "Falta Email y Empresa"
+    };
+
+    return (
+        <div className="p-4 bg-error-container text-on-error-container rounded-xl text-sm border border-error/20 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between font-bold">
+                <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-lg">warning</span>
+                    {message || "Requisitos no cumplidos"}
+                </div>
+                {onClose && (
+                    <button onClick={onClose} className="hover:bg-error/10 p-1 rounded-lg transition-colors">
+                        <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                )}
+            </div>
+            {entities.length > 0 && (
+                <div className="bg-surface-container-lowest/50 rounded-lg p-3 space-y-1 mt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-error-container/70 mb-2">Elementos con datos incompletos:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                        {entities.map(ent => (
+                            <li key={ent.id} className="font-medium text-xs">
+                                {ent.nombre} 
+                                <span className="ml-2 px-1.5 py-0.5 bg-error/10 text-error text-[10px] rounded font-bold uppercase">
+                                    {reasons[ent.reason] || ent.reason}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
 }
 
 export default function ContactsPage() {
@@ -134,9 +175,10 @@ export default function ContactsPage() {
     const [confirmDelete, setConfirmDelete] = useState(null)
     const [bulkDeleting, setBulkDeleting] = useState(false)
     const [assignmentModal, setAssignmentModal] = useState(null)
-    const [enrichError, setEnrichError] = useState(null)
-    const [enrichMessage, setEnrichMessage] = useState(null)
-    const [enriching, setEnriching] = useState(null)
+    const [toolError, setToolError] = useState(null)
+    const [toolMessage, setToolMessage] = useState(null)
+    const [processingTool, setProcessingTool] = useState(null)
+    const [invalidEntities, setInvalidEntities] = useState([])
 
 
 
@@ -180,117 +222,36 @@ export default function ContactsPage() {
         }
     }
 
-    const handleEnrich = async (service) => {
-        setEnrichError(null)
-        setEnrichMessage(null)
+    const handleToolExecution = async (toolKey) => {
+        setToolError(null)
+        setToolMessage(null)
+        setInvalidEntities([])
+        setProcessingTool(toolKey)
 
-        // ── Leer configuración desde el servicio centralizado (con caché) ──
-        let configs = {}
         try {
-            configs = await settingsService.getExternalConfigs()
-        } catch (e) {
-            setEnrichError(`Error al obtener configuraciones: ${e.message}`)
-            return
-        }
-
-        const serviceId = service.toLowerCase()  // 'Apollo' → 'apollo'
-        const cfg = configs[serviceId] || {}
-
-        const endpointUrl = cfg.apiKey ? cfg.apiKey.trim() : ''
-        if (!endpointUrl) {
-            setEnrichError(`Configura la URL del servicio "${service}" en la pestaña APIs & Webhooks`)
-            return
-        }
-
-        setEnriching(service)
-        try {
-            // NOTE: Legacy client-side resolution (compromise as per plan)
-            let resolvedContacts = []
-            if (selectedIds.length > 0) {
-                const data = await api.listContacts({ ...filters, page: 1, page_size: 100000 })
-                resolvedContacts = data.items.filter(c => selectedIds.includes(c.id))
-            } else {
-                const data = await api.listContacts({ ...filters, page: 1, page_size: 100000 })
-                resolvedContacts = data.items
-            }
-
-            // Construir payload con los datos de los contactos seleccionados
+            const scope = buildScope(selectedIds, filters)
             const payload = {
-                contacts: resolvedContacts.map(c => ({
-                    id_contacto: c.id,
-                    nombre_empresa: c.empresa_rel?.nombre,
-                    web: c.web,
-                    vertical: c.verticals && c.verticals.length > 0 ? c.verticals[0].name : null,
-                    email: c.email || c.email_generic,
-                    nombre_contacto: [c.first_name, c.last_name].filter(Boolean).join(' '),
-                }))
+                tool_key: toolKey,
+                ...scope
             }
 
-            // ── Construir headers de autenticación según el método configurado ──
-            const headers = { 'Content-Type': 'application/json' }
-            const authType = cfg.authType || 'Ninguno'
+            // Use semantic alias for Affino, generic for others
+            const res = (toolKey === 'Affino')
+                ? await api.exportAffino(payload)
+                : await api.executeContactTool(payload)
 
-            if (authType === 'Bearer Token') {
-                const token = cfg.token ? cfg.token.trim() : ''
-                if (token) headers['Authorization'] = `Bearer ${token}`
-            } else if (authType === 'Basic Auth') {
-                const user = cfg.username ? cfg.username.trim() : ''
-                const pass = cfg.password ? cfg.password.trim() : ''
-                if (user || pass) headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`
-            } else if (authType === 'OAuth2') {
-                // Obtener access token del tokenUrl antes de enviar
-                const tokenUrl = cfg.tokenUrl ? cfg.tokenUrl.trim() : ''
-                const clientId = cfg.clientId ? cfg.clientId.trim() : ''
-                const clientSecret = cfg.clientSecret ? cfg.clientSecret.trim() : ''
-                if (tokenUrl) {
-                    const tokenRes = await fetch(tokenUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
-                            grant_type: 'client_credentials',
-                            client_id: clientId,
-                            client_secret: clientSecret,
-                        }),
-                    })
-                    if (!tokenRes.ok) {
-                        setEnrichError(`No se pudo obtener el token OAuth2 de ${service}`)
-                        setEnriching(null)
-                        return
-                    }
-                    const tokenData = await tokenRes.json()
-                    const accessToken = tokenData.access_token || tokenData.token
-                    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`
-                }
-            } else if (authType === 'Header Auth') {
-                // Construir header personalizado: con o sin prefijo
-                // Con prefix:    Authorization: Bearer crm_xxx
-                // Sin prefix:    X-API-Key: crm_xxx
-                const headerName = cfg.headerName ? cfg.headerName.trim() : ''
-                const prefix = cfg.prefix ? cfg.prefix.trim() : ''
-                const headerValue = cfg.headerValue ? cfg.headerValue.trim() : ''
-                if (headerName && headerValue) {
-                    headers[headerName] = prefix ? `${prefix} ${headerValue}` : headerValue
-                }
-            }
-            // authType === 'Ninguno' → no se añade ningún header de autenticación
-
-            const res = await fetch(endpointUrl, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(payload),
-            })
-
-            if (res.status === 401 || res.status === 403) {
-                setEnrichError(`Autenticación rechazada por ${service}. Revisa las credenciales.`)
-                return
-            }
-            if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-            setEnrichMessage(`Enriquecimiento enviado correctamente a ${service} (${resolvedContacts.length} contactos)`)
+            setToolMessage(`Acción ${toolKey} iniciada con éxito. ID: ${res.run_id?.slice(0, 8)}`)
+            if (selectedIds.length > 0) setSelectedIds([])
         } catch (err) {
-            setEnrichError(`Error al enviar datos a ${service}: ${err.message}`)
+            console.error('Tool execution failed:', err);
+            if (err.data && err.data.invalid_entities) {
+                setToolError(err.data.message);
+                setInvalidEntities(err.data.invalid_entities);
+            } else {
+                setToolError(`Error al ejecutar ${toolKey}: ${err.message}`)
+            }
         } finally {
-            setEnriching(null)
+            setProcessingTool(null)
         }
     }
 
@@ -346,8 +307,19 @@ export default function ContactsPage() {
 
             {error && <div className="mb-4 bg-error-container text-on-error-container p-4 rounded-xl text-sm font-medium">{error}</div>}
             {deleteError && <div className="mb-4 bg-error-container text-on-error-container p-4 rounded-xl text-sm font-medium">{deleteError}</div>}
-            {enrichError && <div className="mb-4 bg-error-container text-on-error-container p-4 rounded-xl text-sm font-medium">{enrichError}</div>}
-            {enrichMessage && <div className="mb-4 bg-primary-fixed/30 text-primary p-4 rounded-xl text-sm font-medium">{enrichMessage}</div>}
+            
+            <EntityValidationBanner 
+                message={toolError} 
+                entities={invalidEntities} 
+                onClose={() => { setToolError(null); setInvalidEntities([]); }} 
+            />
+
+            {toolMessage && (
+                <div className="p-4 bg-teal-100 text-teal-800 rounded-xl text-sm border border-teal-200 font-medium flex items-center gap-2 animate-in fade-in duration-300">
+                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                    {toolMessage}
+                </div>
+            )}
 
             {/* Advanced Filter Strip */}
             <div className="bg-surface-container-low p-6 rounded-2xl space-y-6 border border-stone-200/50 shadow-sm">
@@ -412,15 +384,15 @@ export default function ContactsPage() {
                         </select>
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Estatus (Enrichment)</label>
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Estado (Enriquecido)</label>
                         <select
                             value={filters.is_enriched === true ? 'true' : filters.is_enriched === false ? 'false' : ''}
                             onChange={e => updateFilter('is_enriched', e.target.value === '' ? '' : e.target.value === 'true')}
                             className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer"
                         >
-                            <option value="">Cualquier estatus</option>
-                            <option value="true">Enriquecidos</option>
-                            <option value="false">No Enriquecidos</option>
+                            <option value="">Cualquier estado</option>
+                            <option value="true">Enriquecido</option>
+                            <option value="false">No Enriquecido</option>
                         </select>
                     </div>
                 </div>
@@ -454,17 +426,16 @@ export default function ContactsPage() {
                     </button>
                 </div>
 
-                {/* Fila 2: Enriquecimiento / Exportación */}
+                {/* Fila 2: Integraciones (Affino, etc.) */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex-1"></div>
                     <button
-                        onClick={() => handleEnrich('Affino')}
-                        disabled={enriching}
-                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                        onClick={() => handleToolExecution('Affino')}
+                        disabled={!!processingTool}
+                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95"
                     >
                         <span className="material-symbols-outlined text-lg">send</span>
-                        Enviar a Affino {enriching === 'Affino' && '...'}
-                        <span className="bg-transparent px-1">{actionCount}</span>
+                        Enviar a Affino {processingTool === 'Affino' && '...'}
+                        <span className="bg-transparent px-1.5 rounded-md ml-1">{actionCount}</span>
                     </button>
                 </div>
             </div>

@@ -30,7 +30,7 @@ def map_contacts_to_affino_payload(contacts: list[Contact], run_id: UUID, tool: 
     return [
         {
             "nombre": normalize_text(f"{c.first_name or ''} {c.last_name or ''}"),
-            "email": normalize_text(c.email),
+            "email": normalize_text(c.email), # FUTURE: Use (c.email or c.email_generic) if fallback to company email is needed
             "empresa": normalize_text(c.empresa_rel.nombre if c.empresa_rel else ""),
             "web": normalize_text(str(c.empresa_rel.web) if c.empresa_rel and c.empresa_rel.web else ""),
             "telefono": normalize_text(c.phone),

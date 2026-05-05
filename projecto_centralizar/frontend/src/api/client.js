@@ -388,8 +388,11 @@ export const api = {
     enrichEmpresas: (data) =>
         request('/empresas/enrich', { method: 'POST', body: JSON.stringify(data) }),
 
-    enrichContacts: (data) =>
-        request('/contacts/enrich', { method: 'POST', body: JSON.stringify(data) }),
+    executeContactTool: (data) =>
+        request('/contacts/tools/execute', { method: 'POST', body: JSON.stringify(data) }),
+
+    exportAffino: (data) =>
+        request('/contacts/export/affino', { method: 'POST', body: JSON.stringify(data) }),
 
     // ── Access Requests ──
     requestAccess: (email, password) =>
