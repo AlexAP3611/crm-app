@@ -10,7 +10,7 @@ class WebhookClient:
         self.timeout = timeout
         self.max_retries = max_retries
 
-    async def send_payload(self, url: str, payload: dict[str, Any], tool_key: str) -> httpx.Response:
+    async def send_payload(self, url: str, payload: Any, tool_key: str) -> httpx.Response:
         """
         Sends a POST payload to a webhook URL with retry logic for transient 5xx errors.
         """

@@ -389,7 +389,9 @@ async def trigger_contact_enrichment(
     """
     # 1. Resolve Contacts
     query = select(Contact).options(
-        joinedload(Contact.empresa_rel),
+        joinedload(Contact.empresa_rel).selectinload(Empresa.sectors),
+        joinedload(Contact.empresa_rel).selectinload(Empresa.verticals),
+        joinedload(Contact.empresa_rel).selectinload(Empresa.products_rel),
         selectinload(Contact.cargo),
         selectinload(Contact.campaigns)
     )
