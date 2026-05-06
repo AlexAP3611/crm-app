@@ -233,7 +233,7 @@ async def trigger_company_enrichment(
         if invalid_entities:
             # Note: We keep ADSCORE_VALIDATION_FAILED code for backward compatibility with FE if needed, 
             # but using ToolValidationError allows for generic handling.
-            is_adscore = request.tool_key.lower() == "adscore"
+            is_adscore = request.tool_key == ToolKey.ADSCORE
             error_code = "ADSCORE_VALIDATION_FAILED" if is_adscore else "MISSING_WEB"
             raise ToolValidationErrorException(ToolValidationError(
                 error_code=error_code,
@@ -259,7 +259,7 @@ async def trigger_company_enrichment(
     # -----------------------
     log_entry = EnrichmentLog(
         run_id=run_id,
-        tool=request.tool_key,
+        tool=request.tool_key.value,
         status="pending",
         metrics={"total": len(empresas), "sent": 0, "invalid": 0}
     )
@@ -269,7 +269,7 @@ async def trigger_company_enrichment(
     # 5. Execute Webhook
     # ------------------
     # Resolve config
-    setting_key = f"ext_config_{request.tool_key.lower()}"
+    setting_key = f"ext_config_{request.tool_key.value.lower()}"
     res = await db.execute(select(Setting).where(Setting.key == setting_key))
     setting = res.scalar_one_or_none()
     
@@ -288,11 +288,35 @@ async def trigger_company_enrichment(
         await db.commit()
         raise HTTPException(status_code=400, detail=f"La configuración de '{request.tool_key}' no tiene una URL válida.")
 
-    payload = map_to_export_payload(empresas, run_id, request.tool_key)
-    
-    start_time = time.time()
+    # Prepare Headers
+    headers = {}
+    auth_type = cfg.get("authType")
+    if auth_type == "Bearer Token":
+        if cfg.get("token"):
+            headers["Authorization"] = f"Bearer {cfg['token']}"
+    elif auth_type == "Basic Auth":
+        import base64
+        user = cfg.get("username", "")
+        pwd = cfg.get("password", "")
+        auth_str = base64.b64encode(f"{user}:{pwd}".encode()).decode()
+        headers["Authorization"] = f"Basic {auth_str}"
+    elif auth_type == "Header Auth":
+        h_name = cfg.get("headerName")
+        h_val = cfg.get("headerValue")
+        h_pfx = cfg.get("prefix")
+        if h_name and h_val:
+            headers[h_name] = f"{h_pfx} {h_val}".strip() if h_pfx else h_val
+    elif auth_type == "Affino":
+        h_name = cfg.get("headerName") or "Authorization"
+        h_val = cfg.get("headerValue")
+        h_pfx = cfg.get("prefix") or "Bearer"
+        if h_val:
+            headers[h_name] = f"{h_pfx} {h_val}".strip()
+        if cfg.get("xUserId"):
+            headers["X-User-ID"] = str(cfg["xUserId"])
+
     try:
-        response = await webhook_client.send_payload(webhook_url, payload, request.tool_key)
+        response = await webhook_client.send_payload(webhook_url, payload, request.tool_key.value, headers=headers)
         duration = int((time.time() - start_time) * 1000)
         
         if response.is_success:
@@ -400,7 +424,7 @@ async def trigger_contact_enrichment(
     await db.commit()
 
     # 4. Execute Webhook
-    setting_key = f"ext_config_{request.tool_key.lower()}"
+    setting_key = f"ext_config_{request.tool_key.value.lower()}"
     res = await db.execute(select(Setting).where(Setting.key == setting_key))
     setting = res.scalar_one_or_none()
     

@@ -123,7 +123,35 @@ async def execute_contact_tool(
         await db.commit()
         raise HTTPException(status_code=400, detail=f"La herramienta '{request.tool_key.value}' no tiene una URL o API Key válida.")
 
-    # 5. Map Payload (Dispatch based on tool_key)
+    # 5. Prepare Headers
+    headers = {}
+    auth_type = cfg.get("authType")
+    
+    if auth_type == "Bearer Token":
+        if cfg.get("token"):
+            headers["Authorization"] = f"Bearer {cfg['token']}"
+    elif auth_type == "Basic Auth":
+        import base64
+        user = cfg.get("username", "")
+        pwd = cfg.get("password", "")
+        auth_str = base64.b64encode(f"{user}:{pwd}".encode()).decode()
+        headers["Authorization"] = f"Basic {auth_str}"
+    elif auth_type == "Header Auth":
+        h_name = cfg.get("headerName")
+        h_val = cfg.get("headerValue")
+        h_pfx = cfg.get("prefix")
+        if h_name and h_val:
+            headers[h_name] = f"{h_pfx} {h_val}".strip() if h_pfx else h_val
+    elif auth_type == "Affino":
+        h_name = cfg.get("headerName") or "Authorization"
+        h_val = cfg.get("headerValue")
+        h_pfx = cfg.get("prefix") or "Bearer"
+        if h_val:
+            headers[h_name] = f"{h_pfx} {h_val}".strip()
+        if cfg.get("xUserId"):
+            headers["X-User-ID"] = str(cfg["xUserId"])
+
+    # 6. Map Payload (Dispatch based on tool_key)
     if request.tool_key == ToolKey.AFFINO:
         payload = map_contacts_to_affino_payload(contacts, run_id, request.tool_key.value)
     else:
@@ -133,9 +161,9 @@ async def execute_contact_tool(
         await db.commit()
         raise HTTPException(status_code=501, detail=f"Mapeador no implementado para '{request.tool_key.value}'.")
 
-    # 6. Dispatch
+    # 7. Dispatch
     try:
-        response = await webhook_client.send_payload(webhook_url, payload, request.tool_key.value)
+        response = await webhook_client.send_payload(webhook_url, payload, request.tool_key.value, headers=headers)
         duration = int((time.time() - start_time) * 1000)
         
         if response.is_success:

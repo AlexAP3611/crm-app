@@ -380,7 +380,7 @@ async def unassign_product(id: int, product_id: int, db: AsyncSession = Depends(
 from app.services.validators import ToolValidationErrorException
 from fastapi import Response
 
-@router.post("/enrich", response_model=CompanyEnrichSuccessResponse)
+@router.post("/enrich", responses={200: {"model": CompanyEnrichSuccessResponse}})
 async def enrich_empresas(
     request: CompanyEnrichRequest,
     db: AsyncSession = Depends(get_db)

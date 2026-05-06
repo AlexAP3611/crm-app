@@ -36,7 +36,7 @@ const SERVICES = [
     },
 ]
 
-const AUTH_TYPES = ['Ninguno', 'Bearer Token', 'Basic Auth', 'OAuth2', 'Header Auth']
+const AUTH_TYPES = ['Ninguno', 'Bearer Token', 'Basic Auth', 'OAuth2', 'Header Auth', 'Affino']
 
 /* ──────────────────────────────────────────────────────────
    AuthFields — Dynamic fields rendered per auth method
@@ -260,6 +260,70 @@ function AuthFields({ authType, config, onChange }) {
         )
     }
 
+    /* ── Affino ── */
+    if (authType === 'Affino') {
+        return (
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className={labelCls}>Nombre del Header (Auth)</label>
+                        <input
+                            className={inputCls}
+                            type="text"
+                            placeholder="ej: Authorization"
+                            value={config.headerName || ''}
+                            onChange={(e) => field('headerName', e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className={labelCls}>Prefijo (opcional)</label>
+                        <input
+                            className={inputCls}
+                            type="text"
+                            placeholder="ej: Bearer"
+                            value={config.prefix || ''}
+                            onChange={(e) => field('prefix', e.target.value)}
+                        />
+                    </div>
+                </div>
+                <div>
+                    <label className={labelCls}>Valor del Token</label>
+                    <div className="relative">
+                        <input
+                            className={inputCls + ' pr-11'}
+                            type={showToken ? 'text' : 'password'}
+                            placeholder="Pega aquí tu token"
+                            value={config.headerValue || ''}
+                            onChange={(e) => field('headerValue', e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                            onClick={() => setShowToken((v) => !v)}
+                        >
+                            <span className="material-symbols-outlined text-lg">
+                                {showToken ? 'visibility_off' : 'visibility'}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                <div className="pt-4 border-t border-stone-100">
+                    <label className={labelCls}>X-User-ID</label>
+                    <input
+                        className={inputCls}
+                        type="text"
+                        placeholder="Introduce el ID de usuario"
+                        value={config.xUserId || ''}
+                        onChange={(e) => field('xUserId', e.target.value)}
+                    />
+                    <p className="mt-2 text-[11px] text-stone-400">
+                        Se enviará como header adicional: <code className="bg-stone-100 px-1 rounded text-stone-600">X-User-ID: &lt;valor&gt;</code>
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
     return null
 }
 
@@ -354,7 +418,7 @@ function ServiceCard({ service, config, onSave }) {
                             paddingRight: '36px',
                         }}
                     >
-                        {AUTH_TYPES.map((t) => (
+                        {AUTH_TYPES.filter(t => t !== 'Affino' || service.id === 'affino').map((t) => (
                             <option key={t} value={t}>{t}</option>
                         ))}
                     </select>

@@ -1,7 +1,7 @@
 import logging
 import httpx
 import asyncio
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +10,7 @@ class WebhookClient:
         self.timeout = timeout
         self.max_retries = max_retries
 
-    async def send_payload(self, url: str, payload: Any, tool_key: str) -> httpx.Response:
+    async def send_payload(self, url: str, payload: Any, tool_key: str, headers: Optional[dict[str, str]] = None) -> httpx.Response:
         """
         Sends a POST payload to a webhook URL with retry logic for transient 5xx errors.
         """
@@ -21,7 +21,7 @@ class WebhookClient:
             while attempt < self.max_retries:
                 try:
                     logger.info(f"Webhook [{tool_key}]: Sending request to {url} (Attempt {attempt + 1}/{self.max_retries})")
-                    response = await client.post(url, json=payload)
+                    response = await client.post(url, json=payload, headers=headers)
                     last_response = response
 
                     if response.is_success:
