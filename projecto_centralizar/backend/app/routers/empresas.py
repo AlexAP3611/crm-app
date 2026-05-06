@@ -17,7 +17,7 @@ from app.schemas.scope import EmpresaScopedDelete, EmpresaScopedUpdate
 from app.services.scope import apply_scope
 from app.services.empresa_service import _apply_empresa_filters
 from app.schemas.contact import ContactListResponse
-from app.schemas.enrichment import CompanyEnrichRequest, CompanyEnrichSuccessResponse, CompanyEnrichErrorResponse
+from app.schemas.enrichment import CompanyEnrichRequest, CompanyEnrichSuccessResponse
 from app.services import empresa_service, empresa_mapper, enrichment_service
 from app.auth import get_current_user
 from app.core.utils import normalize_company_name, update_empresa_snapshot_in_contact
