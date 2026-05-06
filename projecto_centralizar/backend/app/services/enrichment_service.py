@@ -315,6 +315,9 @@ async def trigger_company_enrichment(
         if cfg.get("xUserId"):
             headers["X-User-ID"] = str(cfg["xUserId"])
 
+    payload = map_to_export_payload(empresas, run_id, request.tool_key)
+
+    start_time = time.time()
     try:
         response = await webhook_client.send_payload(webhook_url, payload, request.tool_key.value, headers=headers)
         duration = int((time.time() - start_time) * 1000)
