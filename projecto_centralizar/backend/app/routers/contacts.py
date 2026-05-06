@@ -184,7 +184,8 @@ async def delete_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/enrich", response_model=ContactEnrichSuccessResponse)
 async def enrich_contacts(
     request: ContactEnrichRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """
     [DEPRECATED] Use /tools/execute or semantic aliases instead.
@@ -199,7 +200,7 @@ async def enrich_contacts(
         all=getattr(request, 'all', False)
     )
     try:
-        res = await integration_service.execute_contact_tool(db, tool_req)
+        res = await integration_service.execute_contact_tool(db, tool_req, user_id=current_user.id)
         return ContactEnrichSuccessResponse(
             enrichment_run_id=res.run_id,
             total=0, # Legacy response doesn't match perfectly but it's deprecated
@@ -215,14 +216,15 @@ async def enrich_contacts(
 @router.post("/tools/execute", response_model=ToolExecutionResponse)
 async def execute_tool(
     request: ToolExecutionRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """
     Execute an external tool (Integration Hub).
     Direction-agnostic (Inbound/Outbound).
     """
     try:
-        return await integration_service.execute_contact_tool(db, request)
+        return await integration_service.execute_contact_tool(db, request, user_id=current_user.id)
     except ToolValidationErrorException as e:
         return Response(
             content=e.error.model_dump_json(),
@@ -233,7 +235,8 @@ async def execute_tool(
 @router.post("/export/affino", response_model=ToolExecutionResponse)
 async def export_affino(
     request: ToolExecutionRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """
     Semantic alias for Affino Export.
@@ -241,7 +244,7 @@ async def export_affino(
     """
     request.tool_key = ToolKey.AFFINO
     try:
-        return await integration_service.execute_contact_tool(db, request)
+        return await integration_service.execute_contact_tool(db, request, user_id=current_user.id)
     except ToolValidationErrorException as e:
         return Response(
             content=e.error.model_dump_json(),

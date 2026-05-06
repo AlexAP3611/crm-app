@@ -383,14 +383,15 @@ from fastapi import Response
 @router.post("/enrich", responses={200: {"model": CompanyEnrichSuccessResponse}})
 async def enrich_empresas(
     request: CompanyEnrichRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """
     Enrich a set of empresas using an external tool.
     Supports specific IDs or dynamic filters with STRICT validation.
     """
     try:
-        return await enrichment_service.trigger_company_enrichment(db, request)
+        return await enrichment_service.trigger_company_enrichment(db, request, user_id=current_user.id)
     except ToolValidationErrorException as e:
         return Response(
             content=e.error.model_dump_json(),

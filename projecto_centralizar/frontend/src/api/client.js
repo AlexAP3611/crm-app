@@ -435,4 +435,8 @@ export const api = {
     // ── System ──
     getSettingsByPrefix: (prefix) => request(`/system/settings?prefix=${prefix}`),
     updateSystemSetting: (key, value) => request(`/system/settings/${key}`, { method: 'POST', body: JSON.stringify({ value }) }),
+
+    // ── Activity ──
+    listIntegrationLogs: (page = 1, pageSize = 20) => request(`/activity/integrations?page=${page}&page_size=${pageSize}`),
+    listAuditLogs: (page = 1, pageSize = 20) => request(`/activity/audit?page=${page}&page_size=${pageSize}`),
 }

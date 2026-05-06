@@ -45,7 +45,7 @@ function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess 
                     return (
                         <span key={itemId} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cyan-50 text-[#006877] text-[10px] font-bold rounded-xl uppercase tracking-wider border border-cyan-100 shadow-sm">
                             {opt ? (opt.name || opt.nombre) : itemId}
-                            <button type="button" onClick={() => handleUnassign(itemId)} disabled={loading} className="text-cyan-600/50 hover:text-error transition-colors material-symbols-outlined text-[16px] leading-none" title="Desasignar">close</button>
+                            <span onClick={() => !loading && handleUnassign(itemId)} className="text-cyan-600/50 hover:text-error transition-colors material-symbols-outlined text-[16px] leading-none cursor-pointer" title="Desasignar">close</span>
                         </span>
                     );
                 })}

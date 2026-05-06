@@ -192,7 +192,8 @@ async def enrich_contact_smart(
 
 async def trigger_company_enrichment(
     db: AsyncSession,
-    request: CompanyEnrichRequest
+    request: CompanyEnrichRequest,
+    user_id: Optional[int] = None
 ) -> Any:
     """
     STRICT VALIDATION PIPELINE for Company Enrichment.
@@ -261,6 +262,7 @@ async def trigger_company_enrichment(
         run_id=run_id,
         tool=request.tool_key.value,
         status="pending",
+        user_id=user_id,
         metrics={"total": len(empresas), "sent": 0, "invalid": 0}
     )
     db.add(log_entry)
@@ -379,7 +381,8 @@ async def trigger_company_enrichment(
 
 async def trigger_contact_enrichment(
     db: AsyncSession,
-    request: ContactEnrichRequest
+    request: ContactEnrichRequest,
+    user_id: Optional[int] = None
 ) -> Any:
     """
     Export contacts to an external tool (Affino).
@@ -421,6 +424,7 @@ async def trigger_contact_enrichment(
         run_id=run_id,
         tool=request.tool_key,
         status="pending",
+        user_id=user_id,
         metrics={"total": len(contacts), "sent": 0}
     )
     db.add(log_entry)

@@ -43,7 +43,8 @@ def _apply_contact_filters(query, filters):
 
 async def execute_contact_tool(
     db: AsyncSession,
-    request: ToolExecutionRequest
+    request: ToolExecutionRequest,
+    user_id: Optional[int] = None
 ) -> ToolExecutionResponse:
     """
     Central Hub for executing external contact tools (Affino, Clay, etc.)
@@ -98,6 +99,7 @@ async def execute_contact_tool(
         run_id=run_id,
         tool=request.tool_key.value,
         status="pending",
+        user_id=user_id,
         metrics={"total": len(contacts), "sent": 0}
     )
     db.add(log_entry)

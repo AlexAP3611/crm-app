@@ -36,10 +36,11 @@ Uso futuro:
 """
 
 from datetime import datetime
+from typing import Optional
 
-from sqlalchemy import Integer, Text, DateTime, Index, func
+from sqlalchemy import Integer, Text, DateTime, Index, func, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -83,10 +84,13 @@ class Log(Base):
     # TODO: Añadir ForeignKey("users.id") cuando se necesite integridad referencial
     user_id: Mapped[int | None] = mapped_column(
         Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         default=None,
         comment="ID del usuario que ejecutó la acción (NULL si anónimo)",
     )
+
+    user: Mapped[Optional["User"]] = relationship("User")
 
     # Descripción textual de la acción realizada
     # Ejemplos: "Nueva solicitud de usuario", "Solicitud aprobada", etc.

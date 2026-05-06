@@ -61,9 +61,7 @@ function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, del
         }
     };
 
-    const chipClass = isPrimary
-        ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
-        : "bg-surface-container-highest text-on-surface border-outline-variant/30 hover:border-primary/40";
+    const chipClass = "bg-cyan-50 text-[#006877] border-cyan-100 shadow-sm hover:bg-cyan-100/50 hover:border-cyan-200";
 
     return (
         <section className="bg-surface-container-low p-6 rounded-2xl border border-stone-200/50 shadow-sm space-y-4">
@@ -87,12 +85,12 @@ function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, del
                 ) : items.map((item) => (
                     <div
                         key={item.id}
-                        className={`group relative flex items-center gap-2 px-3 py-1.5 border rounded-full text-sm font-medium transition-all cursor-default ${chipClass}`}
+                        className={`group relative flex items-center gap-2 px-4 py-2 border rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-default ${chipClass}`}
                     >
                         <span>{item.name || item.nombre}</span>
                         <button
                             onClick={() => handleDelete(item.id)}
-                            className={`material-symbols-outlined text-base hover:text-error transition-colors bg-transparent border-none p-0 outline-none cursor-pointer ${!isPrimary ? 'text-on-surface-variant' : ''}`}
+                            className="material-symbols-outlined text-[16px] text-cyan-600/50 hover:text-error transition-colors bg-transparent border-none p-0 outline-none cursor-pointer leading-none"
                         >
                             close
                         </button>
@@ -104,7 +102,7 @@ function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, del
                         <input
                             autoFocus
                             type="text"
-                            className="bg-surface-container-low border border-primary/30 text-sm px-3 py-1.5 rounded-full outline-none focus:ring-2 focus:ring-primary/20 min-w-[120px]"
+                            className="bg-surface-container-low border border-cyan-300/50 text-sm px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-cyan-500/20 min-w-[160px] shadow-sm transition-all"
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={(e) => {

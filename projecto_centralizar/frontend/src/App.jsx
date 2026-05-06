@@ -14,6 +14,7 @@ import RequestAccessPage from './pages/RequestAccessPage'
 import RequestsPage from './pages/RequestsPage'
 import UsersPage from './pages/UsersPage'
 import EmpresasPage from './pages/EmpresasPage'
+import ActivityPage from './pages/ActivityPage'
 import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import { api, setUnauthorizedHandler } from './api/client'
@@ -36,6 +37,7 @@ function Sidebar({ page, setPage, userRole, onLogout, isCollapsed }) {
         { id: 'master-data', label: 'Segmentación', icon: 'dataset', adminOnly: true },
         { id: 'requests', label: 'Solicitudes', icon: 'fact_check', adminOnly: true },
         { id: 'users', label: 'Usuarios', icon: 'manage_accounts', adminOnly: true },
+        { id: 'activity', label: 'Actividad', icon: 'history', adminOnly: true },
         { id: 'api-settings', label: 'APIs y Webhooks', icon: 'api', adminOnly: true },
         { id: 'user-settings', label: 'Ajustes', icon: 'settings' },
     ]
@@ -197,6 +199,11 @@ function AuthenticatedApp({ onLogout, userRole, userEmail }) {
                 {page === 'api-settings' && (
                     <ProtectedRoute requiredRole="admin" userRole={userRole}>
                         <AdminSettingsPage />
+                    </ProtectedRoute>
+                )}
+                {page === 'activity' && (
+                    <ProtectedRoute requiredRole="admin" userRole={userRole}>
+                        <ActivityPage />
                     </ProtectedRoute>
                 )}
                 {page === 'user-settings' && <UserSettingsPage />}
