@@ -1,93 +1,97 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CRM — Contact Manager</title>
-    <link rel="icon" type="image/png" href="/favicon.png?v=2" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="description" content="Centralized CRM application for contact management, enrichment, and campaign tracking." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script id="tailwind-config">
-        tailwind.config = {
-            corePlugins: { preflight: false },
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "background": "#fbf9f8",
-                        "surface-bright": "#fbf9f8",
-                        "error": "#ba1a1a",
-                        "outline": "#6c797d",
-                        "on-primary-container": "#004650",
-                        "error-container": "#ffdad6",
-                        "tertiary-container": "#ff8692",
-                        "primary-fixed": "#a3eeff",
-                        "on-error-container": "#93000a",
-                        "surface-container-high": "#eae8e7",
-                        "on-primary": "#ffffff",
-                        "tertiary-fixed-dim": "#ffb2b7",
-                        "on-tertiary-fixed-variant": "#91002b",
-                        "primary-fixed-dim": "#45d8f1",
-                        "primary-container": "#00bbd4",
-                        "on-primary-fixed-variant": "#004e5a",
-                        "surface-dim": "#dcd9d9",
-                        "inverse-surface": "#303030",
-                        "secondary-container": "#e4e2e1",
-                        "surface-variant": "#e4e2e1",
-                        "on-secondary-fixed": "#1b1c1c",
-                        "secondary-fixed-dim": "#c8c6c6",
-                        "on-background": "#1b1c1c",
-                        "inverse-primary": "#45d8f1",
-                        "surface-container-low": "#f5f3f3",
-                        "on-secondary-fixed-variant": "#474747",
-                        "on-surface-variant": "#3c494c",
-                        "on-tertiary-container": "#830026",
-                        "surface-container-lowest": "#ffffff",
-                        "on-tertiary": "#ffffff",
-                        "primary": "#006877",
-                        "on-primary-fixed": "#001f25",
-                        "on-secondary": "#ffffff",
-                        "on-tertiary-fixed": "#40000e",
-                        "surface": "#fbf9f8",
-                        "inverse-on-surface": "#f2f0f0",
-                        "secondary-fixed": "#e4e2e1",
-                        "tertiary-fixed": "#ffdadb",
-                        "outline-variant": "#bbc9cc",
-                        "on-surface": "#1b1c1c",
-                        "surface-tint": "#006877",
-                        "tertiary": "#be003b",
-                        "on-error": "#ffffff",
-                        "surface-container-highest": "#e4e2e1",
-                        "on-secondary-container": "#656464",
-                        "secondary": "#5f5e5e",
-                        "surface-container": "#f0eded"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.25rem",
-                        "lg": "0.5rem",
-                        "xl": "0.75rem",
-                        "full": "9999px"
-                    },
-                    "fontFamily": {
-                        "headline": ["Plus Jakarta Sans", "sans-serif"],
-                        "body": ["Inter", "sans-serif"],
-                        "label": ["Inter", "sans-serif"]
-                    }
-                }
-            }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prisma</title>
+  <link rel="icon" type="image/png" href="/favicon.png?v=2" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta name="description"
+    content="Centralized CRM application for contact management, enrichment, and campaign tracking." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      corePlugins: { preflight: false },
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "background": "#fbf9f8",
+            "surface-bright": "#fbf9f8",
+            "error": "#ba1a1a",
+            "outline": "#6c797d",
+            "on-primary-container": "#004650",
+            "error-container": "#ffdad6",
+            "tertiary-container": "#ff8692",
+            "primary-fixed": "#a3eeff",
+            "on-error-container": "#93000a",
+            "surface-container-high": "#eae8e7",
+            "on-primary": "#ffffff",
+            "tertiary-fixed-dim": "#ffb2b7",
+            "on-tertiary-fixed-variant": "#91002b",
+            "primary-fixed-dim": "#45d8f1",
+            "primary-container": "#00bbd4",
+            "on-primary-fixed-variant": "#004e5a",
+            "surface-dim": "#dcd9d9",
+            "inverse-surface": "#303030",
+            "secondary-container": "#e4e2e1",
+            "surface-variant": "#e4e2e1",
+            "on-secondary-fixed": "#1b1c1c",
+            "secondary-fixed-dim": "#c8c6c6",
+            "on-background": "#1b1c1c",
+            "inverse-primary": "#45d8f1",
+            "surface-container-low": "#f5f3f3",
+            "on-secondary-fixed-variant": "#474747",
+            "on-surface-variant": "#3c494c",
+            "on-tertiary-container": "#830026",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary": "#ffffff",
+            "primary": "#006877",
+            "on-primary-fixed": "#001f25",
+            "on-secondary": "#ffffff",
+            "on-tertiary-fixed": "#40000e",
+            "surface": "#fbf9f8",
+            "inverse-on-surface": "#f2f0f0",
+            "secondary-fixed": "#e4e2e1",
+            "tertiary-fixed": "#ffdadb",
+            "outline-variant": "#bbc9cc",
+            "on-surface": "#1b1c1c",
+            "surface-tint": "#006877",
+            "tertiary": "#be003b",
+            "on-error": "#ffffff",
+            "surface-container-highest": "#e4e2e1",
+            "on-secondary-container": "#656464",
+            "secondary": "#5f5e5e",
+            "surface-container": "#f0eded"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "fontFamily": {
+            "headline": ["Plus Jakarta Sans", "sans-serif"],
+            "body": ["Inter", "sans-serif"],
+            "label": ["Inter", "sans-serif"]
+          }
         }
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>

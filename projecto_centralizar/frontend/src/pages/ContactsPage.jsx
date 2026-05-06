@@ -23,7 +23,7 @@ function ConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
                 </div>
                 <div className="px-6 py-4 bg-surface-container-low flex justify-end gap-3">
                     <button className="px-4 py-2 font-medium text-stone-600 hover:bg-stone-200 rounded-lg text-sm transition-colors" onClick={onCancel} disabled={loading}>Cancelar</button>
-                    <button className="px-4 py-2 font-bold text-white bg-error rounded-lg text-sm hover:opacity-90 transition-opacity" onClick={onConfirm} disabled={loading}>
+                    <button className="px-4 py-2 font-bold text-white btn-danger-gradient rounded-lg text-sm hover:opacity-90 transition-opacity" onClick={onConfirm} disabled={loading}>
                         {loading ? 'Eliminando...' : 'Eliminar contactos'}
                     </button>
                 </div>
@@ -418,7 +418,10 @@ export default function ContactsPage() {
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                     <div className="flex-1"></div>
-                    <button onClick={handleDeleteBulk} className="bg-error/10 text-error px-4 py-2 rounded-lg text-sm font-bold hover:bg-error/20 transition-colors flex items-center gap-2 border border-error/20 shadow-sm active:scale-95">
+                    <button 
+                        onClick={handleDeleteBulk} 
+                        className="btn-danger-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-error/50 hover:brightness-110"
+                    >
                         <span className="material-symbols-outlined text-lg">delete</span>
                         Eliminar
                         <span className="bg-transparent px-1">{actionCount}</span>

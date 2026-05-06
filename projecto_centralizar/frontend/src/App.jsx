@@ -28,7 +28,7 @@ import SessionTimeoutModal from './components/SessionTimeoutModal'
 // IMPORTANTE: Esto es solo UX — el backend SIEMPRE verifica permisos.
 // Si un gestor intenta acceder a /api/users directamente, el backend
 // responde con 403 Forbidden gracias a la dependencia AdminUser.
-function Sidebar({ page, setPage, userRole, onLogout }) {
+function Sidebar({ page, setPage, userRole, onLogout, isCollapsed }) {
     // Definición de items del menú con Material Symbols Outlined
     const allItems = [
         { id: 'contacts', label: 'Contactos', icon: 'group' },
@@ -43,13 +43,13 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
     const items = allItems.filter(item => !item.adminOnly || userRole === 'admin')
 
     return (
-        <aside className="h-screen w-64 fixed left-0 top-0 bg-stone-100 flex flex-col py-6 z-50">
-            <div className="px-6 mb-10">
-                <div className="flex items-center gap-3 mb-2">
+        <aside className={`h-screen fixed left-0 top-0 bg-stone-100 flex flex-col py-6 z-50 transition-all duration-300 ease-in-out border-r border-stone-200/50 ${isCollapsed ? 'w-20' : 'w-64'}`}>
+            <div className={`px-6 mb-10 transition-all duration-300 ${isCollapsed ? 'px-4' : 'px-6'}`}>
+                <div className={`flex items-center gap-3 mb-2 ${isCollapsed ? 'justify-center' : ''}`}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm overflow-hidden bg-white">
                         <img src="/favicon.png" alt="Prisma Logo" className="w-full h-full object-cover" />
                     </div>
-                    <h1 className="font-headline text-xl font-bold text-stone-900 leading-tight tracking-tight">Prisma</h1>
+                    {!isCollapsed && <h1 className="font-headline text-xl font-bold text-stone-900 leading-tight tracking-tight animate-in fade-in duration-500">Prisma</h1>}
                 </div>
             </div>
 
@@ -61,18 +61,20 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
                             id={`nav-${item.id}`}
                             key={item.id}
                             onClick={() => setPage(item.id)}
-                            className={`w-full flex items-center gap-3 px-4 py-3 font-sans text-sm transition-all group shadow-none outline-none appearance-none border-0 bg-transparent ${isActive
-                                ? 'text-primary font-bold border-r-[3px] border-solid border-r-primary rounded-none'
-                                : 'text-stone-600 font-medium hover:text-primary hover:bg-stone-200/60 rounded-lg'
-                                }`}
+                            title={isCollapsed ? item.label : ''}
+                            className={`w-full flex items-center transition-all group shadow-none outline-none appearance-none border-0 bg-transparent ${isCollapsed ? 'justify-center px-0 py-4' : 'gap-3 px-4 py-3 font-sans text-sm'} ${
+                                isActive 
+                                    ? 'text-primary font-bold border-r-[3px] border-solid border-r-primary rounded-none' 
+                                    : 'text-stone-600 font-medium hover:text-primary hover:bg-stone-200/60 rounded-lg'
+                            }`}
                         >
-                            <span
-                                className="material-symbols-outlined text-xl"
+                            <span 
+                                className="material-symbols-outlined text-xl" 
                                 style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
                             >
                                 {item.icon}
                             </span>
-                            <span>{item.label}</span>
+                            {!isCollapsed && <span className="animate-in fade-in duration-300">{item.label}</span>}
                         </button>
                     )
                 })}
@@ -80,16 +82,17 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
 
             <div className="mt-auto px-4 space-y-1">
 
-                <button
-                    className="w-full flex items-center gap-3 px-4 py-3 text-stone-600 font-medium hover:text-primary hover:bg-stone-200/60 rounded-lg transition-all group shadow-none outline-none appearance-none border-0 bg-transparent cursor-pointer"
+                <button 
+                    className={`w-full flex items-center transition-all group shadow-none outline-none appearance-none border-0 bg-transparent cursor-pointer ${isCollapsed ? 'justify-center px-0 py-4' : 'gap-3 px-4 py-3 text-stone-600 font-medium hover:text-primary hover:bg-stone-200/60 rounded-lg'}`}
                     onClick={async () => {
                         await api.logout()
                         if (onLogout) onLogout()
                         window.location.reload()
                     }}
+                    title={isCollapsed ? 'Cerrar sesión' : ''}
                 >
                     <span className="material-symbols-outlined text-xl">logout</span>
-                    Cerrar sesión
+                    {!isCollapsed && <span className="animate-in fade-in duration-300">Cerrar sesión</span>}
                 </button>
             </div>
         </aside>
@@ -106,6 +109,14 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
 function AuthenticatedApp({ onLogout, userRole, userEmail }) {
     const [page, setPage] = useState('empresas')
     const [extending, setExtending] = useState(false)
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+        return localStorage.getItem('sidebarCollapsed') === 'true'
+    })
+
+    // Persistir estado de la barra lateral
+    useEffect(() => {
+        localStorage.setItem('sidebarCollapsed', isSidebarCollapsed)
+    }, [isSidebarCollapsed])
 
     // ── Logout global ──
     // Limpia el estado de autenticación y redirige a login.
@@ -135,13 +146,23 @@ function AuthenticatedApp({ onLogout, userRole, userEmail }) {
     }
 
     return (
-        <div className="bg-background text-on-background min-h-screen font-body flex">
-            <Sidebar page={page} setPage={setPage} userRole={userRole} onLogout={handleLogout} />
-
-            <main className="ml-64 w-full min-h-screen flex flex-col relative">
+        <div className="bg-background text-on-background min-h-screen font-body flex overflow-x-hidden">
+            <Sidebar page={page} setPage={setPage} userRole={userRole} onLogout={handleLogout} isCollapsed={isSidebarCollapsed} />
+            
+            <main className={`flex-1 min-h-screen flex flex-col relative transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
                 {/* Top Nav Bar Shell */}
-                <header className="w-full h-16 sticky top-0 z-40 bg-stone-50/80 backdrop-blur-xl flex justify-between items-center px-8 border-b border-stone-200/20">
-                    <div className="flex-1"></div>
+                <header className="w-full h-16 sticky top-0 z-40 bg-stone-50/80 backdrop-blur-xl flex justify-between items-center px-4 md:px-8 border-b border-stone-200/20">
+                    <div className="flex items-center gap-4">
+                        <button 
+                            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-stone-200/50 text-stone-600 transition-colors border-0 bg-transparent cursor-pointer outline-none"
+                            title={isSidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+                        >
+                            <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'wght' 300" }}>
+                                {isSidebarCollapsed ? 'menu' : 'menu_open'}
+                            </span>
+                        </button>
+                    </div>
                     <div className="flex items-center gap-4 ml-8">
 
                         <div className="flex items-center gap-3">
