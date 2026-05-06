@@ -10,6 +10,7 @@ import Checkbox from '../components/Checkbox'
 import { settingsService } from '../api/settingsService'
 import { EmpresaCSVExport } from '../components/CSV'
 import EmpresaModal from '../components/EmpresaModal'
+import ImportEmpresasModal from '../components/ImportEmpresasModal'
 
 
 function EmpresaConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {

@@ -46,16 +46,22 @@ export default function RowMenu({ onEdit, onDelete }) {
         <div style={{ display: 'inline-block' }}>
             <button
                 ref={triggerRef}
-                className="row-menu-trigger"
+                className="row-menu-trigger w-8 h-8 rounded-full flex items-center justify-center hover:bg-stone-100 transition-colors"
                 onClick={handleToggle}
                 title="Acciones"
             >
-                ⋯
+                <span className="material-symbols-outlined text-stone-500 text-lg">more_vert</span>
             </button>
             {open && createPortal(
-                <div className="row-menu-dropdown" ref={menuRef} style={{ top: coords.top, left: coords.left, position: 'absolute' }}>
-                    <button onClick={() => { setOpen(false); onEdit() }}>Editar</button>
-                    <button className="danger" onClick={() => { setOpen(false); onDelete() }}>Eliminar</button>
+                <div className="row-menu-dropdown animate-in fade-in zoom-in-95 duration-200" ref={menuRef} style={{ top: coords.top, left: coords.left - 60, position: 'absolute' }}>
+                    <button onClick={() => { setOpen(false); onEdit() }}>
+                        <span className="material-symbols-outlined text-sm">edit</span>
+                        Editar
+                    </button>
+                    <button className="danger" onClick={() => { setOpen(false); onDelete() }}>
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                        Eliminar
+                    </button>
                 </div>,
                 document.body
             )}

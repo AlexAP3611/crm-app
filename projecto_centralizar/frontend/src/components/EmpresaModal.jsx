@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import MultiSelect from './MultiSelect'
+import CustomSelect from './CustomSelect'
 
 function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess }) {
     const [selectedToAssign, setSelectedToAssign] = useState("");
@@ -42,22 +43,24 @@ function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess 
                 {items.map(itemId => {
                     const opt = availableOptions.find(o => o.id === itemId);
                     return (
-                        <span key={itemId} className="inline-flex items-center gap-1.5 px-3 py-1 bg-surface-container-lowest text-stone-700 text-xs font-bold rounded-lg uppercase tracking-wide border border-stone-200">
+                        <span key={itemId} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-cyan-50 text-[#006877] text-[10px] font-bold rounded-xl uppercase tracking-wider border border-cyan-100 shadow-sm">
                             {opt ? (opt.name || opt.nombre) : itemId}
-                            <button type="button" onClick={() => handleUnassign(itemId)} disabled={loading} className="text-stone-400 hover:text-error transition-colors material-symbols-outlined text-[14px] leading-none" title="Desasignar">close</button>
+                            <button type="button" onClick={() => handleUnassign(itemId)} disabled={loading} className="text-cyan-600/50 hover:text-error transition-colors material-symbols-outlined text-[16px] leading-none" title="Desasignar">close</button>
                         </span>
                     );
                 })}
             </div>
             <div className="flex gap-2">
-                <select className="flex-1 bg-surface-container-lowest border border-stone-200 text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none transition-colors hover:border-stone-300" value={selectedToAssign} onChange={e => setSelectedToAssign(e.target.value)} disabled={loading || unassignedOptions.length === 0}>
-                    <option value="">{unassignedOptions.length === 0 ? "Todos los elementos ya están asignados" : "-- Seleccionar para asignar --"}</option>
-                    {unassignedOptions.map(o => (
-                        <option key={o.id} value={o.id}>{o.name || o.nombre}</option>
-                    ))}
-                </select>
-                <button type="button" className="px-5 py-2.5 font-bold text-white bg-stone-800 hover:bg-primary transition-colors rounded-lg text-sm shadow-sm disabled:opacity-50 active:scale-95 flex items-center justify-center whitespace-nowrap" onClick={handleAssign} disabled={!selectedToAssign || loading}>
-                    {loading ? '...' : 'Asignar'}
+                <div className="flex-1">
+                    <CustomSelect 
+                        options={unassignedOptions}
+                        value={selectedToAssign}
+                        onChange={(val) => setSelectedToAssign(val)}
+                        placeholder={unassignedOptions.length === 0 ? "Todos asignados" : "Seleccionar para asignar..."}
+                    />
+                </div>
+                <button type="button" className="px-6 py-2.5 font-bold text-white btn-primary-gradient rounded-xl text-sm shadow-md shadow-primary/20 disabled:opacity-50 active:scale-95 flex items-center justify-center whitespace-nowrap transition-all border-0 outline-none" onClick={handleAssign} disabled={!selectedToAssign || loading}>
+                    {loading ? <div className="spinner-white w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'Asignar'}
                 </button>
             </div>
         </div>
@@ -101,8 +104,8 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                 sector_ids: form.sector_ids || [],
                 vertical_ids: form.vertical_ids || [],
                 product_ids: form.product_ids || [],
-                numero_empleados: form.numero_empleados ? parseInt(form.numero_empleados, 10) : null,
-                facturacion: form.facturacion ? parseFloat(form.facturacion) : null,
+                numero_empleados: (form.numero_empleados !== '' && form.numero_empleados !== null) ? parseInt(form.numero_empleados, 10) : null,
+                facturacion: (form.facturacion !== '' && form.facturacion !== null) ? parseFloat(form.facturacion) : null,
                 cnae: form.cnae || null,
                 facebook: form.facebook || null,
                 web_competidor_1: form.web_competidor_1 || null,
@@ -135,7 +138,7 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose}></div>
+            <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-md animate-in fade-in duration-300"></div>
 
             <div className="relative w-full max-w-4xl bg-surface-container-lowest rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
                 {/* Modal Header */}
@@ -144,7 +147,6 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                         <h2 className="font-headline text-2xl font-bold text-on-surface">
                             {mode === 'create' ? 'Registrar Nueva Empresa' : 'Editar Perfil de Empresa'}
                         </h2>
-                        <p className="text-xs text-on-surface-variant font-medium mt-1 uppercase tracking-widest">Architectural Ledger • Perfil de Empresa</p>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-highest transition-colors">
                         <span className="material-symbols-outlined text-on-surface">close</span>
@@ -164,15 +166,15 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Nombre de Empresa *</label>
-                                <input required name="nombre" value={form.nombre} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="ej. Acme Corp" />
+                                <input required name="nombre" value={form.nombre || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="ej. Acme Corp" />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">CIF</label>
-                                <input name="cif" value={form.cif} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="B12345678" />
+                                <input name="cif" value={form.cif || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="B12345678" />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Correo Electrónico</label>
-                                <input type="email" name="email" value={form.email} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="oficina@empresa.com" />
+                                <input type="email" name="email" value={form.email || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="oficina@empresa.com" />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Teléfono</label>
@@ -180,19 +182,19 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web</label>
-                                <input name="web" value={form.web} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://..." />
+                                <input name="web" value={form.web || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://..." />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Número de Empleados</label>
-                                <input type="number" name="numero_empleados" value={form.numero_empleados} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
+                                <input type="number" name="numero_empleados" value={form.numero_empleados ?? ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facturación Anual (€)</label>
-                                <input type="number" step="0.01" name="facturacion" value={form.facturacion} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
+                                <input type="number" step="0.01" name="facturacion" value={form.facturacion ?? ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
                             </div>
                             <div className="space-y-1.5 md:col-span-2">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">CNAE</label>
-                                <input name="cnae" value={form.cnae} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="ej. 6201" />
+                                <input name="cnae" value={form.cnae || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="ej. 6201" />
                             </div>
                         </div>
                     </section>

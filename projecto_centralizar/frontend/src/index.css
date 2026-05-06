@@ -357,35 +357,39 @@ body {
 
 .row-menu-dropdown {
   position: absolute;
-  right: 0;
-  top: 100%;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: var(--radius-md);
-  box-shadow: 0 10px 25px rgba(31, 56, 135, 0.1);
-  min-width: 120px;
-  z-index: 10;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 40px rgba(0, 104, 119, 0.15);
+  min-width: 160px;
+  z-index: 1000;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding: 6px;
 }
 
 .row-menu-dropdown button {
   background: transparent;
   border: none;
-  padding: 10px 16px;
+  padding: 10px 14px;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
   color: var(--color-text);
   transition: all 0.2s ease;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .row-menu-dropdown button:hover {
-  background: #006877;
-  color: white;
+  background: rgba(0, 187, 212, 0.1);
+  color: #006877;
 }
 
 .row-menu-dropdown button.danger {
@@ -393,8 +397,8 @@ body {
 }
 
 .row-menu-dropdown button.danger:hover {
-  background: #ba1a1a;
-  color: white;
+  background: #fff0f0;
+  color: #ba1a1a;
 }
 
 /* ---- Inputs ---- */
@@ -531,8 +535,8 @@ select.form-control {
 }
 
 .autocomplete-item:hover, .autocomplete-item.active {
-  background: rgba(59, 130, 246, 0.1);
-  color: #1e40af; /* Strong blue on hover */
+  background: rgba(0, 187, 212, 0.1);
+  color: #006877; /* Premium cyan dark */
 }
 
 .filter-section-wrapper {
