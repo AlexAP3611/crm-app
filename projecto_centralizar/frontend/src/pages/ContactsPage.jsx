@@ -150,7 +150,7 @@ function EntityValidationBanner({ message, entities = [], onClose }) {
                     <ul className="list-disc list-inside space-y-1">
                         {entities.map(ent => (
                             <li key={ent.id} className="font-medium text-xs">
-                                {ent.nombre} 
+                                {ent.nombre}
                                 <span className="ml-2 px-1.5 py-0.5 bg-error/10 text-error text-[10px] rounded font-bold uppercase">
                                     {reasons[ent.reason] || ent.reason}
                                 </span>
@@ -273,7 +273,6 @@ export default function ContactsPage() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
                     <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Contactos</h2>
-                    <p className="text-on-surface-variant font-medium">Gestionando {total?.toLocaleString() || 0} contactos en el CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={() => {
@@ -307,11 +306,11 @@ export default function ContactsPage() {
 
             {error && <div className="mb-4 bg-error-container text-on-error-container p-4 rounded-xl text-sm font-medium">{error}</div>}
             {deleteError && <div className="mb-4 bg-error-container text-on-error-container p-4 rounded-xl text-sm font-medium">{deleteError}</div>}
-            
-            <EntityValidationBanner 
-                message={toolError} 
-                entities={invalidEntities} 
-                onClose={() => { setToolError(null); setInvalidEntities([]); }} 
+
+            <EntityValidationBanner
+                message={toolError}
+                entities={invalidEntities}
+                onClose={() => { setToolError(null); setInvalidEntities([]); }}
             />
 
             {toolMessage && (

@@ -137,7 +137,7 @@ function AuthFields({ authType, config, onChange }) {
             <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className={labelCls}>Client ID</label>
+                        <label className={labelCls}>ID del cliente</label>
                         <input
                             className={inputCls}
                             type="text"
@@ -147,7 +147,7 @@ function AuthFields({ authType, config, onChange }) {
                         />
                     </div>
                     <div>
-                        <label className={labelCls}>Client Secret</label>
+                        <label className={labelCls}>Secreto</label>
                         <div className="relative">
                             <input
                                 className={inputCls + ' pr-11'}
@@ -169,7 +169,7 @@ function AuthFields({ authType, config, onChange }) {
                     </div>
                 </div>
                 <div>
-                    <label className={labelCls}>Token URL</label>
+                    <label className={labelCls}>Url del token</label>
                     <input
                         className={inputCls}
                         type="url"
@@ -187,10 +187,10 @@ function AuthFields({ authType, config, onChange }) {
 
     /* ── Header Auth ── */
     if (authType === 'Header Auth') {
-        const previewName  = config.headerName  ? config.headerName.trim()  : 'Header-Name'
-        const previewPfx   = config.prefix      ? config.prefix.trim()      : ''
-        const previewVal   = config.headerValue ? '••••••' : '<valor>'
-        const previewFull  = previewPfx ? `${previewName}: ${previewPfx} ${previewVal}` : `${previewName}: ${previewVal}`
+        const previewName = config.headerName ? config.headerName.trim() : 'Header-Name'
+        const previewPfx = config.prefix ? config.prefix.trim() : ''
+        const previewVal = config.headerValue ? '••••••' : '<valor>'
+        const previewFull = previewPfx ? `${previewName}: ${previewPfx} ${previewVal}` : `${previewName}: ${previewVal}`
 
         return (
             <div className="space-y-4">
@@ -391,7 +391,7 @@ function ServiceCard({ service, config, onSave }) {
                 {/* API Key / URL del servicio */}
                 <div>
                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-2">
-                        Clave API del Servicio
+                        Dirección del Servicio
                     </label>
                     <input
                         className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-600/20 focus:border-cyan-600/30 transition-all outline-none placeholder:text-stone-400"
@@ -527,10 +527,10 @@ export default function SettingsPage() {
             // Invalidar caché y obtener nuevas configs sincronizadas
             const updatedConfigs = await settingsService.refreshSettings()
             const savedValue = updatedConfigs[serviceId]
-            
+
             setServiceConfigs(updatedConfigs)
             setTestResult({ serviceId, success: true })
-            
+
             return savedValue
         } catch (err) {
             console.error(err)
@@ -592,11 +592,6 @@ export default function SettingsPage() {
                                         </button>
                                     )}
                                 </div>
-                                <p className="mt-4 text-xs text-stone-400">
-                                    {lastRotated
-                                        ? `Última rotación: ${lastRotated}. Mantén esta clave confidencial.`
-                                        : 'Mantén esta clave confidencial.'}
-                                </p>
                             </div>
                             <div className="shrink-0">
                                 <button
@@ -632,13 +627,6 @@ export default function SettingsPage() {
             <section>
                 <div className="flex items-center justify-between mb-10">
                     <h2 className="text-2xl font-bold font-headline tracking-tight text-stone-900">Conectividad Externa</h2>
-                    <div className="flex items-center gap-2 text-stone-500 text-xs font-semibold">
-                        <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: activeServices > 0 ? '#10b981' : '#9ca3af' }}
-                        />
-                        {activeServices} {activeServices === 1 ? 'Servicio Activo' : 'Servicios Activos'}
-                    </div>
                 </div>
 
                 {/* Integration Bento Grid */}

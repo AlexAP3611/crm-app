@@ -33,7 +33,7 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
     const allItems = [
         { id: 'contacts', label: 'Contactos', icon: 'group' },
         { id: 'empresas', label: 'Empresas', icon: 'business' },
-        { id: 'master-data', label: 'Datos maestros', icon: 'dataset', adminOnly: true },
+        { id: 'master-data', label: 'Segmentación', icon: 'dataset', adminOnly: true },
         { id: 'requests', label: 'Solicitudes', icon: 'fact_check', adminOnly: true },
         { id: 'users', label: 'Usuarios', icon: 'manage_accounts', adminOnly: true },
         { id: 'api-settings', label: 'APIs y Webhooks', icon: 'api', adminOnly: true },
@@ -46,14 +46,13 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
         <aside className="h-screen w-64 fixed left-0 top-0 bg-stone-100 flex flex-col py-6 z-50">
             <div className="px-6 mb-10">
                 <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 btn-primary-gradient rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm">
-                        <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>architecture</span>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm overflow-hidden bg-white">
+                        <img src="/favicon.png" alt="Prisma Logo" className="w-full h-full object-cover" />
                     </div>
-                    <h1 className="font-headline text-xl font-bold text-stone-900 leading-tight tracking-tight">Prisma CRM</h1>
+                    <h1 className="font-headline text-xl font-bold text-stone-900 leading-tight tracking-tight">Prisma</h1>
                 </div>
-                <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-medium opacity-60 ml-11">Architectural Ledger</p>
             </div>
-            
+
             <nav className="flex-1 px-4 space-y-1">
                 {items.map((item) => {
                     const isActive = page === item.id;
@@ -62,14 +61,13 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
                             id={`nav-${item.id}`}
                             key={item.id}
                             onClick={() => setPage(item.id)}
-                            className={`w-full flex items-center gap-3 px-4 py-3 font-sans text-sm transition-all group shadow-none outline-none appearance-none border-0 bg-transparent ${
-                                isActive 
-                                    ? 'text-primary font-bold border-r-[3px] border-solid border-r-primary rounded-none' 
-                                    : 'text-stone-600 font-medium hover:text-primary hover:bg-stone-200/60 rounded-lg'
-                            }`}
+                            className={`w-full flex items-center gap-3 px-4 py-3 font-sans text-sm transition-all group shadow-none outline-none appearance-none border-0 bg-transparent ${isActive
+                                ? 'text-primary font-bold border-r-[3px] border-solid border-r-primary rounded-none'
+                                : 'text-stone-600 font-medium hover:text-primary hover:bg-stone-200/60 rounded-lg'
+                                }`}
                         >
-                            <span 
-                                className="material-symbols-outlined text-xl" 
+                            <span
+                                className="material-symbols-outlined text-xl"
                                 style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
                             >
                                 {item.icon}
@@ -79,10 +77,10 @@ function Sidebar({ page, setPage, userRole, onLogout }) {
                     )
                 })}
             </nav>
-            
+
             <div className="mt-auto px-4 space-y-1">
 
-                <button 
+                <button
                     className="w-full flex items-center gap-3 px-4 py-3 text-stone-600 font-medium hover:text-primary hover:bg-stone-200/60 rounded-lg transition-all group shadow-none outline-none appearance-none border-0 bg-transparent cursor-pointer"
                     onClick={async () => {
                         await api.logout()
@@ -139,7 +137,7 @@ function AuthenticatedApp({ onLogout, userRole, userEmail }) {
     return (
         <div className="bg-background text-on-background min-h-screen font-body flex">
             <Sidebar page={page} setPage={setPage} userRole={userRole} onLogout={handleLogout} />
-            
+
             <main className="ml-64 w-full min-h-screen flex flex-col relative">
                 {/* Top Nav Bar Shell */}
                 <header className="w-full h-16 sticky top-0 z-40 bg-stone-50/80 backdrop-blur-xl flex justify-between items-center px-8 border-b border-stone-200/20">
@@ -265,7 +263,7 @@ function AppRoutes() {
                                 navigate('/')
                             }}
                             onNavigateRequestAccess={() => navigate('/request-access')}
-                          />
+                        />
                 }
             />
             <Route
@@ -275,7 +273,7 @@ function AppRoutes() {
                         ? <Navigate to="/" replace />
                         : <RequestAccessPage
                             onNavigateLogin={() => navigate('/login')}
-                          />
+                        />
                 }
             />
 
@@ -293,7 +291,7 @@ function AppRoutes() {
                                 setUserEmail(null)
                                 navigate('/login')
                             }}
-                          />
+                        />
                         : <Navigate to="/login" replace />
                 }
             />

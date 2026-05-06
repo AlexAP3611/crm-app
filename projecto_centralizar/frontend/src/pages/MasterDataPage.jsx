@@ -136,10 +136,7 @@ export default function MasterDataPage() {
         <div className="p-8 pb-20 space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Arquitectura de Datos</h2>
-                    <p className="text-on-surface-variant font-medium">
-                        Organiza los cimientos de la base de datos empresarial. Administra sectores, verticales y el diccionario de datos.
-                    </p>
+                    <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Segmentación</h2>
                 </div>
             </div>
 

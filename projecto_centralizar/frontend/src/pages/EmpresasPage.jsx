@@ -118,9 +118,9 @@ function EmpresaBulkAssignmentModal({ type, targetCount, options = [], onClose, 
     )
 }
 
-const EMPTY_FORM = { 
-    nombre: '', cif: '', email: '', phone: '', web: '', 
-    sector_ids: [], vertical_ids: [], product_ids: [], 
+const EMPTY_FORM = {
+    nombre: '', cif: '', email: '', phone: '', web: '',
+    sector_ids: [], vertical_ids: [], product_ids: [],
     numero_empleados: '', facturacion: '', cnae: '',
     facebook: '', web_competidor_1: '', web_competidor_2: '', web_competidor_3: ''
 }
@@ -299,7 +299,7 @@ function EntityValidationBanner({ message, entities = [], onClose }) {
                     <ul className="list-disc list-inside space-y-1">
                         {entities.map(ent => (
                             <li key={ent.id} className="font-medium text-xs">
-                                {ent.nombre} 
+                                {ent.nombre}
                                 <span className="ml-2 px-1.5 py-0.5 bg-error/10 text-error text-[10px] rounded font-bold uppercase">
                                     {reasons[ent.reason] || ent.reason}
                                 </span>
@@ -632,7 +632,6 @@ export default function EmpresasPage() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
                     <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Empresas</h2>
-                    <p className="text-on-surface-variant font-medium">Gestionando {totalEmpresas.toLocaleString()} entidades corporativas en Prisma CRM.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={() => {
@@ -663,10 +662,10 @@ export default function EmpresasPage() {
                 </div>
             </div>
 
-            <EntityValidationBanner 
-                message={enrichError} 
-                entities={invalidEntities} 
-                onClose={() => { setEnrichError(null); setInvalidEntities([]); }} 
+            <EntityValidationBanner
+                message={enrichError}
+                entities={invalidEntities}
+                onClose={() => { setEnrichError(null); setInvalidEntities([]); }}
             />
 
             {error && <div className="p-4 bg-error-container text-on-error-container rounded-lg font-medium text-sm">{error}</div>}
@@ -1077,9 +1076,9 @@ export default function EmpresasPage() {
                                     </div>
                                 </div>
                             </section>
- 
+
                             <hr className="border-outline-variant/30" />
- 
+
                             {/* Section: Social & Competitors */}
                             <section className="space-y-6">
                                 <div className="flex items-center gap-2 mb-2">
@@ -1105,7 +1104,7 @@ export default function EmpresasPage() {
                                     </div>
                                 </div>
                             </section>
- 
+
                             <hr className="border-outline-variant/30" />
 
                             {/* Section: Industry Taxonomy */}
@@ -1255,7 +1254,7 @@ export default function EmpresasPage() {
 
             {/* CSV Import Modal */}
             {showImportModal && (
-                <ImportEmpresasModal 
+                <ImportEmpresasModal
                     onClose={() => setShowImportModal(false)}
                     onImported={() => {
                         // Refresh data in background but DON'T close the modal yet

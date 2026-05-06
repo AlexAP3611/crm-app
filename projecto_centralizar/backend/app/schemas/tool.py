@@ -8,9 +8,9 @@ class ToolKey(str, Enum):
     AFFINO = "Affino"
     CLAY = "Clay"
     APOLLO = "Apollo"
-    # Future tools can be added here
-    SLACK = "Slack"
     ADSCORE = "Adscore"
+    # Future tools can be added here
+    
 
 class ToolExecutionRequest(BaseModel):
     tool_key: ToolKey

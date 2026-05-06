@@ -131,9 +131,6 @@ export default function UsersPage({ currentUserEmail }) {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
                     <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Usuarios y Equipos</h2>
-                    <p className="text-on-surface-variant font-medium">
-                        Gestiona la jerarquía editorial de tu organización. Controla los niveles de acceso y gestiona a los miembros del equipo.
-                    </p>
                 </div>
             </div>
 
@@ -149,7 +146,7 @@ export default function UsersPage({ currentUserEmail }) {
                         <span className="text-xs text-secondary font-medium">Mostrando {users.length} de {users.length}</span>
                     </div>
                 </div>
-                
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>

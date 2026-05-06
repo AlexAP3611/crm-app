@@ -96,10 +96,9 @@ export default function RequestsPage() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
                     <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Solicitudes</h2>
-                    <p className="text-on-surface-variant font-medium">Gestiona y modera las solicitudes de acceso al sistema.</p>
                 </div>
                 <div className="flex gap-3">
-                    <button onClick={() => fetchRequests()} className="bg-surface-container-highest px-4 py-2 rounded-lg text-sm font-semibold text-on-surface hover:bg-stone-200 transition-colors flex items-center gap-2 border border-stone-200/50 shadow-sm">
+                    <button onClick={() => fetchRequests()} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95">
                         <span className="material-symbols-outlined text-lg">sync</span>
                         Actualizar
                     </button>

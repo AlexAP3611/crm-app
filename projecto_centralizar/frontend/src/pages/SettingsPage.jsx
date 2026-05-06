@@ -51,9 +51,6 @@ export default function SettingsPage() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
                     <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Ajustes</h2>
-                    <p className="text-on-surface-variant font-medium">
-                        Gestiona tu configuración personal y seguridad de tu cuenta.
-                    </p>
                 </div>
             </div>
 
@@ -74,9 +71,6 @@ export default function SettingsPage() {
                 <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant/10 overflow-hidden">
                     <div className="p-8 border-b border-surface-container-low">
                         <h3 className="font-headline font-bold text-xl text-on-surface mb-1">Cambiar contraseña</h3>
-                        <p className="text-sm text-secondary">
-                            Actualiza tu contraseña de acceso. Se recomienda usar una combinación de letras, números y símbolos.
-                        </p>
                     </div>
 
                     <form onSubmit={handleChangePassword} className="p-8 space-y-6">
@@ -133,9 +127,6 @@ export default function SettingsPage() {
                         </div>
 
                         <div className="flex items-center justify-between pt-6 border-t border-surface-container-low">
-                            <p className="text-xs text-secondary italic">
-                                Tu sesión se mantendrá activa tras el cambio.
-                            </p>
                             <button
                                 id="change-password-btn"
                                 type="submit"
