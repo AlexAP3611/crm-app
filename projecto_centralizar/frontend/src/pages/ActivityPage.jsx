@@ -1,6 +1,90 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api/client";
 
+// ── Cleanup Confirmation Modal ──────────────────────────────────────────────
+function ConfirmCleanupModal({ tab, retentionDays, setRetentionDays, loading, onConfirm, onCancel }) {
+    const tabLabel = tab === "integrations" ? "integraciones" : "auditoría";
+    return (
+        <div
+            className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4"
+            onClick={onCancel}
+        >
+            <div
+                className="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="p-6 border-b border-stone-100 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-rose-600 text-lg">delete_sweep</span>
+                        </div>
+                        <h2 className="font-display text-lg font-bold text-stone-900">Limpiar registros antiguos</h2>
+                    </div>
+                    <button className="text-stone-400 hover:text-stone-600 transition-colors" onClick={onCancel}>
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    <p className="text-stone-600 text-sm leading-relaxed">
+                        Se eliminarán todos los registros de <strong className="text-stone-900">{tabLabel}</strong> con
+                        más antigüedad que el período de retención seleccionado. Esta acción <strong className="text-rose-700">no se puede deshacer</strong>.
+                    </p>
+
+                    {/* Retention selector */}
+                    <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-stone-500">
+                            Eliminar registros anteriores a
+                        </label>
+                        <div className="flex gap-2">
+                            {[30, 60, 90].map(days => (
+                                <button
+                                    key={days}
+                                    onClick={() => setRetentionDays(days)}
+                                    className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${
+                                        retentionDays === days
+                                            ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                            : 'bg-white text-stone-600 border-stone-200 hover:border-rose-300 hover:text-rose-700'
+                                    }`}
+                                >
+                                    {days} días
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[10px] text-stone-400 leading-snug pt-1">
+                            Se conservarán todos los registros de los últimos <strong>{retentionDays} días</strong>.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 bg-surface-container-low border-t border-stone-100 flex justify-end gap-3">
+                    <button
+                        className="px-4 py-2 font-medium text-stone-600 hover:bg-stone-200 rounded-lg text-sm transition-colors"
+                        onClick={onCancel}
+                        disabled={loading}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        className="px-4 py-2 font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+                        onClick={onConfirm}
+                        disabled={loading}
+                    >
+                        <span className="material-symbols-outlined text-[16px]">
+                            {loading ? 'hourglass_empty' : 'delete_sweep'}
+                        </span>
+                        {loading ? 'Limpiando…' : 'Confirmar limpieza'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Main Component ──────────────────────────────────────────────────────────
 export default function ActivityPage() {
     const [activeTab, setActiveTab] = useState("integrations"); // "integrations" | "audit"
     const [integrationLogs, setIntegrationLogs] = useState([]);
@@ -11,6 +95,13 @@ export default function ActivityPage() {
     const pageSize = 15;
 
     const [expandedRow, setExpandedRow] = useState(null);
+
+    // ── Cleanup state ──
+    const [showCleanupModal, setShowCleanupModal] = useState(false);
+    const [retentionDays, setRetentionDays] = useState(90);
+    const [cleanupLoading, setCleanupLoading] = useState(false);
+    const [successMsg, setSuccessMsg] = useState('');
+    const [errorMsg, setErrorMsg] = useState('');
 
     const loadLogs = useCallback(async () => {
         try {
@@ -35,6 +126,31 @@ export default function ActivityPage() {
         loadLogs();
         setExpandedRow(null);
     }, [loadLogs]);
+
+    const handleCleanup = async () => {
+        setCleanupLoading(true);
+        setSuccessMsg('');
+        setErrorMsg('');
+        try {
+            const res = activeTab === "integrations"
+                ? await api.cleanupIntegrationLogs(retentionDays)
+                : await api.cleanupAuditLogs(retentionDays);
+
+            setShowCleanupModal(false);
+            setSuccessMsg(res.message);
+            setTimeout(() => setSuccessMsg(''), 5000);
+
+            // Reset to page 1 — the useEffect will trigger loadLogs() automatically
+            // when the new loadLogs (which depends on page) is created after re-render.
+            setPage(1);
+        } catch (err) {
+            setShowCleanupModal(false);
+            setErrorMsg(err.message || 'Error al limpiar los registros');
+            setTimeout(() => setErrorMsg(''), 5000);
+        } finally {
+            setCleanupLoading(false);
+        }
+    };
 
     const formatTime = (dateStr) => {
         return new Date(dateStr).toLocaleString('es-ES', {
@@ -63,6 +179,20 @@ export default function ActivityPage() {
                 <p className="text-muted text-sm mt-1">Supervisión técnica y auditoría de acciones del CRM.</p>
             </header>
 
+            {/* Feedback banners */}
+            {successMsg && (
+                <div className="mb-4 flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-medium">
+                    <span className="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
+                    {successMsg}
+                </div>
+            )}
+            {errorMsg && (
+                <div className="mb-4 flex items-center gap-3 bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl text-sm font-medium">
+                    <span className="material-symbols-outlined text-rose-500 text-lg">error</span>
+                    {errorMsg}
+                </div>
+            )}
+
             <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm border border-stone-200/40">
                 {/* Tab Header */}
                 <div className="px-6 py-4 flex items-center justify-between bg-surface-container-low/50 border-b border-stone-200/20">
@@ -82,6 +212,16 @@ export default function ActivityPage() {
                             Auditoría
                         </button>
                     </div>
+
+                    {/* Cleanup button */}
+                    <button
+                        onClick={() => { setRetentionDays(90); setShowCleanupModal(true); }}
+                        className="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95 outline-none focus:outline-none focus:ring-2 focus:ring-rose-300 shadow-sm"
+                        title="Eliminar registros antiguos"
+                    >
+                        <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
+                        Limpiar logs
+                    </button>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -139,7 +279,7 @@ export default function ActivityPage() {
                                             </td>
                                             <td className="py-5 px-6">
                                                 {log.error_log && (
-                                                    <button 
+                                                    <button
                                                         onClick={() => setExpandedRow(expandedRow === log.run_id ? null : log.run_id)}
                                                         className="bg-transparent border-0 text-primary text-[10px] font-bold uppercase tracking-widest hover:underline cursor-pointer flex items-center gap-1"
                                                     >
@@ -187,19 +327,19 @@ export default function ActivityPage() {
                         </tbody>
                     </table>
                 </div>
-                
+
                 {/* Pagination */}
                 <div className="p-4 bg-surface-container-low border-t border-stone-200/40 flex items-center justify-between">
                     <span className="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Mostrando página {page} • {total} total</span>
                     <div className="flex gap-2">
-                        <button 
+                        <button
                             disabled={page === 1 || loading}
                             onClick={() => setPage(p => p - 1)}
                             className="px-4 py-2 bg-white border border-stone-200 rounded-xl text-xs font-bold text-stone-600 disabled:opacity-30 hover:bg-stone-50 hover:text-stone-900 transition-all active:scale-95 shadow-sm"
                         >
                             Anterior
                         </button>
-                        <button 
+                        <button
                             disabled={page * pageSize >= total || loading}
                             onClick={() => setPage(p => p + 1)}
                             className="px-4 py-2 bg-white border border-stone-200 rounded-xl text-xs font-bold text-stone-600 disabled:opacity-30 hover:bg-stone-50 hover:text-stone-900 transition-all active:scale-95 shadow-sm"
@@ -209,6 +349,18 @@ export default function ActivityPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Cleanup Modal */}
+            {showCleanupModal && (
+                <ConfirmCleanupModal
+                    tab={activeTab}
+                    retentionDays={retentionDays}
+                    setRetentionDays={setRetentionDays}
+                    loading={cleanupLoading}
+                    onConfirm={handleCleanup}
+                    onCancel={() => setShowCleanupModal(false)}
+                />
+            )}
         </div>
     );
 }

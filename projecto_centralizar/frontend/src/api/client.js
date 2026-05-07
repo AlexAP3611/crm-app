@@ -439,4 +439,6 @@ export const api = {
     // ── Activity ──
     listIntegrationLogs: (page = 1, pageSize = 20) => request(`/activity/integrations?page=${page}&page_size=${pageSize}`),
     listAuditLogs: (page = 1, pageSize = 20) => request(`/activity/audit?page=${page}&page_size=${pageSize}`),
+    cleanupIntegrationLogs: (retentionDays = 90) => request(`/activity/integrations/cleanup?retention_days=${retentionDays}`, { method: 'DELETE' }),
+    cleanupAuditLogs: (retentionDays = 90) => request(`/logs/cleanup?retention_days=${retentionDays}`, { method: 'DELETE' }),
 }
