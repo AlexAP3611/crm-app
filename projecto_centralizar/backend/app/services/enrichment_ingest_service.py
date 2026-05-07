@@ -89,60 +89,65 @@ async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
                 logger.warning(f"SKIP Empresa: ID {emp_in.empresa_id} no existe en DB. Payload: {emp_in.model_dump()}")
                 empresa_skipped += 1
                 continue
-                
-            # Update fields selectively, only if not None and not empty string
-            if emp_in.web not in (None, ""): empresa.web = emp_in.web
-            if emp_in.email not in (None, ""): empresa.email = emp_in.email
-            if emp_in.phone not in (None, ""): empresa.phone = emp_in.phone
-            if emp_in.cif not in (None, ""): empresa.cif = emp_in.cif
-            if emp_in.cnae not in (None, ""): empresa.cnae = emp_in.cnae
-            if emp_in.numero_empleados not in (None, ""): empresa.numero_empleados = emp_in.numero_empleados
-            if emp_in.facturacion not in (None, ""): empresa.facturacion = emp_in.facturacion
-            
-            # M2M relationships — merge-append only, never replace existing
-            if emp_in.sector:
-                res_sec = await db.execute(select(Sector).where(Sector.name.in_(emp_in.sector)))
-                new_sectors = list(res_sec.scalars().all())
-                existing_ids = {s.id for s in empresa.sectors}
-                for s in new_sectors:
-                    if s.id not in existing_ids:
-                        empresa.sectors.append(s)
-                
-            if emp_in.vertical:
-                res_ver = await db.execute(select(Vertical).where(Vertical.name.in_(emp_in.vertical)))
-                new_verticals = list(res_ver.scalars().all())
-                existing_ids = {v.id for v in empresa.verticals}
-                for v in new_verticals:
-                    if v.id not in existing_ids:
-                        empresa.verticals.append(v)
-                
-            if emp_in.producto:
-                res_prod = await db.execute(select(Product).where(Product.name.in_(emp_in.producto)))
-                new_products = list(res_prod.scalars().all())
-                existing_ids = {p.id for p in empresa.products_rel}
-                for p in new_products:
-                    if p.id not in existing_ids:
-                        empresa.products_rel.append(p)
 
-            await db.flush()
+            # SAVEPOINT per empresa: isolates failures so one bad empresa
+            # doesn't rollback all previously-processed empresas.
+            async with db.begin_nested():
+                # Update fields selectively, only if not None and not empty string
+                if emp_in.web not in (None, ""): empresa.web = emp_in.web
+                if emp_in.email not in (None, ""): empresa.email = emp_in.email
+                if emp_in.phone not in (None, ""): empresa.phone = emp_in.phone
+                if emp_in.cif not in (None, ""): empresa.cif = emp_in.cif
+                if emp_in.cnae not in (None, ""): empresa.cnae = emp_in.cnae
+                if emp_in.numero_empleados not in (None, ""): empresa.numero_empleados = emp_in.numero_empleados
+                if emp_in.facturacion not in (None, ""): empresa.facturacion = emp_in.facturacion
+                
+                # M2M relationships — merge-append only, never replace existing
+                if emp_in.sector:
+                    res_sec = await db.execute(select(Sector).where(Sector.name.in_(emp_in.sector)))
+                    new_sectors = list(res_sec.scalars().all())
+                    existing_ids = {s.id for s in empresa.sectors}
+                    for s in new_sectors:
+                        if s.id not in existing_ids:
+                            empresa.sectors.append(s)
+                    
+                if emp_in.vertical:
+                    res_ver = await db.execute(select(Vertical).where(Vertical.name.in_(emp_in.vertical)))
+                    new_verticals = list(res_ver.scalars().all())
+                    existing_ids = {v.id for v in empresa.verticals}
+                    for v in new_verticals:
+                        if v.id not in existing_ids:
+                            empresa.verticals.append(v)
+                    
+                if emp_in.producto:
+                    res_prod = await db.execute(select(Product).where(Product.name.in_(emp_in.producto)))
+                    new_products = list(res_prod.scalars().all())
+                    existing_ids = {p.id for p in empresa.products_rel}
+                    for p in new_products:
+                        if p.id not in existing_ids:
+                            empresa.products_rel.append(p)
+
+                await db.flush()
+                
+                # Pass cargo_cache to maintain session-level performance
+                created, updated, skipped = await process_contacts(db, empresa.id, emp_in.contactos, cargo_cache, body.source)
+                contact_created += created
+                contact_updated += updated
+                contact_skipped += skipped
+
+                # Finalize: Mark as success and update timestamp now that data is actually here
+                from datetime import datetime, timezone
+                empresa.enrichment_status = "success"
+                empresa.last_enriched_at = datetime.now(timezone.utc)
+
             empresa_processed += 1
-            
-            # Pass cargo_cache to maintain session-level performance
-            created, updated, skipped = await process_contacts(db, empresa.id, emp_in.contactos, cargo_cache, body.source)
-            contact_created += created
-            contact_updated += updated
-            contact_skipped += skipped
-
-            # Finalize: Mark as success and update timestamp now that data is actually here
-            from datetime import datetime, timezone
-            empresa.enrichment_status = "success"
-            empresa.last_enriched_at = datetime.now(timezone.utc)
         except Exception as e:
+            # Savepoint auto-rolls back ONLY this empresa's work;
+            # all previously-processed empresas remain intact.
             logger.error(
                 f"[INGEST ERROR] Empresa {emp_in.empresa_id}: {e}",
                 exc_info=True
             )
-            await db.rollback()
             empresa_skipped += 1
             continue
 
