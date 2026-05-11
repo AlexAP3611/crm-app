@@ -57,16 +57,10 @@ async def export_csv(
 
     result = await db.execute(query)
     items = list(result.scalars().unique().all())
-
-    output = io.StringIO()
-    import csv
-    writer = csv.DictWriter(output, fieldnames=csv_service.CSV_FIELDS, extrasaction="ignore")
-    writer.writeheader()
-    for contact in items:
-        writer.writerow(csv_service._contact_to_row(contact))
+    csv_content = await csv_service.export_contacts_csv(items)
 
     return StreamingResponse(
-        io.StringIO(output.getvalue()),
+        io.StringIO(csv_content),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=contacts.csv"},
     )

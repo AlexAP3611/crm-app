@@ -22,11 +22,54 @@ CSV_VERSION = "v1"
 CONTACT_M2M_FIELDS = M2M_FIELD_MAP
 EMPRESA_M2M_FIELDS = EMPRESA_M2M_FIELD_MAP
 
+# Export-friendly column names and name attributes for M2M relations.
+# Keys: internal M2M key -> (csv_column_name, attribute_to_read_from_model)
+M2M_EXPORT_META = {
+    "campaign_ids": ("campaigns", "nombre"),
+    "sector_ids":   ("sectors",   "name"),
+    "vertical_ids": ("verticals", "name"),
+    "product_ids":  ("products",  "name"),
+}
+
+def _m2m_export_columns(field_map: dict) -> list[str]:
+    """Return CSV column names for the given M2M field map."""
+    return [M2M_EXPORT_META[k][0] for k in field_map]
+
+HEADER_MAP = {
+    "csv_version": "Version_CSV",
+    "cargo": "Cargo",
+    "first_name": "Nombre",
+    "last_name": "Apellidos",
+    "email": "Email",
+    "phone": "Telefono",
+    "linkedin": "LinkedIn",
+    "empresa_nombre": "Empresa_Nombre",
+    "empresa_cif": "Empresa_CIF",
+    "empresa_web": "Empresa_Web",
+    "empresa_email": "Empresa_Email",
+    "empresa_phone": "Empresa_Telefono",
+    "campaigns": "Campañas",
+    "sectors": "Sectores",
+    "verticals": "Verticales",
+    "products": "Productos",
+    # Empresa native fields
+    "nombre": "Nombre",
+    "web": "Web",
+    "numero_empleados": "Num_Empleados",
+    "facturacion": "Facturacion",
+    "cnae": "CNAE",
+    "facebook": "Facebook",
+    "web_competidor_1": "Web_Competidor_1",
+    "web_competidor_2": "Web_Competidor_2",
+    "web_competidor_3": "Web_Competidor_3",
+}
+
+def _translate_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {HEADER_MAP.get(k, k): v for k, v in row.items()}
+
 CSV_FIELDS = [
     "csv_version",
-    "id",
-    "empresa_id",
-    "cargo_id",
+    "cargo",
     # Contact native fields
     *CONTACT_VIEW_FIELDS,
     # Empresa explicit fields
@@ -35,20 +78,18 @@ CSV_FIELDS = [
     "empresa_web",
     "empresa_email",
     "empresa_phone",
-    # M2M Relationships
-    *CONTACT_M2M_FIELDS.keys(),
-    *EMPRESA_M2M_FIELDS.keys(),
+    # M2M Relationships (exported as names)
+    *_m2m_export_columns(CONTACT_M2M_FIELDS),
+    *_m2m_export_columns(EMPRESA_M2M_FIELDS),
 ]
 
-EMPRESA_CSV_FIELDS = ["csv_version", "id"] + EMPRESA_VIEW_FIELDS + list(EMPRESA_M2M_FIELDS.keys())
+EMPRESA_CSV_FIELDS = ["csv_version"] + EMPRESA_VIEW_FIELDS + _m2m_export_columns(EMPRESA_M2M_FIELDS)
 
 def _contact_to_row(contact: Contact) -> dict[str, Any]:
     row = {"csv_version": CSV_VERSION}
 
     # Core
-    row["id"] = contact.id
-    row["empresa_id"] = contact.empresa_id
-    row["cargo_id"] = contact.cargo_id
+    row["cargo"] = contact.cargo.name if contact.cargo else ""
 
     # Contact native fields
     for field in CONTACT_VIEW_FIELDS:
@@ -62,46 +103,57 @@ def _contact_to_row(contact: Contact) -> dict[str, Any]:
     row["empresa_email"] = empresa.email if empresa else ""
     row["empresa_phone"] = empresa.phone if empresa else ""
 
-    # Contact M2M
+    # Contact M2M (export names, not IDs)
     for key, config in CONTACT_M2M_FIELDS.items():
+        col_name, name_attr = M2M_EXPORT_META[key]
         rel_list = getattr(contact, config["relation_name"], [])
-        row[key] = ",".join(str(item.id) for item in rel_list)
+        row[col_name] = ",".join(getattr(item, name_attr, "") for item in rel_list)
 
-    # Empresa M2M
+    # Empresa M2M (export names, not IDs)
     if empresa:
         for key, config in EMPRESA_M2M_FIELDS.items():
+            col_name, name_attr = M2M_EXPORT_META[key]
             rel_list = getattr(empresa, config["relation_name"], [])
-            row[key] = ",".join(str(item.id) for item in rel_list)
+            row[col_name] = ",".join(getattr(item, name_attr, "") for item in rel_list)
     else:
         for key in EMPRESA_M2M_FIELDS.keys():
-            row[key] = ""
+            col_name = M2M_EXPORT_META[key][0]
+            row[col_name] = ""
 
     return row
 
 
 def _empresa_to_row(empresa: Empresa) -> dict[str, Any]:
     row = {"csv_version": CSV_VERSION}
-    row["id"] = empresa.id
 
     for field in EMPRESA_VIEW_FIELDS:
         row[field] = getattr(empresa, field, "") or ""
 
     for key, config in EMPRESA_M2M_FIELDS.items():
+        col_name, name_attr = M2M_EXPORT_META[key]
         rel_list = getattr(empresa, config["relation_name"], [])
-        row[key] = ",".join(str(item.id) for item in rel_list)
+        row[col_name] = ",".join(getattr(item, name_attr, "") for item in rel_list)
 
     return row
 
 
+async def export_contacts_csv(items: list[Contact]) -> str:
+    """Return CSV string for a list of contacts."""
+    output = io.StringIO()
+    
+    translated_fieldnames = [HEADER_MAP.get(f, f) for f in CSV_FIELDS]
+    writer = csv.DictWriter(output, fieldnames=translated_fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    
+    for contact in items:
+        row = _contact_to_row(contact)
+        writer.writerow(_translate_row(row))
+    return output.getvalue()
+
 async def export_csv(session: AsyncSession, filters: ContactFilterParams) -> str:
     """Return CSV string for all contacts matching filters."""
     items = await contact_service.list_contacts_unpaginated(session, filters)
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=CSV_FIELDS, extrasaction="ignore")
-    writer.writeheader()
-    for contact in items:
-        writer.writerow(_contact_to_row(contact))
-    return output.getvalue()
+    return await export_contacts_csv(items)
 
 def parse_csv(content: bytes) -> list[dict]:
     """
@@ -158,8 +210,12 @@ def parse_file(content: bytes, filename: str) -> list[dict]:
 async def export_empresas_csv(session: AsyncSession, items: list[Empresa]) -> str:
     """Return CSV string for a list of enterprises."""
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=EMPRESA_CSV_FIELDS, extrasaction="ignore")
+    
+    translated_fieldnames = [HEADER_MAP.get(f, f) for f in EMPRESA_CSV_FIELDS]
+    writer = csv.DictWriter(output, fieldnames=translated_fieldnames, extrasaction="ignore")
     writer.writeheader()
+    
     for empresa in items:
-        writer.writerow(_empresa_to_row(empresa))
+        row = _empresa_to_row(empresa)
+        writer.writerow(_translate_row(row))
     return output.getvalue()
