@@ -64,7 +64,7 @@ function MasterDataLedger({ title, singularTitle, icon, fetchApi, createApi, del
     const chipClass = "bg-cyan-50 text-[#006877] border-cyan-100 shadow-sm hover:bg-cyan-100/50 hover:border-cyan-200";
 
     return (
-        <section className="bg-surface-container-low p-6 rounded-2xl border border-stone-200/50 shadow-sm space-y-4">
+        <section className="bg-white p-6 rounded-2xl border border-stone-200/50 shadow-sm space-y-4">
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-primary">{icon}</span>
