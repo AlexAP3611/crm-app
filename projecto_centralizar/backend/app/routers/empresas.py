@@ -30,13 +30,15 @@ router = APIRouter(
 
 
 async def _load_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
-    """Load an Empresa with all M2M relations eagerly loaded."""
+    """Load an Empresa with all M2M and location relations eagerly loaded."""
     result = await db.execute(
         select(Empresa)
         .options(
             selectinload(Empresa.sectors),
             selectinload(Empresa.verticals),
             selectinload(Empresa.products_rel),
+            selectinload(Empresa.pais_rel),
+            selectinload(Empresa.provincia_rel),
         )
         .where(Empresa.id == empresa_id)
     )

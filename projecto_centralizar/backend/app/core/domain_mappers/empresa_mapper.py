@@ -19,13 +19,18 @@ EMPRESA_FIELD_MAP = {
     "facebook": ["facebook", "fb_url", "facebook_url", "Facebook"],
     "web_competidor_1": ["competidor_1", "competitor_1", "web_competidor_1", "competidor 1", "Dominio competidor 1"],
     "web_competidor_2": ["competidor_2", "competitor_2", "web_competidor_2", "competidor 2", "Dominio competidor 2"],
-    "web_competidor_3": ["competidor_3", "competitor_3", "web_competidor_3", "competidor 3", "Dominio competidor 3"]
+    "web_competidor_3": ["competidor_3", "competitor_3", "web_competidor_3", "competidor 3", "Dominio competidor 3"],
+    "provincia": ["provincia", "state", "region"],
+    "pais": ["pais", "country", "nacion"]
 }
 
 # Type-aware field categorization
+# STRING_FIELDS: go directly to EmpresaCreate as string values
 STRING_FIELDS = {"nombre", "phone", "email", "web", "cif", "cnae",
                  "sector_name", "vertical_name", "product_name",
                  "facebook", "web_competidor_1", "web_competidor_2", "web_competidor_3"}
+# LOCATION_FIELDS: kept as strings in the normalized row; coordinator resolves them to FK IDs
+LOCATION_FIELDS = {"provincia", "pais"}
 INT_FIELDS = {"numero_empleados"}
 FLOAT_FIELDS = {"facturacion"}
 
@@ -70,6 +75,9 @@ def normalize_empresa_row(row: dict) -> dict:
     Pure transformation: renames keys and ensures domain-compatible types.
     
     Priority Rule: Prefixed aliases (empresa_*) override generic ones if both are present.
+
+    Note: `provincia` and `pais` remain as strings here. The importer coordinator
+    is responsible for resolving them to FK integer IDs (pais_id, provincia_id).
     """
     normalized = {}
 
@@ -87,7 +95,7 @@ def normalize_empresa_row(row: dict) -> dict:
 
         if val is not None:
             # Type-aware normalization
-            if target_field in STRING_FIELDS:
+            if target_field in STRING_FIELDS or target_field in LOCATION_FIELDS:
                 val = _to_safe_str(val)
             elif target_field in INT_FIELDS:
                 val = _to_safe_int(val)

@@ -21,6 +21,8 @@ class IngestionSummary(BaseModel):
     failed: int = 0
     skipped: int = 0
     merged: int = 0
+    warnings_pais: int = 0       # Empresas importadas sin país por no encontrar coincidencia
+    warnings_provincia: int = 0  # Empresas importadas sin provincia por no encontrar coincidencia
 
 class PipelineResult(BaseModel):
     summary: IngestionSummary

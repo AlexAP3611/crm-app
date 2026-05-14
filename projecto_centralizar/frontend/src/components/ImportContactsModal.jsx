@@ -163,6 +163,31 @@ export default function ImportContactsModal({ onClose, onImported }) {
                                         Se detectarán automáticamente Empresas, Cargos y Campañas. El sistema evita duplicados usando el email.
                                     </p>
                                 </div>
+
+                                {/* Required fields info */}
+                                <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-stone-500 text-lg">checklist</span>
+                                        <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">Campos necesarios para la importación</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-md uppercase tracking-tight shrink-0 mt-0.5">Obligatorio</span>
+                                            <p className="text-[11px] text-stone-600 leading-relaxed">
+                                                Al menos uno de: <span className="font-bold text-stone-800">Email</span>, <span className="font-bold text-stone-800">Teléfono</span> o <span className="font-bold text-stone-800">LinkedIn</span>
+                                            </p>
+                                        </div>
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md uppercase tracking-tight shrink-0 mt-0.5">Recomendado</span>
+                                            <p className="text-[11px] text-stone-500 leading-relaxed">
+                                                <span className="font-semibold text-stone-600">Nombre</span>, <span className="font-semibold text-stone-600">Apellido</span>, <span className="font-semibold text-stone-600">Empresa</span>, <span className="font-semibold text-stone-600">Cargo</span>, <span className="font-semibold text-stone-600">Campaña</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-stone-400 italic leading-relaxed">
+                                        Las filas sin email, teléfono ni LinkedIn serán omitidas automáticamente.
+                                    </p>
+                                </div>
                             </div>
                         )}
 

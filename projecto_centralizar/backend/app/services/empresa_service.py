@@ -145,6 +145,10 @@ def _apply_empresa_filters(query, filters: EmpresaFilterParams):
         query = query.where(Empresa.facturacion <= filters.facturacion_max)
     if filters.cnae:
         query = query.where(Empresa.cnae.startswith(filters.cnae))
+    if filters.provincia_id is not None:
+        query = query.where(Empresa.provincia_id == filters.provincia_id)
+    if filters.pais_id is not None:
+        query = query.where(Empresa.pais_id == filters.pais_id)
     
     return query
 

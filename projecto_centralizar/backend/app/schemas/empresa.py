@@ -5,6 +5,22 @@ from pydantic import BaseModel, field_validator
 from app.schemas.contact import ContactResponse, SectorRef, VerticalRef, ProductRef
 
 
+# ── Location Reference Schemas ──
+class PaisRef(BaseModel):
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
+class ProvinciaRef(BaseModel):
+    id: int
+    name: str
+    pais_id: int
+
+    model_config = {"from_attributes": True}
+
+
 class EmpresaFilterFields(BaseModel):
     """Pure business filters. No pagination. Used by bulk scope and inherited by EmpresaFilterParams."""
     q: Optional[str] = None
@@ -16,6 +32,8 @@ class EmpresaFilterFields(BaseModel):
     facturacion_min: Optional[float] = None
     facturacion_max: Optional[float] = None
     cnae: Optional[str] = None
+    provincia_id: Optional[int] = None
+    pais_id: Optional[int] = None
 
 
 class EmpresaFilterParams(EmpresaFilterFields):
@@ -29,7 +47,6 @@ class EmpresaFilterParams(EmpresaFilterFields):
         return min(v, 200)
 
 
-
 class EmpresaBase(BaseModel):
     nombre: str
     web: Optional[str] = None
@@ -39,6 +56,8 @@ class EmpresaBase(BaseModel):
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
     cnae: Optional[str] = None
+    provincia_id: Optional[int] = None
+    pais_id: Optional[int] = None
     facebook: Optional[str] = None
     web_competidor_1: Optional[str] = None
     web_competidor_2: Optional[str] = None
@@ -47,8 +66,10 @@ class EmpresaBase(BaseModel):
     vertical_ids: list[int] = []
     product_ids: list[int] = []
 
+
 class EmpresaCreate(EmpresaBase):
     pass
+
 
 class EmpresaUpdate(BaseModel):
     nombre: Optional[str] = None
@@ -59,6 +80,8 @@ class EmpresaUpdate(BaseModel):
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
     cnae: Optional[str] = None
+    provincia_id: Optional[int] = None
+    pais_id: Optional[int] = None
     facebook: Optional[str] = None
     web_competidor_1: Optional[str] = None
     web_competidor_2: Optional[str] = None
@@ -68,6 +91,7 @@ class EmpresaUpdate(BaseModel):
     product_ids: Optional[list[int]] = None
     merge_lists: bool = True
     remove_lists: bool = False
+
 
 class EmpresaCreateResponse(BaseModel):
     id: int
@@ -79,6 +103,10 @@ class EmpresaCreateResponse(BaseModel):
     numero_empleados: Optional[int] = None
     facturacion: Optional[float] = None
     cnae: Optional[str] = None
+    pais_id: Optional[int] = None
+    provincia_id: Optional[int] = None
+    pais_rel: Optional[PaisRef] = None
+    provincia_rel: Optional[ProvinciaRef] = None
     facebook: Optional[str] = None
     web_competidor_1: Optional[str] = None
     web_competidor_2: Optional[str] = None
@@ -94,12 +122,13 @@ class EmpresaCreateResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class EmpresaResponse(EmpresaCreateResponse):
     pass
+
 
 class EmpresaListResponse(BaseModel):
     total: int
     page: int
     page_size: int
     items: list[EmpresaResponse]
-

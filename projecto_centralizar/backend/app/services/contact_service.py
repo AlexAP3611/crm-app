@@ -14,6 +14,7 @@ from app.schemas.contact import ContactCreate, ContactFilterParams, ContactUpdat
 from app.services.merge import deep_merge
 from app.services import cargo_service
 from app.services.contact_mapper import build_contact_kwargs
+from app.services.contact_filters import apply_contact_filters
 
 from app.domain.relations import M2M_FIELD_MAP
 from app.core.enrichment.rules import ENRICHMENT_PROTECTED_FIELDS
@@ -348,85 +349,8 @@ async def delete_contact(session: AsyncSession, contact_id: int) -> bool:
  
 
 
-def _apply_contact_filters(query, filters: ContactFilterParams):
-    """
-    Private utility to apply filters to a Contact query.
-    Centralizes filtering logic for both paged views and unpaginated exports.
-    """
-    if filters.empresa_id is not None:
-        query = query.where(Contact.empresa_id == filters.empresa_id)
-
-    if filters.contacto_nombre:
-        term = f"%{filters.contacto_nombre}%"
-        query = query.where(
-            or_(
-                Contact.first_name.ilike(term),
-                Contact.last_name.ilike(term)
-            )
-        )
-
-    from sqlalchemy.sql import exists
-
-    if filters.sector_id is not None:
-        query = query.where(
-            exists().where(
-                (empresa_sectors.c.empresa_id == Contact.empresa_id) &
-                (empresa_sectors.c.sector_id == filters.sector_id)
-            )
-        )
-    if filters.vertical_id is not None:
-        query = query.where(
-            exists().where(
-                (empresa_verticals.c.empresa_id == Contact.empresa_id) &
-                (empresa_verticals.c.vertical_id == filters.vertical_id)
-            )
-        )
-    if filters.product_id is not None:
-        query = query.where(
-            exists().where(
-                (empresa_products.c.empresa_id == Contact.empresa_id) &
-                (empresa_products.c.product_id == filters.product_id)
-            )
-        )
-
-    if filters.cargo_id is not None:
-        query = query.where(Contact.cargo_id == filters.cargo_id)
-    if filters.campaign_id is not None:
-        from app.models.campaign import contact_campaigns as ccamp_table
-        query = query.where(
-            exists().where(
-                (ccamp_table.c.contact_id == Contact.id) &
-                (ccamp_table.c.campaign_id == filters.campaign_id)
-            )
-        )
-
-    if filters.email:
-        term = f"%{filters.email}%"
-        query = query.where(
-            or_(
-                Contact.email.ilike(term),
-                Contact.empresa_rel.has(Empresa.email.ilike(term))
-            )
-        )
-        
-    if filters.search:
-        term = f"%{filters.search}%"
-        query = query.where(
-            or_(
-                Contact.empresa_rel.has(Empresa.nombre.ilike(term)),
-                Contact.first_name.ilike(term),
-                Contact.last_name.ilike(term),
-                Contact.empresa_rel.has(Empresa.email.ilike(term)),
-                Contact.email.ilike(term),
-            )
-        )
-
-    if filters.is_enriched is True:
-        query = query.where(Contact.enriched.is_(True))
-    elif filters.is_enriched is False:
-        query = query.where(Contact.enriched.is_(False))
-        
-    return query
+# Re-export for backward compatibility (routers/contacts.py imports this name)
+_apply_contact_filters = apply_contact_filters
 
 async def list_contacts(
     session: AsyncSession, filters: ContactFilterParams

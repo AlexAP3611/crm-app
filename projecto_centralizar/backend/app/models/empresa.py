@@ -41,14 +41,20 @@ class Empresa(Base):
     numero_empleados: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     facturacion: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cnae: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    
+    pais_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("paises.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    provincia_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("provincias.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # --- Social & Competitors ---
     facebook: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     web_competidor_1: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     web_competidor_2: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     web_competidor_3: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    # --- M2M Relationships (formerly on Contact) ---
+    # --- M2M Relationships ---
     sectors: Mapped[list["Sector"]] = relationship(  # noqa: F821
         secondary=empresa_sectors, back_populates="empresas", lazy="selectin"
     )
@@ -57,6 +63,14 @@ class Empresa(Base):
     )
     products_rel: Mapped[list["Product"]] = relationship(  # noqa: F821
         secondary=empresa_products, back_populates="empresas", lazy="selectin"
+    )
+
+    # --- Location Relationships ---
+    pais_rel: Mapped[Optional["Pais"]] = relationship(  # noqa: F821
+        "Pais", back_populates="empresas", lazy="selectin"
+    )
+    provincia_rel: Mapped[Optional["Provincia"]] = relationship(  # noqa: F821
+        "Provincia", back_populates="empresas", lazy="selectin"
     )
 
     # --- Relationships ---

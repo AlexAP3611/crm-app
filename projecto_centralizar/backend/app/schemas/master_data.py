@@ -18,3 +18,31 @@ class MasterDataResponse(BaseModel):
     name: str
 
     model_config = {"from_attributes": True}
+
+
+class PaisResponse(BaseModel):
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
+class ProvinciaCreate(BaseModel):
+    name: str
+    pais_id: int
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("El nombre no puede estar vacío")
+        return v
+
+
+class ProvinciaResponse(BaseModel):
+    id: int
+    name: str
+    pais_id: int
+
+    model_config = {"from_attributes": True}

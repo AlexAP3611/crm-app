@@ -40,7 +40,7 @@ export default function ImportResultModal({ report, isOpen, onClose, entityName 
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-4 gap-3 p-8 bg-white">
+                <div className="grid grid-cols-4 gap-3 p-8 pb-0 bg-white">
                     <div className="bg-green-50 border border-green-100 p-4 rounded-2xl flex flex-col items-center justify-center transition-transform hover:scale-105">
                         <span className="material-symbols-outlined text-green-500 mb-2">check_circle</span>
                         <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">Éxitos</p>
@@ -66,7 +66,27 @@ export default function ImportResultModal({ report, isOpen, onClose, entityName 
                         <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-1">Errores</p>
                         <p className="text-2xl font-black text-red-700 leading-none">{summary.failed}</p>
                     </div>
+
+                    {/* Card de avisos de ubicación — solo si hay empresas sin país o provincia */}
+                    {(summary.warnings_pais > 0 || summary.warnings_provincia > 0) && (
+                        <div className="col-span-4 bg-amber-50/70 border border-amber-200 p-4 rounded-2xl flex items-center gap-3">
+                            <span className="material-symbols-outlined text-amber-500 text-xl shrink-0">location_off</span>
+                            <div className="flex flex-wrap gap-x-6 gap-y-1">
+                                {summary.warnings_pais > 0 && (
+                                    <p className="text-[11px] text-amber-800 font-medium">
+                                        <strong className="text-amber-700">{summary.warnings_pais}</strong> empresa(s) importada(s) <strong>sin país</strong> asignado
+                                    </p>
+                                )}
+                                {summary.warnings_provincia > 0 && (
+                                    <p className="text-[11px] text-amber-800 font-medium">
+                                        <strong className="text-amber-700">{summary.warnings_provincia}</strong> empresa(s) importada(s) <strong>sin provincia</strong> asignada
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
+                <div className="px-8 pb-2" />
 
                 {/* Details List */}
                 <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">

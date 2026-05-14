@@ -17,6 +17,7 @@ const FILTER_LABELS = {
   product_id: 'Producto',
   cargo_id: 'Cargo',
   empresa_id: 'Empresa',
+  categoria: 'Categoría',
 };
 
 const formatValue = (key, value, optionsMap) => {

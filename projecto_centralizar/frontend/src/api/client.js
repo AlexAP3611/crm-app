@@ -173,7 +173,9 @@ const NUMERIC_FIELDS = new Set([
     'facturacion_max',
     'cargo_id',
     'empresa_id',
-    'campaign_id'
+    'campaign_id',
+    'pais_id',
+    'provincia_id',
 ]);
 
 const normalizeValue = (k, v) => {
@@ -356,6 +358,20 @@ export const api = {
     listCargos: () => request('/master-data/cargos'),
     createCargo: (data) => request('/master-data/cargos', { method: 'POST', body: JSON.stringify(data) }),
     deleteCargo: (id) => request(`/master-data/cargos/${id}`, { method: 'DELETE' }),
+
+    // Geo Master Data
+    listPaises: () => request('/master-data/paises'),
+    createPais: (data) => request('/master-data/paises', { method: 'POST', body: JSON.stringify(data) }),
+    deletePais: (id) => request(`/master-data/paises/${id}`, { method: 'DELETE' }),
+    listProvincias: (paisId) => {
+        const qs = paisId ? `?pais_id=${paisId}` : ''
+        return request(`/master-data/provincias${qs}`)
+    },
+    createProvincia: (data) => request('/master-data/provincias', { method: 'POST', body: JSON.stringify(data) }),
+    deleteProvincia: (id) => request(`/master-data/provincias/${id}`, { method: 'DELETE' }),
+
+    // ── Contact Lookups ──
+    listCategorias: () => request('/contacts/categorias'),
 
     // ── Campaigns ──
     listCampaigns: () => request('/campaigns'),

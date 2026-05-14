@@ -13,6 +13,7 @@ const BLANK_FILTERS = {
     contacto_nombre: '',
     empresa_id: '',
     email: '',
+    categoria: '',
     page: 1,
     page_size: 50,
 }
@@ -96,6 +97,9 @@ export function useLookups() {
     const [campaigns, setCampaigns] = useState([])
     const [products, setProducts] = useState([])
     const [cargos, setCargos] = useState([])
+    const [categorias, setCategorias] = useState([])
+    const [paises, setPaises] = useState([])
+    const [provincias, setProvincias] = useState([])
 
     useEffect(() => {
         api.listSectors().then(setSectors).catch(() => { })
@@ -103,7 +107,10 @@ export function useLookups() {
         api.listCampaigns().then(setCampaigns).catch(() => { })
         api.listProducts().then(setProducts).catch(() => { })
         api.listCargos().then(setCargos).catch(() => { })
+        api.listCategorias().then(setCategorias).catch(() => { })
+        api.listPaises().then(setPaises).catch(() => { })
+        api.listProvincias().then(setProvincias).catch(() => { })
     }, [])
 
-    return { sectors, verticals, campaigns, products, cargos }
+    return { sectors, verticals, campaigns, products, cargos, categorias, paises, provincias }
 }

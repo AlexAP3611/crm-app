@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from sqlalchemy import select, func, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,6 +45,18 @@ async def upsert_contact(
     return contact
 
 
+@router.get("/categorias")
+async def list_categorias(db: AsyncSession = Depends(get_db)):
+    """Return distinct non-null categoria values for dropdown filters."""
+    result = await db.execute(
+        select(distinct(Contact.categoria))
+        .where(Contact.categoria.isnot(None))
+        .where(Contact.categoria != "")
+        .order_by(Contact.categoria)
+    )
+    return result.scalars().all()
+
+
 @router.get("", response_model=ContactListResponse)
 async def list_contacts(
     sector_id: int | None = Query(None),
@@ -57,6 +69,7 @@ async def list_contacts(
     email: str | None = Query(None),
     empresa_id: int | None = Query(None),
     is_enriched: bool | None = Query(None),
+    categoria: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -72,6 +85,7 @@ async def list_contacts(
         email=email,
         empresa_id=empresa_id,
         is_enriched=is_enriched,
+        categoria=categoria,
         page=page,
         page_size=page_size,
     )

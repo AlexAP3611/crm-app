@@ -35,6 +35,8 @@ EMPRESA_REGISTRY.register("facebook", ["facebook", "fb_url", "facebook_url"], pr
 EMPRESA_REGISTRY.register("web_competidor_1", ["competidor_1", "competitor_1", "web_competidor_1", "competidor 1", "dominio competidor 1", "web_competidor_1"], priority=10)
 EMPRESA_REGISTRY.register("web_competidor_2", ["competidor_2", "competitor_2", "web_competidor_2", "competidor 2", "dominio competidor 2", "web_competidor_2"], priority=10)
 EMPRESA_REGISTRY.register("web_competidor_3", ["competidor_3", "competitor_3", "web_competidor_3", "competidor 3", "dominio competidor 3", "web_competidor_3"], priority=10)
+EMPRESA_REGISTRY.register("provincia", ["provincia", "province", "state", "región", "region", "comunidad"], priority=10)
+EMPRESA_REGISTRY.register("pais", ["pais", "país", "country", "nation"], priority=10)
 
 # Relationship fields
 EMPRESA_REGISTRY.register("sector_name", ["sector", "industria", "industry", "sectores"], priority=10)
@@ -51,5 +53,3 @@ CONTACT_REGISTRY.register("linkedin", ["linkedin", "linkedin_url", "perfil linke
 CONTACT_REGISTRY.register("job_title", ["cargo", "job_title", "puesto", "position", "rol"], priority=10)
 CONTACT_REGISTRY.register("empresa_nombre", ["empresa", "company", "empresa_nombre", "nombre empresa"], priority=10)
 CONTACT_REGISTRY.register("campaña", ["campaña", "campaign", "campana", "origen", "campañas"], priority=10)
-CONTACT_REGISTRY.register("city", ["ciudad", "city", "poblacion"], priority=10)
-CONTACT_REGISTRY.register("country", ["pais", "country"], priority=10)

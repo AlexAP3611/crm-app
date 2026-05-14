@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,13 +11,18 @@ from app.models.sector import Sector
 from app.models.vertical import Vertical
 from app.models.product import Product
 from app.models.cargo import Cargo
-from app.models.contact import Contact
+from app.models.pais import Pais
+from app.models.provincia import Provincia
 from app.schemas.master_data import (
     MasterDataCreate,
     MasterDataResponse,
+    PaisResponse,
+    ProvinciaCreate,
+    ProvinciaResponse,
 )
 from app.core.exceptions import DuplicateEntityError
 from app.services import sector_service, vertical_service, product_service
+from app.services import pais_service, provincia_service
 
 
 router = APIRouter(
@@ -121,3 +127,76 @@ async def create_cargo(data: MasterDataCreate, db: AsyncSession = Depends(get_db
 @router.delete("/cargos/{item_id}", status_code=204)
 async def delete_cargo(item_id: int, db: AsyncSession = Depends(get_db)):
     return await delete_entity(db, Cargo, item_id, "contacts")
+
+
+# --- Paises ---
+@router.get("/paises", response_model=list[PaisResponse])
+async def list_paises(db: AsyncSession = Depends(get_db)):
+    return await pais_service.get_all(db)
+
+
+@router.post("/paises", response_model=PaisResponse)
+async def create_pais(data: MasterDataCreate, db: AsyncSession = Depends(get_db)):
+    try:
+        pais = await pais_service.create_strict(db, data.name)
+        await db.commit()
+        await db.refresh(pais)
+        return pais
+    except DuplicateEntityError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/paises/{item_id}", status_code=204)
+async def delete_pais(item_id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(Pais).options(selectinload(Pais.empresas), selectinload(Pais.provincias)).where(Pais.id == item_id)
+    result = await db.execute(stmt)
+    pais = result.scalars().first()
+    if not pais:
+        raise HTTPException(status_code=404, detail="País no encontrado")
+    if pais.empresas:
+        raise HTTPException(status_code=400, detail="No se puede eliminar el país porque tiene empresas asociadas.")
+    if pais.provincias:
+        raise HTTPException(status_code=400, detail="No se puede eliminar el país porque tiene provincias asociadas.")
+    await db.delete(pais)
+    await db.commit()
+
+
+# --- Provincias ---
+@router.get("/provincias", response_model=list[ProvinciaResponse])
+async def list_provincias(
+    pais_id: Optional[int] = Query(None, description="Filtrar por ID de país"),
+    db: AsyncSession = Depends(get_db),
+):
+    return await provincia_service.get_all(db, pais_id=pais_id)
+
+
+@router.post("/provincias", response_model=ProvinciaResponse)
+async def create_provincia(data: ProvinciaCreate, db: AsyncSession = Depends(get_db)):
+    # Validate pais exists
+    pais = await pais_service.get_by_id(db, data.pais_id)
+    if not pais:
+        raise HTTPException(status_code=404, detail="País no encontrado")
+    try:
+        provincia = await provincia_service.create_strict(db, data.name, data.pais_id)
+        await db.commit()
+        await db.refresh(provincia)
+        return provincia
+    except DuplicateEntityError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/provincias/{item_id}", status_code=204)
+async def delete_provincia(item_id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(Provincia).options(selectinload(Provincia.empresas)).where(Provincia.id == item_id)
+    result = await db.execute(stmt)
+    provincia = result.scalars().first()
+    if not provincia:
+        raise HTTPException(status_code=404, detail="Provincia no encontrada")
+    if provincia.empresas:
+        raise HTTPException(status_code=400, detail="No se puede eliminar la provincia porque tiene empresas asociadas.")
+    await db.delete(provincia)
+    await db.commit()

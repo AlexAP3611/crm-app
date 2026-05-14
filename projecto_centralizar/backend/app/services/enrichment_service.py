@@ -23,6 +23,7 @@ from app.services import sector_service, vertical_service, product_service, camp
 
 from app.services import empresa_service
 from app.services.scope import apply_scope
+from app.services.contact_filters import apply_contact_filters as _apply_contact_filters
 from app.services.validators import get_validator, ToolValidationErrorException
 from app.schemas.tool import ToolKey, ToolValidationError
 from app.services.empresa_service import _apply_empresa_filters

@@ -14,32 +14,13 @@ from app.models.empresa import Empresa
 from app.models.enrichment_log import IntegrationLog
 from app.models.setting import Setting
 from app.services.scope import apply_scope
+from app.services.contact_filters import apply_contact_filters
 from app.core.webhook_client import webhook_client
 from app.services.affino_export_mapper import map_contacts_to_affino_payload
 from app.services.validators import get_validator, ToolValidationErrorException
 from app.schemas.tool import ToolExecutionRequest, ToolExecutionResponse, ToolKey, ToolValidationError
 
 logger = logging.getLogger(__name__)
-
-def _apply_contact_filters(query, filters):
-    """
-    Helper to apply contact filters.
-    Duplicate of logic in enrichment_service.py (to be cleaned up later).
-    """
-    if not filters:
-        return query
-    
-    if filters.vertical_id:
-        query = query.join(Contact.empresa_rel).filter(Empresa.vertical_id == filters.vertical_id)
-    if filters.sector_id:
-        # Assuming M2M sectors on Empresa
-        query = query.join(Contact.empresa_rel).join(Empresa.sectors).filter(Empresa.sectors.any(id=filters.sector_id))
-    if filters.product_id:
-        query = query.join(Contact.empresa_rel).join(Empresa.products_rel).filter(Empresa.products_rel.any(id=filters.product_id))
-    if filters.campaign_id:
-        query = query.join(Contact.campaigns).filter(Contact.campaigns.any(id=filters.campaign_id))
-    
-    return query
 
 async def execute_contact_tool(
     db: AsyncSession,
@@ -62,7 +43,7 @@ async def execute_contact_tool(
     query = apply_scope(
         query, model=Contact,
         ids=request.ids, filters=request.filters,
-        apply_filters_fn=_apply_contact_filters,
+        apply_filters_fn=apply_contact_filters,
         allow_all=request.all is True,
     )
 

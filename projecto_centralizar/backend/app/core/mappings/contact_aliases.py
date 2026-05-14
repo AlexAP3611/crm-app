@@ -23,7 +23,10 @@ CONTACT_ALIASES = {
     # Associated Empresa fields (normalized for resolve_empresa_for_contact)
     "empresa_nombre": ["empresa", "company", "company_name", "nombre_empresa", "empresa_nombre"],
     "empresa_cif": ["cif", "vat", "cif_empresa", "empresa_cif"],
-    "empresa_web": ["web", "website", "url", "web_empresa", "empresa_web"]
+    "empresa_web": ["web", "website", "url", "web_empresa", "empresa_web"],
+
+    # Categoría (n8n logic)
+    "categoria": ["categoria", "category", "clase"]
 }
 
 # Derived Flat Map: Alias -> Canonical Field

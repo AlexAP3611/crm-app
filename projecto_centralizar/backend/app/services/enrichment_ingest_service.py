@@ -44,6 +44,7 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
             job_title=contact_in.job_title,
             cargo_id=cargo_id,
             phone=contact_in.phone,
+            categoria=contact_in.categoria,
             notes=notes_payload
         )
         try:

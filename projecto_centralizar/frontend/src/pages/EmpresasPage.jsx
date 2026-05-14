@@ -123,9 +123,10 @@ const EMPTY_FORM = {
     nombre: '', cif: '', email: '', phone: '', web: '',
     sector_ids: [], vertical_ids: [], product_ids: [],
     numero_empleados: '', facturacion: '', cnae: '',
-    facebook: '', web_competidor_1: '', web_competidor_2: '', web_competidor_3: ''
+    facebook: '', web_competidor_1: '', web_competidor_2: '', web_competidor_3: '',
+    pais_id: '', provincia_id: ''
 }
-const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', page: 1, page_size: 50 }
+const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', provincia_id: '', pais_id: '', page: 1, page_size: 50 }
 
 function EmpresaContactosRow({ empresaId, onEditContact, onDeleteContact }) {
     const [contactos, setContactos] = useState([]);
@@ -256,7 +257,7 @@ export default function EmpresasPage() {
     const [empresas, setEmpresas] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
-    const { sectors, verticals, products, campaigns, cargos } = useLookups()
+    const { sectors, verticals, products, campaigns, cargos, paises, provincias } = useLookups()
 
     const { params, setQueryParams, removeQueryParam, clearQueryParams } = useQueryParams()
 
@@ -413,6 +414,8 @@ export default function EmpresasPage() {
                 web_competidor_1: empresa.web_competidor_1 || '',
                 web_competidor_2: empresa.web_competidor_2 || '',
                 web_competidor_3: empresa.web_competidor_3 || '',
+                provincia_id: empresa.provincia_id ?? '',
+                pais_id: empresa.pais_id ?? '',
             }
         })
     }
@@ -630,6 +633,31 @@ export default function EmpresasPage() {
                         >
                             <option value="">Todos</option>
                             {products.map(p => <option key={p.id} value={p.id}>{p.name || p.nombre}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">País</label>
+                        <select
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none"
+                            value={filters.pais_id}
+                            onChange={e => handleFilterChange('pais_id', e.target.value ? Number(e.target.value) : '')}
+                        >
+                            <option value="">Todos</option>
+                            {paises.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className={`text-[10px] font-bold uppercase ${!filters.pais_id ? 'text-on-surface-variant/30' : 'text-on-surface-variant'}`}>Provincia</label>
+                        <select
+                            className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-cyan-600/20 outline-none appearance-none disabled:opacity-30"
+                            value={filters.provincia_id}
+                            disabled={!filters.pais_id}
+                            onChange={e => handleFilterChange('provincia_id', e.target.value ? Number(e.target.value) : '')}
+                        >
+                            <option value="">Todas</option>
+                            {provincias
+                                .filter(p => p.pais_id === Number(filters.pais_id))
+                                .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                     </div>
 
@@ -898,6 +926,8 @@ export default function EmpresasPage() {
                     sectors={sectors}
                     verticals={verticals}
                     products={products}
+                    paises={paises}
+                    provincias={provincias}
                     onClose={handleCloseModal}
                     onSaved={() => {
                         handleCloseModal()

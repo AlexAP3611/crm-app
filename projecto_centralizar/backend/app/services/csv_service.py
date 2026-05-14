@@ -49,6 +49,7 @@ HEADER_MAP = {
     "empresa_email": "Empresa_Email",
     "empresa_phone": "Empresa_Telefono",
     "campaigns": "Campañas",
+    "categoria": "Categoría",
     "sectors": "Sectores",
     "verticals": "Verticales",
     "products": "Productos",
@@ -62,6 +63,8 @@ HEADER_MAP = {
     "web_competidor_1": "Web_Competidor_1",
     "web_competidor_2": "Web_Competidor_2",
     "web_competidor_3": "Web_Competidor_3",
+    "provincia": "Provincia",
+    "pais": "Pais",
 }
 
 def _translate_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -127,7 +130,14 @@ def _empresa_to_row(empresa: Empresa) -> dict[str, Any]:
     row = {"csv_version": CSV_VERSION}
 
     for field in EMPRESA_VIEW_FIELDS:
+        # Skip FK ID fields — we export human-readable names instead
+        if field in ("pais_id", "provincia_id"):
+            continue
         row[field] = getattr(empresa, field, "") or ""
+
+    # Export human-readable location names from relationships
+    row["pais"] = empresa.pais_rel.name if empresa.pais_rel else ""
+    row["provincia"] = empresa.provincia_rel.name if empresa.provincia_rel else ""
 
     for key, config in EMPRESA_M2M_FIELDS.items():
         col_name, name_attr = M2M_EXPORT_META[key]

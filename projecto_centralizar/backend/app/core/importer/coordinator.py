@@ -14,7 +14,8 @@ from app.schemas.empresa import EmpresaCreate
 from app.schemas.contact import ContactCreate
 from app.services import (
     empresa_service, sector_service, vertical_service, product_service,
-    contact_service, cargo_service, campaign_service
+    contact_service, cargo_service, campaign_service,
+    pais_service, provincia_service
 )
 from app.core.utils import normalize_web, normalize_company_name
 from app.models import Sector, Vertical, Product, Contact, Cargo, Campaign
@@ -131,17 +132,110 @@ class PipelineCoordinator:
         sector_cache: Dict[str, Any],
         vertical_cache: Dict[str, Any],
         product_cache: Dict[str, Any],
-        interrogator: BusinessInterrogator
+        interrogator: BusinessInterrogator,
+        pais_cache: Dict[str, Any],
+        provincia_cache: Dict[str, Any],
     ) -> RowResult:
         all_issues = interrogator.validate_empresa(row)
-        
+
+        # row_warnings se inicializa SIEMPRE aquí, antes de cualquier bloque condicional,
+        # para que los warnings de ubicación se puedan acumular incluso cuando también
+        # existen otros warnings de validación previos.
         row_errors = [e for e in all_issues if e.severity in ["BLOCKER", "CRITICAL"]]
         row_warnings = [e for e in all_issues if e.severity in ["WARNING", "INFO"]]
 
         if row_errors:
             return RowResult(row_idx=idx, status="error", errors=row_errors, warnings=row_warnings)
 
-        # Layer 4: M2M Resolution
+        # Layer 4a: Resolve Pais — lookup estricto, sin crear registros nuevos
+        pais_name = row.get("pais")
+        pais_id = None
+        # Determinar si la empresa ya existe para contextualizar los warnings
+        is_existing = cache.get_by_identity(cif=row.get("cif"), web=row.get("web"), name=row.get("nombre")) is not None
+        if pais_name:
+            cache_key = pais_name.strip().lower()
+            if cache_key in pais_cache:
+                pais_id = pais_cache[cache_key]  # None si fue un cache miss previo
+                if pais_id is None:
+                    # Miss ya cacheado: re-emitir warning para ESTA fila
+                    pais_msg = (f"País '{pais_name}' no encontrado en la base de datos. El campo país no se actualizará."
+                                if is_existing else
+                                f"País '{pais_name}' no encontrado en la base de datos. La empresa se creará sin país asignado.")
+                    row_warnings.append(IngestionError(
+                        code="PAIS_NOT_FOUND",
+                        message=pais_msg,
+                        field="pais",
+                        severity="WARNING"
+                    ))
+            else:
+                pais_obj = await pais_service.get_by_name(self.session, pais_name)
+                if pais_obj:
+                    pais_id = pais_obj.id
+                    pais_cache[cache_key] = pais_id
+                else:
+                    # No match → cachear el miss y emitir WARNING no bloqueante
+                    pais_cache[cache_key] = None
+                    pais_msg = (f"País '{pais_name}' no encontrado en la base de datos. El campo país no se actualizará."
+                                if is_existing else
+                                f"País '{pais_name}' no encontrado en la base de datos. La empresa se creará sin país asignado.")
+                    row_warnings.append(IngestionError(
+                        code="PAIS_NOT_FOUND",
+                        message=pais_msg,
+                        field="pais",
+                        severity="WARNING"
+                    ))
+
+        # Layer 4b: Resolve Provincia — lookup estricto, requiere pais_id válido
+        provincia_name = row.get("provincia")
+        provincia_id = None
+        if provincia_name:
+            if not pais_id:
+                # Provincia no resoluble sin país válido (país ausente en CSV o no encontrado)
+                if pais_name:
+                    prov_msg = (f"Provincia '{provincia_name}' no se puede resolver porque el país '{pais_name}' no fue encontrado. El campo provincia no se actualizará."
+                                if is_existing else
+                                f"Provincia '{provincia_name}' no se puede resolver porque el país '{pais_name}' no fue encontrado. La empresa se creará sin provincia asignada.")
+                    row_warnings.append(IngestionError(
+                        code="PROVINCIA_NO_PAIS",
+                        message=prov_msg,
+                        field="provincia",
+                        severity="WARNING"
+                    ))
+                # Si no había pais_name en el CSV, silencio: no hay nada que resolver
+            else:
+                prov_key = f"{pais_id}:{provincia_name.strip().lower()}"
+                if prov_key in provincia_cache:
+                    provincia_id = provincia_cache[prov_key]  # None si fue un cache miss previo
+                    if provincia_id is None:
+                        # Miss ya cacheado: re-emitir warning para ESTA fila
+                        prov_msg = (f"Provincia '{provincia_name}' no encontrada para el país seleccionado. El campo provincia no se actualizará."
+                                    if is_existing else
+                                    f"Provincia '{provincia_name}' no encontrada para el país seleccionado. La empresa se creará sin provincia asignada.")
+                        row_warnings.append(IngestionError(
+                            code="PROVINCIA_NOT_FOUND",
+                            message=prov_msg,
+                            field="provincia",
+                            severity="WARNING"
+                        ))
+                else:
+                    prov_obj = await provincia_service.get_by_name_and_pais(self.session, provincia_name, pais_id)
+                    if prov_obj:
+                        provincia_id = prov_obj.id
+                        provincia_cache[prov_key] = provincia_id
+                    else:
+                        # No match → cachear el miss y emitir WARNING no bloqueante
+                        provincia_cache[prov_key] = None
+                        prov_msg = (f"Provincia '{provincia_name}' no encontrada para el país seleccionado. El campo provincia no se actualizará."
+                                    if is_existing else
+                                    f"Provincia '{provincia_name}' no encontrada para el país seleccionado. La empresa se creará sin provincia asignada.")
+                        row_warnings.append(IngestionError(
+                            code="PROVINCIA_NOT_FOUND",
+                            message=prov_msg,
+                            field="provincia",
+                            severity="WARNING"
+                        ))
+
+        # Layer 4c: M2M Resolution
         resolved_sectors = []
         for s_name in row.get("sector_name", []):
             s = await sector_service.get_or_create(self.session, s_name, cache=sector_cache)
@@ -162,11 +256,16 @@ class PipelineCoordinator:
             existing = cache.get_by_identity(cif=row.get("cif"), web=row.get("web"), name=row.get("nombre"))
             action = "updated" if existing else "created"
             return RowResult(
-                row_idx=idx, status="success", action=action, 
+                row_idx=idx, status="success", action=action,
                 warnings=row_warnings, entity_id=existing.id if existing else None
             )
         else:
-            payload = {k: v for k, v in row.items() if k in EmpresaCreate.model_fields and k not in ["sector_ids", "vertical_ids", "product_ids"]}
+            payload = {k: v for k, v in row.items() if k in EmpresaCreate.model_fields and k not in ["sector_ids", "vertical_ids", "product_ids", "pais", "provincia"]}
+            # Inyectar FKs resueltos (solo si tienen valor; NULL si no hubo match)
+            if pais_id:
+                payload["pais_id"] = pais_id
+            if provincia_id:
+                payload["provincia_id"] = provincia_id
             empresa_data = EmpresaCreate(**payload)
             
             empresa, action = await empresa_service.upsert_empresa(self.session, empresa_data)
@@ -176,7 +275,7 @@ class PipelineCoordinator:
             if resolved_products: empresa.products_rel = resolved_products
             
             return RowResult(
-                row_idx=idx, status="success", action=action, 
+                row_idx=idx, status="success", action=action,
                 warnings=row_warnings, entity_id=empresa.id
             )
 
@@ -205,22 +304,76 @@ class PipelineCoordinator:
         
         interrogator = BusinessInterrogator(cache)
         
+        # ── Batch prefetch de ubicación (elimina N+1 queries) ──
+        # Paso 1: Recoger todos los nombres únicos de país y provincia
+        all_pais_names: set[str] = set()
+        all_provincia_by_row: list[tuple[str, str]] = []  # (pais_name, provincia_name)
+        for row in consolidated_rows:
+            p = row.get("pais")
+            if p and isinstance(p, str) and p.strip():
+                all_pais_names.add(p.strip())
+            prov = row.get("provincia")
+            if prov and isinstance(prov, str) and prov.strip() and p:
+                all_provincia_by_row.append((p.strip(), prov.strip()))
+
+        # Paso 2: Batch fetch países → {lower_name: Pais}
+        pais_cache: Dict[str, Any] = {}  # lower_name → pais_id | None
+        if all_pais_names:
+            pais_prefill = await pais_service.prefill_cache(self.session, all_pais_names)
+            for name in all_pais_names:
+                key = name.lower()
+                if key in pais_prefill:
+                    pais_cache[key] = pais_prefill[key].id
+                else:
+                    pais_cache[key] = None  # Pre-cachear el miss
+
+        # Paso 3: Batch fetch provincias agrupadas por pais_id resuelto
+        provincia_cache: Dict[str, Any] = {}  # "pais_id:lower_name" → provincia_id | None
+        prov_by_pais: Dict[int, set[str]] = {}
+        for pais_name_raw, prov_name_raw in all_provincia_by_row:
+            resolved_pais_id = pais_cache.get(pais_name_raw.lower())
+            if resolved_pais_id:  # Solo si el país se resolvió
+                prov_by_pais.setdefault(resolved_pais_id, set()).add(prov_name_raw)
+
+        for pid, prov_names in prov_by_pais.items():
+            prov_prefill = await provincia_service.prefill_cache(self.session, prov_names, pid)
+            for name in prov_names:
+                prov_key = f"{pid}:{name.lower()}"
+                if name.lower() in prov_prefill:
+                    provincia_cache[prov_key] = prov_prefill[name.lower()].id
+                else:
+                    provincia_cache[prov_key] = None  # Pre-cachear el miss
+        
         for row in consolidated_rows:
             idx = row.pop("_master_idx")
             try:
                 if self.mode == "commit":
                     async with self.session.begin_nested():
-                        result = await self._process_row_logic(idx, row, cache, sector_cache, vertical_cache, product_cache, interrogator)
+                        result = await self._process_row_logic(idx, row, cache, sector_cache, vertical_cache, product_cache, interrogator, pais_cache, provincia_cache)
                         if result.status == "success":
                             await self.session.flush()
                             summary.success += 1
+                            # Contar warnings de ubicación para el resumen
+                            for w in result.warnings:
+                                if w.code == "PAIS_NOT_FOUND":
+                                    summary.warnings_pais += 1
+                                elif w.code in ("PROVINCIA_NOT_FOUND", "PROVINCIA_NO_PAIS"):
+                                    summary.warnings_provincia += 1
                         else:
                             summary.failed += 1
                         results.append(result)
                 else:
-                    result = await self._process_row_logic(idx, row, cache, sector_cache, vertical_cache, product_cache, interrogator)
-                    if result.status == "success": summary.success += 1
-                    else: summary.failed += 1
+                    result = await self._process_row_logic(idx, row, cache, sector_cache, vertical_cache, product_cache, interrogator, pais_cache, provincia_cache)
+                    if result.status == "success":
+                        summary.success += 1
+                        # Contar warnings de ubicación para el resumen
+                        for w in result.warnings:
+                            if w.code == "PAIS_NOT_FOUND":
+                                summary.warnings_pais += 1
+                            elif w.code in ("PROVINCIA_NOT_FOUND", "PROVINCIA_NO_PAIS"):
+                                summary.warnings_provincia += 1
+                    else:
+                        summary.failed += 1
                     results.append(result)
 
             except Exception as e:

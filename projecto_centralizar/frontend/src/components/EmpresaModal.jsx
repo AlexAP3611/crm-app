@@ -71,10 +71,11 @@ const EMPTY_FORM = {
     nombre: '', cif: '', email: '', phone: '', web: '',
     sector_ids: [], vertical_ids: [], product_ids: [],
     numero_empleados: '', facturacion: '', cnae: '',
-    facebook: '', web_competidor_1: '', web_competidor_2: '', web_competidor_3: ''
+    facebook: '', web_competidor_1: '', web_competidor_2: '', web_competidor_3: '',
+    provincia_id: '', pais_id: ''
 }
 
-export default function EmpresaModal({ mode, data, sectors, verticals, products, onClose, onSaved }) {
+export default function EmpresaModal({ mode, data, sectors, verticals, products, paises, provincias, onClose, onSaved }) {
     const [form, setForm] = useState(data || { ...EMPTY_FORM })
     const [saving, setSaving] = useState(false)
     const [formError, setFormError] = useState(null)
@@ -83,6 +84,16 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
     useEffect(() => {
         if (data) setForm(data)
     }, [data])
+
+    // Limpiar provincia si cambia el país
+    useEffect(() => {
+        if (form.provincia_id) {
+            const prov = provincias.find(p => p.id === Number(form.provincia_id));
+            if (prov && prov.pais_id !== Number(form.pais_id)) {
+                setForm(prev => ({ ...prev, provincia_id: '' }));
+            }
+        }
+    }, [form.pais_id, provincias])
 
     const handleChange = (e) => {
         const { name, value } = e.target
@@ -111,6 +122,8 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                 web_competidor_1: form.web_competidor_1 || null,
                 web_competidor_2: form.web_competidor_2 || null,
                 web_competidor_3: form.web_competidor_3 || null,
+                provincia_id: form.provincia_id ? Number(form.provincia_id) : null,
+                pais_id: form.pais_id ? Number(form.pais_id) : null,
             }
 
             if (mode === 'create') {
@@ -192,9 +205,46 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facturación Anual (€)</label>
                                 <input type="number" step="0.01" name="facturacion" value={form.facturacion ?? ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" />
                             </div>
-                            <div className="space-y-1.5 md:col-span-2">
+                            <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">CNAE</label>
                                 <input name="cnae" value={form.cnae || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="ej. 6201" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">País</label>
+                                <div className="relative">
+                                    <select 
+                                        name="pais_id" 
+                                        value={form.pais_id || ''} 
+                                        onChange={handleChange} 
+                                        className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none appearance-none"
+                                    >
+                                        <option value="">Seleccionar país...</option>
+                                        {paises.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className={`text-[10px] font-bold uppercase tracking-wider ${!form.pais_id ? 'text-on-surface-variant/30' : 'text-on-surface-variant'}`}>Provincia</label>
+                                <div className="relative">
+                                    <select 
+                                        name="provincia_id" 
+                                        value={form.provincia_id || ''} 
+                                        onChange={handleChange} 
+                                        disabled={!form.pais_id}
+                                        className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none appearance-none disabled:opacity-30 disabled:cursor-not-allowed"
+                                    >
+                                        <option value="">Seleccionar provincia...</option>
+                                        {provincias
+                                            .filter(p => p.pais_id === Number(form.pais_id))
+                                            .map(p => (
+                                                <option key={p.id} value={p.id}>{p.name}</option>
+                                            ))}
+                                    </select>
+                                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm pointer-events-none">expand_more</span>
+                                </div>
                             </div>
                         </div>
                     </section>

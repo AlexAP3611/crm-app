@@ -12,6 +12,7 @@ const EMPTY = {
     linkedin: '',
     cargo_id: null,
     empresa_id: null,
+    categoria: '',
     sector_ids: [],
     vertical_ids: [],
     product_ids: [],
@@ -161,6 +162,10 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Teléfono</label>
                                 <input type="tel" value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="+34 000 000 000" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Categoría</label>
+                                <input value={form.categoria || ''} onChange={(e) => set('categoria', e.target.value)} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="ej. Cliente, Prospecto, Partner" />
                             </div>
                         </div>
                     </section>

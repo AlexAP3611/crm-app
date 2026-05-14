@@ -12,6 +12,8 @@ EMPRESA_VIEW_FIELDS = [
     "numero_empleados",
     "facturacion",
     "cnae",
+    "pais_id",
+    "provincia_id",
     "facebook",
     "web_competidor_1",
     "web_competidor_2",
