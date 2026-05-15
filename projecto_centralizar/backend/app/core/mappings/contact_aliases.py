@@ -25,8 +25,8 @@ CONTACT_ALIASES = {
     "empresa_cif": ["cif", "vat", "cif_empresa", "empresa_cif"],
     "empresa_web": ["web", "website", "url", "web_empresa", "empresa_web"],
 
-    # Categoría (n8n logic)
-    "categoria": ["categoria", "category", "clase"]
+    # Categoría de Cargo — se gestiona a nivel de Cargo en Master Data,
+    # no como campo de importación de contactos.
 }
 
 # Derived Flat Map: Alias -> Canonical Field

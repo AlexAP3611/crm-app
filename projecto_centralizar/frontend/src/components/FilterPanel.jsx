@@ -1,4 +1,4 @@
-export default function FilterPanel({ filters, onFilterChange, onClearFilters, sectors, verticals, campaigns, products, cargos }) {
+export default function FilterPanel({ filters, onFilterChange, onClearFilters, sectors, verticals, campaigns, products, cargos, categoriasCargo }) {
     return (
         <div className="filter-card">
             <div className="filter-section-title" style={{ marginBottom: '16px' }}>
@@ -52,6 +52,12 @@ export default function FilterPanel({ filters, onFilterChange, onClearFilters, s
                     </select>
                 </div>
                 <div className="form-group">
+                    <select id="filter-categoria" className="form-control" value={filters.categoria_cargo_id || ''} onChange={(e) => onFilterChange('categoria_cargo_id', e.target.value)}>
+                        <option value="">Todas las Categorías</option>
+                        {(categoriasCargo || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                </div>
+                <div className="form-group">
                     <select id="filter-cargo" className="form-control" value={filters.cargo_id || ''} onChange={(e) => onFilterChange('cargo_id', e.target.value)}>
                         <option value="">Todos los Cargos</option>
                         {(cargos || []).map((c) => <option key={c.id} value={c.id}>{c.name || c.nombre}</option>)}
@@ -70,7 +76,7 @@ export default function FilterPanel({ filters, onFilterChange, onClearFilters, s
                     id="filter-reset"
                     className="btn btn-secondary"
                     onClick={() => onClearFilters ? onClearFilters() : 
-                        ['search', 'contacto_nombre', 'email', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id'].forEach((k) =>
+                        ['search', 'contacto_nombre', 'email', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id', 'categoria_cargo_id'].forEach((k) =>
                             onFilterChange(k, '')
                         )
                     }

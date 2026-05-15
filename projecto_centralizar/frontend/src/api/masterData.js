@@ -46,6 +46,16 @@ export const masterDataApi = {
     getCargos: () => request(`${PREFIX}/cargos`),
     createCargo: (payload) => request(`${PREFIX}/cargos`, { method: 'POST', body: JSON.stringify(payload) }),
     deleteCargo: (id) => request(`${PREFIX}/cargos/${id}`, { method: 'DELETE' }),
+    updateCargoCategoria: (cargoId, categoriaId) => 
+        request(`${PREFIX}/cargos/${cargoId}/categoria`, { 
+            method: 'PATCH', 
+            body: JSON.stringify({ categoria_id: categoriaId }) 
+        }),
+
+    // Categorias Cargo
+    getCategoriasCargo: () => request(`${PREFIX}/categorias-cargo`),
+    createCategoriaCargo: (payload) => request(`${PREFIX}/categorias-cargo`, { method: 'POST', body: JSON.stringify(payload) }),
+    deleteCategoriaCargo: (id) => request(`${PREFIX}/categorias-cargo/${id}`, { method: 'DELETE' }),
 
     // Campañas (uses /api/campaigns, not /api/master-data)
     getCampaigns: () => request('/campaigns'),

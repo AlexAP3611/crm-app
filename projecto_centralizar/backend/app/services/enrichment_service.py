@@ -70,6 +70,7 @@ async def enrich_contact(
             selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
             selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
             selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.competidores),
         )
         .where(Contact.id == contact_id)
     )
@@ -92,6 +93,7 @@ async def enrich_contact(
             selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
             selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
             selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.competidores),
         )
         .where(Contact.id == contact_id)
     )
@@ -118,6 +120,7 @@ async def enrich_contact_smart(
             selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
             selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
             selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.competidores),
         )
         .where(Contact.id == contact_id)
     )
@@ -183,6 +186,7 @@ async def enrich_contact_smart(
             selectinload(Contact.empresa_rel).selectinload(Empresa.sectors),
             selectinload(Contact.empresa_rel).selectinload(Empresa.verticals),
             selectinload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+            selectinload(Contact.empresa_rel).selectinload(Empresa.competidores),
         )
         .where(Contact.id == contact_id)
     )
@@ -214,6 +218,7 @@ async def trigger_company_enrichment(
         selectinload(Empresa.sectors),
         selectinload(Empresa.verticals),
         selectinload(Empresa.products_rel),
+        selectinload(Empresa.competidores),
     )
     query = apply_scope(
         query, model=Empresa,
@@ -394,6 +399,7 @@ async def trigger_contact_enrichment(
         joinedload(Contact.empresa_rel).selectinload(Empresa.sectors),
         joinedload(Contact.empresa_rel).selectinload(Empresa.verticals),
         joinedload(Contact.empresa_rel).selectinload(Empresa.products_rel),
+        joinedload(Contact.empresa_rel).selectinload(Empresa.competidores),
         selectinload(Contact.cargo),
         selectinload(Contact.campaigns)
     )

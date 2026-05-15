@@ -40,7 +40,7 @@ class IngestContactInput(BaseModel):
     linkedin: str | None = None
     job_title: str | None = None
     phone: str | None = None
-    categoria: str | None = None
+    categoria_cargo: str | None = None
 
 class IngestEmpresaInput(BaseModel):
     model_config = {"extra": "allow"}

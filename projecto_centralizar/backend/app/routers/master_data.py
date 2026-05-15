@@ -16,13 +16,16 @@ from app.models.provincia import Provincia
 from app.schemas.master_data import (
     MasterDataCreate,
     MasterDataResponse,
+    CategoriaCargoRef,
+    CargoWithCategoriaResponse,
+    CargoUpdateCategoria,
     PaisResponse,
     ProvinciaCreate,
     ProvinciaResponse,
 )
 from app.core.exceptions import DuplicateEntityError
 from app.services import sector_service, vertical_service, product_service
-from app.services import pais_service, provincia_service
+from app.services import pais_service, provincia_service, categoria_cargo_service
 
 
 router = APIRouter(
@@ -111,25 +114,89 @@ async def delete_product(item_id: int, db: AsyncSession = Depends(get_db)):
 
 
 # --- Cargos ---
-@router.get("/cargos", response_model=list[MasterDataResponse])
+@router.get("/cargos", response_model=list[CargoWithCategoriaResponse])
 async def list_cargos(db: AsyncSession = Depends(get_db)):
-    return await get_all_entities(db, Cargo)
+    result = await db.execute(select(Cargo).order_by(Cargo.name))
+    return result.scalars().all()
 
-@router.post("/cargos", response_model=MasterDataResponse)
+@router.post("/cargos", response_model=CargoWithCategoriaResponse)
 async def create_cargo(data: MasterDataCreate, db: AsyncSession = Depends(get_db)):
     from app.services.cargo_service import get_or_create_cargo
     cargo = await get_or_create_cargo(db, data.name)
     if cargo is None:
         raise HTTPException(status_code=400, detail="Nombre de cargo inválido")
     await db.commit()
+    await db.refresh(cargo)
+    return cargo
+
+@router.patch("/cargos/{cargo_id}/categoria", response_model=CargoWithCategoriaResponse)
+async def update_cargo_categoria(
+    cargo_id: int,
+    data: CargoUpdateCategoria,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Human-only endpoint to assign or change a cargo's categoria.
+    N8N is explicitly NOT allowed to call this — it writes to the ingest endpoint
+    where the protection logic lives.
+    """
+    cargo = await db.get(Cargo, cargo_id)
+    if not cargo:
+        raise HTTPException(status_code=404, detail="Cargo no encontrado")
+
+    if data.categoria_id is not None:
+        from app.models.categoria_cargo import CategoriaCargo
+        cat = await db.get(CategoriaCargo, data.categoria_id)
+        if not cat:
+            raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    cargo.categoria_id = data.categoria_id
+    await db.commit()
+    await db.refresh(cargo)
     return cargo
 
 @router.delete("/cargos/{item_id}", status_code=204)
 async def delete_cargo(item_id: int, db: AsyncSession = Depends(get_db)):
     return await delete_entity(db, Cargo, item_id, "contacts")
 
+# --- Categorias Cargo ---
+@router.get("/categorias-cargo", response_model=list[MasterDataResponse])
+async def list_categorias_cargo(db: AsyncSession = Depends(get_db)):
+    return await categoria_cargo_service.get_all(db)
 
-# --- Paises ---
+@router.post("/categorias-cargo", response_model=MasterDataResponse)
+async def create_categoria_cargo(data: MasterDataCreate, db: AsyncSession = Depends(get_db)):
+    try:
+        cat = await categoria_cargo_service.create_strict(db, data.name)
+        await db.commit()
+        await db.refresh(cat)
+        return cat
+    except DuplicateEntityError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/categorias-cargo/{item_id}", status_code=204)
+async def delete_categoria_cargo(item_id: int, db: AsyncSession = Depends(get_db)):
+    from app.models.categoria_cargo import CategoriaCargo
+    stmt = select(CategoriaCargo).options(
+        selectinload(CategoriaCargo.cargos)
+    ).where(CategoriaCargo.id == item_id)
+    result = await db.execute(stmt)
+    cat = result.scalars().first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    if cat.cargos:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar esta categoría porque está asignada a cargos existentes."
+        )
+    await db.delete(cat)
+    await db.commit()
+    return None
+
+
+
 @router.get("/paises", response_model=list[PaisResponse])
 async def list_paises(db: AsyncSession = Depends(get_db)):
     return await pais_service.get_all(db)

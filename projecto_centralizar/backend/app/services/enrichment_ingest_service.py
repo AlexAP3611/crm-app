@@ -8,7 +8,7 @@ from app.models.vertical import Vertical
 from app.models.product import Product
 from app.schemas.contact import ContactCreate
 from app.schemas.enrichment import IngestContactInput, IngestRequest, IngestResponse
-from app.services import cargo_service, contact_service
+from app.services import cargo_service, contact_service, categoria_cargo_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,17 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
         cargo = await cargo_service.get_or_create_cargo(db, contact_in.job_title, cache=cargo_cache)
         cargo_id = cargo.id if cargo else None
 
-        # NEW: Capture fields that are not in the predefined schema (behave like Bulk Enrich)
+        # PROTECCIÓN N8N: Solo asignar categoria_cargo al cargo si NO tiene una ya.
+        # La IA de N8N no es determinista — en distintas ejecuciones puede sugerir
+        # categorías diferentes para el mismo cargo, lo que cambiaría miles de
+        # contactos de golpe. Solo un humano puede cambiar la categoría desde la UI.
+        if cargo and contact_in.categoria_cargo and not cargo.categoria_id:
+            cat = await categoria_cargo_service.get_or_create(db, contact_in.categoria_cargo)
+            if cat:
+                cargo.categoria_id = cat.id
+                await db.flush()  # persist within current savepoint
+
+        # Capture extra fields not in predefined schema (behave like Bulk Enrich)
         extra_data = contact_in.model_extra
         notes_payload = {source: extra_data} if extra_data else None
 
@@ -44,7 +54,6 @@ async def process_contacts(db: AsyncSession, empresa_id: int, contactos: list[In
             job_title=contact_in.job_title,
             cargo_id=cargo_id,
             phone=contact_in.phone,
-            categoria=contact_in.categoria,
             notes=notes_payload
         )
         try:

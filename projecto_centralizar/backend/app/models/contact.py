@@ -20,7 +20,6 @@ class Contact(Base):
     # --- Optional identity fields ---
     first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    categoria: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
     # --- Unique business identifiers (delegated to Empresa) ---
     @property

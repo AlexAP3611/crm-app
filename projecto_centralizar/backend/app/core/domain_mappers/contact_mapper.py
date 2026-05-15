@@ -8,7 +8,7 @@ from app.core.mappings.contact_aliases import CONTACT_ALIASES
 STRING_FIELDS = {
     "first_name", "last_name", "email", "phone", "linkedin",
     "empresa_nombre", "empresa_cif", "empresa_web",
-    "cargo", "campaña", "categoria"
+    "cargo", "campaña",
 }
 NUMERIC_FIELDS = set()  # Reserved for future use
 

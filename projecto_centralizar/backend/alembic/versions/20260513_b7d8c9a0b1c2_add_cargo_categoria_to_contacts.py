@@ -20,12 +20,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Contacts
-    op.add_column('contacts',
-        sa.Column('categoria', sa.String(length=100), nullable=True)
-    )
-    op.create_index('ix_contacts_categoria', 'contacts', ['categoria'], unique=False)
-
     # Empresas
     op.add_column('empresas',
         sa.Column('provincia', sa.String(length=100), nullable=True)
@@ -40,7 +34,3 @@ def downgrade() -> None:
     # Empresas
     op.drop_column('empresas', 'pais')
     op.drop_column('empresas', 'provincia')
-
-    # Contacts
-    op.drop_index('ix_contacts_categoria', table_name='contacts')
-    op.drop_column('contacts', 'categoria')

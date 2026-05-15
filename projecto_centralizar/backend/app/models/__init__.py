@@ -15,6 +15,7 @@ from app.models.sector import Sector
 from app.models.user import User
 from app.models.vertical import Vertical
 from app.models.cargo import Cargo
+from app.models.categoria_cargo import CategoriaCargo
 from app.models.product import Product
 from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
 from app.models.setting import Setting
@@ -32,6 +33,7 @@ __all__ = [
     "Vertical",
     "User",
     "Cargo",
+    "CategoriaCargo",
     "Product",
     "Empresa",
     "Setting",

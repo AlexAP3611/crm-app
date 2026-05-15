@@ -116,8 +116,9 @@ export default function ImportEmpresasModal({ onClose, onImported }) {
     const summaryStats = report ? {
         to_create: report.results.filter(r => r.action === 'created').length,
         to_update: report.results.filter(r => r.action === 'updated').length,
+        to_merge: report.results.filter(r => r.action === 'merged').length,
         failed: report.summary.failed + report.summary.skipped
-    } : { to_create: 0, to_update: 0, failed: 0 };
+    } : { to_create: 0, to_update: 0, to_merge: 0, failed: 0 };
 
     // Contadores de warnings de ubicación: primero desde el summary (commit mode),
     // luego desde los warnings individuales (preview mode donde summary no tiene esos campos).
@@ -144,7 +145,8 @@ export default function ImportEmpresasModal({ onClose, onImported }) {
     const filteredIssues = useMemo(() => {
         if (issueFilter === 'all') return allIssues
         if (issueFilter === 'error') return allIssues.filter(r => r.status === 'error')
-        if (issueFilter === 'warning') return allIssues.filter(r => r.status !== 'error' && r.warnings && r.warnings.length > 0)
+        if (issueFilter === 'warning') return allIssues.filter(r => r.status !== 'error' && r.action !== 'merged' && r.warnings && r.warnings.length > 0)
+        if (issueFilter === 'merged') return allIssues.filter(r => r.action === 'merged')
         return allIssues
     }, [allIssues, issueFilter])
 
@@ -253,19 +255,26 @@ export default function ImportEmpresasModal({ onClose, onImported }) {
                                                         </thead>
                                                         <tbody className="divide-y divide-stone-50">
                                                             {[
-                                                                { label: 'Nombre', aliases: 'nombre, empresa, name, company', req: 'SÍ' },
-                                                                { label: 'Web', aliases: 'web, website, url, site', req: 'NO' },
-                                                                { label: 'Email', aliases: 'email, correo, mail', req: 'NO' },
-                                                                { label: 'Teléfono', aliases: 'phone, telefono, tel, mobile', req: 'NO' },
-                                                                { label: 'CIF', aliases: 'cif, vat, nif', req: 'NO' },
-                                                                { label: 'Nº Emp.', aliases: 'numero_empleados, size, empleados', req: 'NO' },
-                                                                { label: 'Facturación', aliases: 'facturacion, revenue, ventas', req: 'NO' },
-                                                                { label: 'CNAE', aliases: 'cnae, industry_code, actividad', req: 'NO' },
-                                                                { label: 'País', aliases: 'pais, país, country, nation', req: 'NO' },
-                                                                { label: 'Provincia', aliases: 'provincia, province, state, región', req: 'NO' },
-                                                                { label: 'Sector', aliases: 'sector, industria, industry', req: 'NO' },
-                                                                { label: 'Vertical', aliases: 'vertical, subsector, vertical', req: 'NO' },
-                                                                { label: 'Producto', aliases: 'producto, product, servicio', req: 'NO' },
+                                                                { label: 'Nombre', aliases: 'Nombre empresa, empresa, name, company', req: 'SÍ' },
+                                                                { label: 'Web', aliases: 'Web Empresa, website, url, site', req: 'NO' },
+                                                                { label: 'Email', aliases: 'Email empresa, correo, mail', req: 'NO' },
+                                                                { label: 'Teléfono', aliases: 'Telefono empresa, telefono, tel, mobile', req: 'NO' },
+                                                                { label: 'CIF', aliases: 'CIF empresa, vat, nif', req: 'NO' },
+                                                                { label: 'Nº Emp.', aliases: 'Numero empleados, size, empleados', req: 'NO' },
+                                                                { label: 'Facturación', aliases: 'Facturacion, revenue, ventas', req: 'NO' },
+                                                                { label: 'CNAE', aliases: 'CNAE, industry_code, actividad', req: 'NO' },
+                                                                { label: 'País', aliases: 'Pais empresa, country, nation', req: 'NO' },
+                                                                { label: 'Provincia', aliases: 'Provincia empresa, state, región', req: 'NO' },
+                                                                { label: 'Sector', aliases: 'Sector, industria, industry', req: 'NO' },
+                                                                { label: 'Vertical', aliases: 'Vertical, subsector', req: 'NO' },
+                                                                { label: 'Producto', aliases: 'Producto, product, servicio', req: 'NO' },
+                                                                { label: 'Facebook', aliases: 'Facebook empresa, fb_url', req: 'NO' },
+                                                                { label: 'Comp. 1 Web', aliases: 'Web competidor 1, competidor_1', req: 'NO' },
+                                                                { label: 'Comp. 1 FB', aliases: 'Facebook competidor 1', req: 'NO' },
+                                                                { label: 'Comp. 2 Web', aliases: 'Web competidor 2, competidor_2', req: 'NO' },
+                                                                { label: 'Comp. 2 FB', aliases: 'Facebook competidor 2', req: 'NO' },
+                                                                { label: 'Comp. 3 Web', aliases: 'Web competidor 3, competidor_3', req: 'NO' },
+                                                                { label: 'Comp. 3 FB', aliases: 'Facebook competidor 3', req: 'NO' },
                                                             ].map((row, i) => (
                                                                 <tr key={i} className="hover:bg-stone-50/30 transition-colors">
                                                                     <td className="px-4 py-2 font-bold text-stone-700">{row.label}</td>
@@ -366,7 +375,7 @@ export default function ImportEmpresasModal({ onClose, onImported }) {
                         {step === STEPS.PREVIEW && report && (
                             <div className="space-y-6">
                                 {/* Summary Cards */}
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-4 gap-3">
                                     <div className="bg-green-50 border border-green-100 p-4 rounded-2xl text-center">
                                         <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">Nuevas</p>
                                         <p className="text-2xl font-black text-green-700">{summaryStats.to_create}</p>
@@ -374,6 +383,10 @@ export default function ImportEmpresasModal({ onClose, onImported }) {
                                     <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl text-center">
                                         <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Actualizar</p>
                                         <p className="text-2xl font-black text-blue-700">{summaryStats.to_update}</p>
+                                    </div>
+                                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl text-center">
+                                        <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1">Fusiones</p>
+                                        <p className="text-2xl font-black text-indigo-700">{summaryStats.to_merge}</p>
                                     </div>
                                     <div className="bg-stone-50 border border-stone-100 p-4 rounded-2xl text-center">
                                         <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">Omitidos</p>
@@ -440,7 +453,8 @@ export default function ImportEmpresasModal({ onClose, onImported }) {
                                                     {[
                                                         { id: 'all', label: 'Todos', icon: 'list' },
                                                         { id: 'error', label: 'Errores', icon: 'error' },
-                                                        { id: 'warning', label: 'Avisos', icon: 'warning' }
+                                                        { id: 'warning', label: 'Avisos', icon: 'warning' },
+                                                        { id: 'merged', label: 'Fusiones', icon: 'call_merge' }
                                                     ].map(f => (
                                                         <button
                                                             key={f.id}
@@ -470,13 +484,19 @@ export default function ImportEmpresasModal({ onClose, onImported }) {
                                                             }`}
                                                         >
                                                             <span className={`${
-                                                                res.status === 'error' ? 'text-red-500' : 'text-amber-500'
+                                                                res.status === 'error' ? 'text-red-500' : 
+                                                                res.action === 'merged' ? 'text-indigo-500' : 'text-amber-500'
                                                             } material-symbols-outlined text-[14px] mt-0.5 shrink-0`}>
-                                                                {res.status === 'error' ? 'error' : 'warning'}
+                                                                {res.status === 'error' ? 'error' : 
+                                                                 res.action === 'merged' ? 'call_merge' : 'warning'}
                                                             </span>
                                                             <span className={`font-bold shrink-0 ${
-                                                                res.status === 'error' ? 'text-red-500' : 'text-amber-600'
-                                                            }`}>Línea {res.row_idx + 2}:</span>
+                                                                res.status === 'error' ? 'text-red-500' : 
+                                                                res.action === 'merged' ? 'text-indigo-600' : 'text-amber-600'
+                                                            }`}>
+                                                                Línea {res.row_idx + 2}
+                                                                {res.action === 'merged' && <span className="ml-1 text-[9px] bg-indigo-100 px-1.5 py-0.5 rounded uppercase tracking-tighter">Fusión</span>}:
+                                                            </span>
                                                             <span>{res.errors?.[0]?.message || res.warnings?.[0]?.message}</span>
                                                         </div>
                                                     ))

@@ -71,18 +71,38 @@ const EMPTY_FORM = {
     nombre: '', cif: '', email: '', phone: '', web: '',
     sector_ids: [], vertical_ids: [], product_ids: [],
     numero_empleados: '', facturacion: '', cnae: '',
-    facebook: '', web_competidor_1: '', web_competidor_2: '', web_competidor_3: '',
+    facebook: '',
+    competidores: [
+        { posicion: 1, web: '', facebook: '' },
+        { posicion: 2, web: '', facebook: '' },
+        { posicion: 3, web: '', facebook: '' }
+    ],
     provincia_id: '', pais_id: ''
 }
 
 export default function EmpresaModal({ mode, data, sectors, verticals, products, paises, provincias, onClose, onSaved }) {
-    const [form, setForm] = useState(data || { ...EMPTY_FORM })
+    const [form, setForm] = useState(() => {
+        if (!data || Object.keys(data).length === 0) return { ...EMPTY_FORM };
+        // Asegurar estructura de competidores incluso si data viene de un listado parcial
+        const comps = [1, 2, 3].map(pos => {
+            const existing = data.competidores?.find(c => c.posicion === pos);
+            return existing ? { ...existing } : { posicion: pos, web: '', facebook: '' };
+        });
+        return { ...data, competidores: comps };
+    })
     const [saving, setSaving] = useState(false)
     const [formError, setFormError] = useState(null)
 
     // Sync form if data changes (though usually the modal is unmounted/remounted)
     useEffect(() => {
-        if (data) setForm(data)
+        if (data) {
+            // Asegurar que siempre hay 3 competidores (posiciones 1, 2, 3)
+            const comps = [1, 2, 3].map(pos => {
+                const existing = data.competidores?.find(c => c.posicion === pos);
+                return existing ? { ...existing } : { posicion: pos, web: '', facebook: '' };
+            });
+            setForm({ ...data, competidores: comps });
+        }
     }, [data])
 
     // Limpiar provincia si cambia el país
@@ -119,9 +139,11 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                 facturacion: (form.facturacion !== '' && form.facturacion !== null) ? parseFloat(form.facturacion) : null,
                 cnae: form.cnae || null,
                 facebook: form.facebook || null,
-                web_competidor_1: form.web_competidor_1 || null,
-                web_competidor_2: form.web_competidor_2 || null,
-                web_competidor_3: form.web_competidor_3 || null,
+                competidores: form.competidores.filter(c => c.web || c.facebook).map(c => ({
+                    posicion: c.posicion,
+                    web: c.web || null,
+                    facebook: c.facebook || null
+                })),
                 provincia_id: form.provincia_id ? Number(form.provincia_id) : null,
                 pais_id: form.pais_id ? Number(form.pais_id) : null,
             }
@@ -258,22 +280,47 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                             <h3 className="font-headline font-bold text-lg">Social y Competencia</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facebook URL</label>
+                            <div className="space-y-1.5 md:col-span-2">
+                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facebook URL Empresa</label>
                                 <input name="facebook" value={form.facebook || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://facebook.com/..." />
                             </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web Competidor 1</label>
-                                <input name="web_competidor_1" value={form.web_competidor_1 || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://competidor1.com" />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web Competidor 2</label>
-                                <input name="web_competidor_2" value={form.web_competidor_2 || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://competidor2.com" />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web Competidor 3</label>
-                                <input name="web_competidor_3" value={form.web_competidor_3 || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://competidor3.com" />
-                            </div>
+                            
+                            {form.competidores?.map((comp, idx) => (
+                                <React.Fragment key={comp.posicion}>
+                                    <div className="md:col-span-2 mt-2">
+                                        <h4 className="text-[11px] font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                                            <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px]">{comp.posicion}</span>
+                                            Competidor {comp.posicion}
+                                        </h4>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web</label>
+                                        <input 
+                                            value={comp.web || ''} 
+                                            onChange={(e) => {
+                                                const newComps = [...form.competidores];
+                                                newComps[idx] = { ...newComps[idx], web: e.target.value };
+                                                setForm(prev => ({ ...prev, competidores: newComps }));
+                                            }} 
+                                            className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" 
+                                            placeholder="https://..." 
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facebook</label>
+                                        <input 
+                                            value={comp.facebook || ''} 
+                                            onChange={(e) => {
+                                                const newComps = [...form.competidores];
+                                                newComps[idx] = { ...newComps[idx], facebook: e.target.value };
+                                                setForm(prev => ({ ...prev, competidores: newComps }));
+                                            }} 
+                                            className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" 
+                                            placeholder="https://facebook.com/..." 
+                                        />
+                                    </div>
+                                </React.Fragment>
+                            ))}
                         </div>
                     </section>
 

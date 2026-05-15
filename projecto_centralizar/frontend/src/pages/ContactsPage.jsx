@@ -165,7 +165,7 @@ function EntityValidationBanner({ message, entities = [], onClose }) {
 
 export default function ContactsPage() {
     const { contacts, total, loading, error, filters, updateFilter, removeFilter, setPage, setPageSize, refresh } = useContacts()
-    const { sectors, verticals, campaigns, products, cargos, categorias } = useLookups()
+    const { sectors, verticals, campaigns, products, cargos, categoriasCargo } = useLookups()
 
     const [modal, setModal] = useState(null)
     const [showImportModal, setShowImportModal] = useState(false)
@@ -256,7 +256,7 @@ export default function ContactsPage() {
     }
 
     const clearAllFilters = () => {
-        ['search', 'contacto_nombre', 'email', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id', 'is_enriched', 'categoria'].forEach((k) => updateFilter(k, ''))
+        ['search', 'contacto_nombre', 'email', 'sector_id', 'vertical_id', 'campaign_id', 'product_id', 'cargo_id', 'empresa_id', 'is_enriched', 'categoria_cargo_id'].forEach((k) => updateFilter(k, ''))
     }
 
     const handleBulkSave = async (updateData) => {
@@ -395,14 +395,14 @@ export default function ContactsPage() {
                         </select>
                     </div>
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Categoría</label>
+                        <label className="text-[10px] font-bold text-on-surface-variant uppercase">Categoría de Cargo</label>
                         <select
-                            value={filters.categoria || ''}
-                            onChange={e => updateFilter('categoria', e.target.value)}
+                            value={filters.categoria_cargo_id || ''}
+                            onChange={e => updateFilter('categoria_cargo_id', e.target.value)}
                             className="w-full bg-surface-container-lowest border-none text-sm px-4 py-2.5 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none appearance-none cursor-pointer"
                         >
                             <option value="">Todas las Categorías</option>
-                            {categorias.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            {categoriasCargo.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                         </select>
                     </div>
                 </div>
@@ -544,9 +544,9 @@ export default function ContactsPage() {
                                         ) : <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>}
                                     </td>
                                     <td className="py-5 px-6">
-                                        {c.categoria ? (
+                                        {c.cargo?.categoria ? (
                                             <span className="px-2 py-0.5 bg-violet-50 text-violet-700 text-[10px] font-bold rounded uppercase tracking-wide inline-block w-fit border border-violet-200">
-                                                {c.categoria}
+                                                {c.cargo.categoria.name}
                                             </span>
                                         ) : (
                                             <span className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">-</span>

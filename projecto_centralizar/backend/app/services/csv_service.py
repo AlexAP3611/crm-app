@@ -75,6 +75,8 @@ CSV_FIELDS = [
     "cargo",
     # Contact native fields
     *CONTACT_VIEW_FIELDS,
+    # Categoría de Cargo (derived from cargo relationship)
+    "categoria",
     # Empresa explicit fields
     "empresa_nombre",
     "empresa_cif",
@@ -93,6 +95,7 @@ def _contact_to_row(contact: Contact) -> dict[str, Any]:
 
     # Core
     row["cargo"] = contact.cargo.name if contact.cargo else ""
+    row["categoria"] = contact.cargo.categoria.name if contact.cargo and contact.cargo.categoria else ""
 
     # Contact native fields
     for field in CONTACT_VIEW_FIELDS:

@@ -9,6 +9,7 @@ class ToolKey(str, Enum):
     CLAY = "Clay"
     APOLLO = "Apollo"
     ADSCORE = "Adscore"
+    ENRICHMENT = "Enrichment"
     # Future tools can be added here
     
 

@@ -16,20 +16,6 @@ depends_on = None
 
 # 52 provincias españolas (INE) + País España
 SPAIN_NAME = "España"
-PROVINCIAS_ES = [
-    'Álava', 'Albacete', 'Alicante', 'Almería', 'Asturias', 'Ávila',
-    'Badajoz', 'Barcelona', 'Burgos', 'Cáceres', 'Cádiz', 'Cantabria',
-    'Castellón', 'Ciudad Real', 'Córdoba', 'A Coruña', 'Cuenca',
-    'Girona', 'Granada', 'Guadalajara', 'Gipuzkoa', 'Huelva', 'Huesca',
-    'Illes Balears', 'Jaén', 'León', 'Lleida', 'La Rioja', 'Lugo',
-    'Madrid', 'Málaga', 'Murcia', 'Navarra', 'Ourense', 'Palencia',
-    'Las Palmas', 'Pontevedra', 'Salamanca', 'Santa Cruz de Tenerife',
-    'Segovia', 'Sevilla', 'Soria', 'Tarragona', 'Teruel', 'Toledo',
-    'Valencia', 'Valladolid', 'Bizkaia', 'Zamora', 'Zaragoza',
-    'Ceuta', 'Melilla',
-]
-
-
 def upgrade() -> None:
     conn = op.get_bind()
 
@@ -66,7 +52,7 @@ def upgrade() -> None:
     op.add_column("empresas", sa.Column("pais_id", sa.Integer(), nullable=True))
     op.add_column("empresas", sa.Column("provincia_id", sa.Integer(), nullable=True))
 
-    # ── Phase 3: Seed España + 52 provincias ───────────────────────────────
+    # ── Phase 3: Seed España ───────────────────────────────────────────────
     conn.execute(
         text("INSERT INTO paises (name) VALUES (:name) ON CONFLICT DO NOTHING"),
         {"name": SPAIN_NAME},
@@ -76,16 +62,6 @@ def upgrade() -> None:
         {"name": SPAIN_NAME},
     ).fetchone()
     spain_id = spain_row[0] if spain_row else None
-
-    if spain_id:
-        for prov_name in PROVINCIAS_ES:
-            conn.execute(
-                text(
-                    "INSERT INTO provincias (name, pais_id) VALUES (:name, :pais_id) "
-                    "ON CONFLICT DO NOTHING"
-                ),
-                {"name": prov_name, "pais_id": spain_id},
-            )
 
     # ── Phase 4: Migrate existing pais text data ────────────────────────────
     # Insert any unique non-null pais values not already seeded

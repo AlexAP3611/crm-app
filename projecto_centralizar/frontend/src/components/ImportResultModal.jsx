@@ -130,16 +130,33 @@ export default function ImportResultModal({ report, isOpen, onClose, entityName 
                                         </div>
                                     ))}
 
-                                    {/* Mostrar Warnings */}
-                                    {res.warnings?.map((warn, wi) => (
-                                        <div key={wi} className="flex items-start gap-2">
-                                            <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">report_problem</span>
-                                            <div>
-                                                <p className="text-[11px] font-bold text-amber-900 leading-tight">{warn.message}</p>
-                                                <p className="text-[9px] text-amber-500 font-mono mt-0.5">[{warn.code}]</p>
+                                    {/* Mostrar Warnings / Info de Fusión */}
+                                    {res.warnings && res.warnings.length > 0 ? (
+                                        res.warnings.map((warn, wi) => (
+                                            <div key={wi} className="flex items-start gap-2">
+                                                <span className={`material-symbols-outlined text-sm mt-0.5 ${
+                                                    res.action === 'merged' ? 'text-indigo-500' : 'text-amber-500'
+                                                }`}>
+                                                    {res.action === 'merged' ? 'call_merge' : 'report_problem'}
+                                                </span>
+                                                <div>
+                                                    <p className={`text-[11px] font-bold leading-tight ${
+                                                        res.action === 'merged' ? 'text-indigo-900' : 'text-amber-900'
+                                                    }`}>{warn.message}</p>
+                                                    <p className={`text-[9px] font-mono mt-0.5 ${
+                                                        res.action === 'merged' ? 'text-indigo-400' : 'text-amber-500'
+                                                    }`}>[{warn.code}]</p>
+                                                </div>
                                             </div>
+                                        ))
+                                    ) : res.action === 'merged' && (
+                                        <div className="flex items-start gap-2">
+                                            <span className="material-symbols-outlined text-indigo-500 text-sm mt-0.5">call_merge</span>
+                                            <p className="text-[11px] font-bold text-indigo-900 leading-tight">
+                                                Esta fila se ha fusionado con una empresa existente por duplicidad de datos.
+                                            </p>
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             ))}
                         </div>

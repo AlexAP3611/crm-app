@@ -9,5 +9,4 @@ CONTACT_VIEW_FIELDS = [
     "email",
     "phone",
     "linkedin",
-    "categoria",
 ]

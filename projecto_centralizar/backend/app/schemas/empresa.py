@@ -21,6 +21,18 @@ class ProvinciaRef(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Competitor Schemas ──
+class CompetidorBase(BaseModel):
+    posicion: int
+    web: Optional[str] = None
+    facebook: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+class CompetidorResponse(CompetidorBase):
+    id: int
+
+
 class EmpresaFilterFields(BaseModel):
     """Pure business filters. No pagination. Used by bulk scope and inherited by EmpresaFilterParams."""
     q: Optional[str] = None
@@ -59,9 +71,7 @@ class EmpresaBase(BaseModel):
     provincia_id: Optional[int] = None
     pais_id: Optional[int] = None
     facebook: Optional[str] = None
-    web_competidor_1: Optional[str] = None
-    web_competidor_2: Optional[str] = None
-    web_competidor_3: Optional[str] = None
+    competidores: Optional[list[CompetidorBase]] = None
     sector_ids: list[int] = []
     vertical_ids: list[int] = []
     product_ids: list[int] = []
@@ -83,9 +93,7 @@ class EmpresaUpdate(BaseModel):
     provincia_id: Optional[int] = None
     pais_id: Optional[int] = None
     facebook: Optional[str] = None
-    web_competidor_1: Optional[str] = None
-    web_competidor_2: Optional[str] = None
-    web_competidor_3: Optional[str] = None
+    competidores: Optional[list[CompetidorBase]] = None
     sector_ids: Optional[list[int]] = None
     vertical_ids: Optional[list[int]] = None
     product_ids: Optional[list[int]] = None
@@ -108,9 +116,7 @@ class EmpresaCreateResponse(BaseModel):
     pais_rel: Optional[PaisRef] = None
     provincia_rel: Optional[ProvinciaRef] = None
     facebook: Optional[str] = None
-    web_competidor_1: Optional[str] = None
-    web_competidor_2: Optional[str] = None
-    web_competidor_3: Optional[str] = None
+    competidores: list[CompetidorResponse] = []
     sectors: list[SectorRef] = []
     verticals: list[VerticalRef] = []
     products_rel: list[ProductRef] = []
@@ -119,8 +125,7 @@ class EmpresaCreateResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class EmpresaResponse(EmpresaCreateResponse):

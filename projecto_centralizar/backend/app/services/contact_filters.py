@@ -93,7 +93,10 @@ def apply_contact_filters(query, filters):
     elif filters.is_enriched is False:
         query = query.where(Contact.enriched.is_(False))
 
-    if filters.categoria:
-        query = query.where(Contact.categoria == filters.categoria)
+    if filters.categoria_cargo_id is not None:
+        from app.models.cargo import Cargo
+        query = query.where(
+            Contact.cargo.has(Cargo.categoria_id == filters.categoria_cargo_id)
+        )
 
     return query

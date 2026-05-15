@@ -1,10 +1,10 @@
 from typing import Literal, NamedTuple, Optional
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products
-from app.schemas.empresa import EmpresaListResponse, EmpresaFilterParams, EmpresaCreate
+from app.models.empresa import Empresa, empresa_sectors, empresa_verticals, empresa_products, Competidor
+from app.schemas.empresa import EmpresaListResponse, EmpresaFilterParams, EmpresaCreate, CompetidorBase
 from app.core.utils import normalize_company_name, normalize_web
 
 class ResolveEmpresaResult(NamedTuple):
@@ -76,10 +76,45 @@ async def resolve_empresa(
             return ResolveEmpresaResult(empresa=existing_emp, created=False, matched_by="name")
         raise
 
+async def sync_competidores(session: AsyncSession, empresa_id: int, competidores_data: list[CompetidorBase] | None):
+    """
+    Syncs competitors for a company.
+    - None: Preserve existing (do nothing).
+    - []: Clear all.
+    - List: Replace all with new data (filtering empty ones).
+    """
+    if competidores_data is None:
+        return
+
+    # 1. Clear existing
+    await session.execute(delete(Competidor).where(Competidor.empresa_id == empresa_id))
+    
+    # 2. Insert new (limit to 3, filter empty)
+    to_insert = []
+    # Filter only those that have at least one field and respect positions 1, 2, 3
+    valid_comps = [c for c in competidores_data if (c.web or c.facebook) and 1 <= c.posicion <= 3]
+    # Sort and take top 3 just in case
+    valid_comps.sort(key=lambda x: x.posicion)
+    
+    seen_positions = set()
+    for c_data in valid_comps:
+        if c_data.posicion not in seen_positions:
+            to_insert.append(Competidor(
+                empresa_id=empresa_id,
+                posicion=c_data.posicion,
+                web=c_data.web,
+                facebook=c_data.facebook
+            ))
+            seen_positions.add(c_data.posicion)
+            if len(to_insert) >= 3:
+                break
+                
+    if to_insert:
+        session.add_all(to_insert)
+
 async def upsert_empresa(session: AsyncSession, data: EmpresaCreate) -> tuple[Empresa, str]:
     """
     Core domain logic to upsert an Empresa based on the identity hierarchy.
-    Domain Layer decides only base model state, NO M2M.
     Returns (Empresa, "created"|"updated").
     """
     if data.nombre:
@@ -94,7 +129,7 @@ async def upsert_empresa(session: AsyncSession, data: EmpresaCreate) -> tuple[Em
     )
 
     action = "skipped"
-    payload = data.model_dump(exclude={"sector_ids", "vertical_ids", "product_ids"}, exclude_unset=True)
+    payload = data.model_dump(exclude={"sector_ids", "vertical_ids", "product_ids", "competidores"}, exclude_unset=True)
 
     if resolution:
         # Update existing Base Entity
@@ -109,7 +144,11 @@ async def upsert_empresa(session: AsyncSession, data: EmpresaCreate) -> tuple[Em
             raise ValueError("Empresa requires a valid non-empty name.")
         emp = Empresa(**payload)
         session.add(emp)
+        await session.flush() # Ensure ID for competitors
         action = "created"
+    
+    # Sync competitors
+    await sync_competidores(session, emp.id, data.competidores)
         
     return emp, action
 
@@ -172,6 +211,7 @@ async def list_empresas(
         selectinload(Empresa.sectors),
         selectinload(Empresa.verticals),
         selectinload(Empresa.products_rel),
+        selectinload(Empresa.competidores),
     ).order_by(Empresa.nombre, Empresa.id.desc())
 
     # 3. Apply Pagination (Offset calculated internally)

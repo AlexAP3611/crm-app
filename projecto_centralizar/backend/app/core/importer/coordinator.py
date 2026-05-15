@@ -260,12 +260,34 @@ class PipelineCoordinator:
                 warnings=row_warnings, entity_id=existing.id if existing else None
             )
         else:
+            # 5a. Explicit Competitor Extraction & Cleanup (Critical for data safety)
+            competidores_data = []
+            for i in range(1, 4):
+                w_key = f"web_competidor_{i}"
+                f_key = f"facebook_competidor_{i}"
+                # Use pop to ensure these fields don't reach the main payload
+                raw_web = row.pop(w_key, None)
+                raw_fb = row.pop(f_key, None)
+                
+                # Normalize and trim
+                web = normalize_web(raw_web) if raw_web else None
+                fb = raw_fb.strip() if (raw_fb and isinstance(raw_fb, str)) else raw_fb
+                
+                if web or fb:
+                    competidores_data.append({"posicion": i, "web": web, "facebook": fb})
+            
+            # Inject only if we found actual data (None preserves existing data in upsert)
+            if competidores_data:
+                row["competidores"] = competidores_data
+
+            # 5b. Build Payload and Upsert
             payload = {k: v for k, v in row.items() if k in EmpresaCreate.model_fields and k not in ["sector_ids", "vertical_ids", "product_ids", "pais", "provincia"]}
             # Inyectar FKs resueltos (solo si tienen valor; NULL si no hubo match)
             if pais_id:
                 payload["pais_id"] = pais_id
             if provincia_id:
                 payload["provincia_id"] = provincia_id
+                
             empresa_data = EmpresaCreate(**payload)
             
             empresa, action = await empresa_service.upsert_empresa(self.session, empresa_data)
@@ -488,11 +510,11 @@ class ContactCoordinator:
                     was_created = resolution.created
                     empresa_cache[norm_name] = (empresa_id, was_created)
                     if was_created:
-                        warnings.append(IngestionError(code="AUTO_EMPRESA", message=f"Se ha creado automáticamente la empresa '{emp_name}'", severity="INFO"))
+                        warnings.append(IngestionError(code="AUTO_EMPRESA", message=f"Se ha creado automáticamente la empresa '{emp_name}'", severity="INFO", value=emp_name))
                 elif self.mode == "preview":
                     # In preview, we signal it would be created
                     empresa_cache[norm_name] = (None, True)
-                    warnings.append(IngestionError(code="AUTO_EMPRESA", message=f"Se crearía la empresa '{emp_name}'", severity="INFO"))
+                    warnings.append(IngestionError(code="AUTO_EMPRESA", message=f"Se crearía la empresa '{emp_name}'", severity="INFO", value=emp_name))
 
         # 2. Resolve Cargo
         cargo_id = None
@@ -504,8 +526,9 @@ class ContactCoordinator:
             else:
                 norm_cargo = cargo_service.normalize_cargo_name(cargo_name)
                 if norm_cargo and norm_cargo not in cargo_cache:
-                    cargo_cache[norm_cargo] = True
-                    warnings.append(IngestionError(code="AUTO_CARGO", message=f"Se detectó cargo nuevo: {cargo_name}", severity="INFO"))
+                    # Not in DB (since cache was prefilled) and not seen yet in this CSV
+                    cargo_cache[norm_cargo] = None # Mark as seen to avoid duplicate warnings
+                    warnings.append(IngestionError(code="AUTO_CARGO", message=f"Se detectó cargo nuevo: {cargo_name}", severity="INFO", value=cargo_name))
 
         # 3. Resolve Campaign
         campaign_ids = []
@@ -520,10 +543,10 @@ class ContactCoordinator:
                         campaign_cache[norm_camp] = True
             else:
                 if norm_camp not in campaign_cache:
-                    existing = await campaign_service.get_by_name(self.session, campaign_name)
-                    if not existing:
-                        warnings.append(IngestionError(code="AUTO_CAMPAIGN", message=f"Se crearía la campaña: {campaign_name}", severity="INFO"))
-                    campaign_cache[norm_camp] = True
+                    # Since campaign_cache was prefilled with existing campaigns, 
+                    # if it's not there, it truly doesn't exist.
+                    warnings.append(IngestionError(code="AUTO_CAMPAIGN", message=f"Se crearía la campaña: {campaign_name}", severity="INFO", value=campaign_name))
+                    campaign_cache[norm_camp] = None # Mark as seen to avoid duplicate warnings
 
         # 4. Domain Persistence
         payload = {k: v for k, v in row.items() if k in ContactCreate.model_fields}
@@ -550,9 +573,26 @@ class ContactCoordinator:
             if res.status == "error": summary.failed += 1
             elif res.action == "merged": summary.merged += 1
 
-        # Caches
-        cargo_cache = {}
+        # Caches prefill
+        all_cargo_names = set()
+        all_campaign_names = set()
+        for row in consolidated_rows:
+            cargo = row.get("job_title")
+            if cargo: all_cargo_names.add(cargo)
+            campaign = row.get("campaña")
+            if campaign: all_campaign_names.add(campaign)
+
+        cargo_cache = await cargo_service.prefill_cargo_cache(self.session, all_cargo_names)
+        
+        # Prefill campaigns: campaign_service doesn't have a batch prefill_cache, 
+        # but we can populate it manually to avoid N+1 in _process_row_logic
         campaign_cache = {}
+        for name in all_campaign_names:
+            campaign_obj = await campaign_service.get_by_name(self.session, name)
+            if campaign_obj:
+                norm_camp = campaign_service.normalize_name(name).lower()
+                campaign_cache[norm_camp] = campaign_obj
+
         empresa_cache = {} # norm_name -> (id, was_created)
 
         for row in consolidated_rows:

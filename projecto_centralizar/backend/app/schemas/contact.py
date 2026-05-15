@@ -4,6 +4,13 @@ from typing import Any
 from pydantic import BaseModel, field_validator
 
 
+class CategoriaCargoRef(BaseModel):
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
 class ContactCreate(BaseModel):
     empresa_id: int | None = None
     first_name: str | None = None
@@ -13,7 +20,6 @@ class ContactCreate(BaseModel):
     phone: str | None = None
     linkedin: str | None = None
     cargo_id: int | None = None
-    categoria: str | None = None
     notes: dict[str, Any] | None = None
     campaign_ids: list[int] = []
     # Timestamps — declared so Pydantic coerces ISO strings to datetime
@@ -37,7 +43,6 @@ class ContactUpdate(BaseModel):
     phone: str | None = None
     linkedin: str | None = None
     cargo_id: int | None = None
-    categoria: str | None = None
     notes: dict[str, Any] | None = None
     merge_lists: bool = True
     remove_lists: bool = False
@@ -85,6 +90,7 @@ class ProductRef(BaseModel):
 class CargoRef(BaseModel):
     id: int
     name: str
+    categoria: CategoriaCargoRef | None = None
 
     model_config = {"from_attributes": True}
 
@@ -106,7 +112,6 @@ class ContactResponse(BaseModel):
     phone: str | None
     linkedin: str | None
     # Product JSONB field removed. Products are managed at Empresa level.
-    categoria: str | None = None
     notes: dict[str, Any] | None
     created_at: datetime
     updated_at: datetime
@@ -140,7 +145,7 @@ class ContactFilterFields(BaseModel):
     email: str | None = None
     empresa_id: int | None = None
     is_enriched: bool | None = None
-    categoria: str | None = None
+    categoria_cargo_id: int | None = None
 
 
 class ContactFilterParams(ContactFilterFields):

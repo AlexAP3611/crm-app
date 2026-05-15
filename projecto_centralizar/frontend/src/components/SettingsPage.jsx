@@ -14,18 +14,11 @@ const SERVICES = [
         placeholder: 'Introduce la API Key de Affino',
     },
     {
-        id: 'apollo',
-        name: 'Apollo',
-        icon: 'rocket_launch',
-        defaultAuth: 'OAuth2',
-        placeholder: 'Introduce la API Key de Apollo',
-    },
-    {
-        id: 'clay',
-        name: 'Clay',
-        icon: 'layers',
+        id: 'enrichment',
+        name: 'Enriquecimiento',
+        icon: 'magic_button',
         defaultAuth: 'Bearer Token',
-        placeholder: 'Introduce la API Key de Clay',
+        placeholder: 'Introduce la URL del webhook o API Key',
     },
     {
         id: 'adscore',

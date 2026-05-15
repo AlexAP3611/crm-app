@@ -6,6 +6,7 @@ class IngestionError(BaseModel):
     message: str
     field: Optional[str] = None
     severity: Literal["BLOCKER", "CRITICAL", "WARNING", "INFO"] = "BLOCKER"
+    value: Optional[str] = None  # Structured entity name for frontend extraction (avoids regex on 'message')
 
 class RowResult(BaseModel):
     row_idx: int

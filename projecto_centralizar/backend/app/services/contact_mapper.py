@@ -22,7 +22,6 @@ CONTACT_ORM_FIELDS = frozenset({
     "email",
     "phone",
     "linkedin",
-    "categoria",
 })
 
 

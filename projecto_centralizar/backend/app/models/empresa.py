@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, func, Float
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, func, Float, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -28,6 +28,23 @@ empresa_products = Table(
     Column("product_id", ForeignKey("products.id", ondelete="CASCADE"), primary_key=True),
 )
 
+class Competidor(Base):
+    __tablename__ = "competidores"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    empresa_id: Mapped[int] = mapped_column(
+        ForeignKey("empresas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    posicion: Mapped[int] = mapped_column(Integer, nullable=False)  # 1, 2, 3
+    web: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    facebook: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Relationship back to empresa
+    empresa: Mapped["Empresa"] = relationship(back_populates="competidores")
+
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "posicion", name="uq_empresa_competidor_posicion"),
+    )
 
 class Empresa(Base):
     __tablename__ = "empresas"
@@ -48,11 +65,17 @@ class Empresa(Base):
         ForeignKey("provincias.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
-    # --- Social & Competitors ---
+    # --- Social ---
     facebook: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    web_competidor_1: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    web_competidor_2: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    web_competidor_3: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # --- Relationships ---
+    competidores: Mapped[list["Competidor"]] = relationship(
+        "Competidor",
+        back_populates="empresa",
+        lazy="selectin",
+        order_by="Competidor.posicion",
+        cascade="all, delete-orphan",
+    )
 
     # --- M2M Relationships ---
     sectors: Mapped[list["Sector"]] = relationship(  # noqa: F821

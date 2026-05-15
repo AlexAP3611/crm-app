@@ -176,6 +176,7 @@ const NUMERIC_FIELDS = new Set([
     'campaign_id',
     'pais_id',
     'provincia_id',
+    'categoria_cargo_id',
 ]);
 
 const normalizeValue = (k, v) => {
@@ -358,6 +359,16 @@ export const api = {
     listCargos: () => request('/master-data/cargos'),
     createCargo: (data) => request('/master-data/cargos', { method: 'POST', body: JSON.stringify(data) }),
     deleteCargo: (id) => request(`/master-data/cargos/${id}`, { method: 'DELETE' }),
+    updateCargoCategoria: (cargoId, categoriaId) =>
+        request(`/master-data/cargos/${cargoId}/categoria`, {
+            method: 'PATCH',
+            body: JSON.stringify({ categoria_id: categoriaId }),
+        }),
+
+    // Categorias Cargo
+    listCategoriasCargo: () => request('/master-data/categorias-cargo'),
+    createCategoriaCargo: (data) => request('/master-data/categorias-cargo', { method: 'POST', body: JSON.stringify(data) }),
+    deleteCategoriaCargo: (id) => request(`/master-data/categorias-cargo/${id}`, { method: 'DELETE' }),
 
     // Geo Master Data
     listPaises: () => request('/master-data/paises'),
@@ -369,9 +380,6 @@ export const api = {
     },
     createProvincia: (data) => request('/master-data/provincias', { method: 'POST', body: JSON.stringify(data) }),
     deleteProvincia: (id) => request(`/master-data/provincias/${id}`, { method: 'DELETE' }),
-
-    // ── Contact Lookups ──
-    listCategorias: () => request('/contacts/categorias'),
 
     // ── Campaigns ──
     listCampaigns: () => request('/campaigns'),
