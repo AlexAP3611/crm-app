@@ -25,6 +25,7 @@ from app.models.provincia import Provincia
 from app.models.user_request import UserRequest  # Solicitudes de acceso
 from app.models.log import Log                    # Registro de auditoría
 from app.models.enrichment_log import IntegrationLog
+from app.models.affino_account import AffinoAccount
 
 __all__ = [
     "Campaign",
@@ -43,4 +44,5 @@ __all__ = [
     "UserRequest",
     "Log",
     "IntegrationLog",
+    "AffinoAccount",
 ]

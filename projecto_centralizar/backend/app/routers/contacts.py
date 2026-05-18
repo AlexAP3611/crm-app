@@ -16,6 +16,7 @@ from app.schemas.contact import (
 from app.schemas.scope import ContactScopedDelete, ContactScopedUpdate
 from app.schemas.enrichment import ContactEnrichRequest, ContactEnrichSuccessResponse
 from app.schemas.tool import ToolExecutionRequest, ToolExecutionResponse, ToolKey
+from app.schemas.affino_account import AffinoExportRequest
 from app.services import contact_service
 from app.services import enrichment_service
 from app.services import integration_service
@@ -237,17 +238,21 @@ async def execute_tool(
 
 @router.post("/export/affino", response_model=ToolExecutionResponse)
 async def export_affino(
-    request: ToolExecutionRequest,
+    request: AffinoExportRequest,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     """
     Semantic alias for Affino Export.
-    Forces tool_key to 'Affino'.
+    Forces tool_key to 'Affino' and passes account_id to the service.
     """
     request.tool_key = ToolKey.AFFINO
     try:
-        return await integration_service.execute_contact_tool(db, request, user_id=current_user.id)
+        return await integration_service.execute_contact_tool(
+            db, request,
+            user_id=current_user.id,
+            account_id=request.account_id,
+        )
     except ToolValidationErrorException as e:
         return Response(
             content=e.error.model_dump_json(),

@@ -16,7 +16,6 @@ from app.core.view_fields.contact_view_fields import CONTACT_VIEW_FIELDS
 from app.core.view_fields.empresa_view_fields import EMPRESA_VIEW_FIELDS
 from app.domain.relations import M2M_FIELD_MAP, EMPRESA_M2M_FIELD_MAP
 
-CSV_VERSION = "v1"
 
 # Domain-specific M2M field maps
 CONTACT_M2M_FIELDS = M2M_FIELD_MAP
@@ -36,7 +35,6 @@ def _m2m_export_columns(field_map: dict) -> list[str]:
     return [M2M_EXPORT_META[k][0] for k in field_map]
 
 HEADER_MAP = {
-    "csv_version": "Version_CSV",
     "cargo": "Cargo",
     "first_name": "Nombre",
     "last_name": "Apellidos",
@@ -71,7 +69,6 @@ def _translate_row(row: dict[str, Any]) -> dict[str, Any]:
     return {HEADER_MAP.get(k, k): v for k, v in row.items()}
 
 CSV_FIELDS = [
-    "csv_version",
     "cargo",
     # Contact native fields
     *CONTACT_VIEW_FIELDS,
@@ -88,10 +85,10 @@ CSV_FIELDS = [
     *_m2m_export_columns(EMPRESA_M2M_FIELDS),
 ]
 
-EMPRESA_CSV_FIELDS = ["csv_version"] + EMPRESA_VIEW_FIELDS + _m2m_export_columns(EMPRESA_M2M_FIELDS)
+EMPRESA_CSV_FIELDS = EMPRESA_VIEW_FIELDS + _m2m_export_columns(EMPRESA_M2M_FIELDS)
 
 def _contact_to_row(contact: Contact) -> dict[str, Any]:
-    row = {"csv_version": CSV_VERSION}
+    row = {}
 
     # Core
     row["cargo"] = contact.cargo.name if contact.cargo else ""
@@ -130,7 +127,7 @@ def _contact_to_row(contact: Contact) -> dict[str, Any]:
 
 
 def _empresa_to_row(empresa: Empresa) -> dict[str, Any]:
-    row = {"csv_version": CSV_VERSION}
+    row = {}
 
     for field in EMPRESA_VIEW_FIELDS:
         # Skip FK ID fields — we export human-readable names instead

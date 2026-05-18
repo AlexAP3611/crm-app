@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getToken, api } from '../api/client'
 import { settingsService } from '../api/settingsService'
+import AffinoAccountsManager from './AffinoAccountsManager'
 
 /* ──────────────────────────────────────────────────────────
    Service definitions — each card in External Connectivity
@@ -624,15 +625,21 @@ export default function SettingsPage() {
 
                 {/* Integration Bento Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {SERVICES.map((service) => (
-                        <ServiceCard
-                            key={service.id}
-                            service={service}
-                            config={serviceConfigs[service.id]}
-                            onSave={handleSaveConnection}
-                        />
-                    ))}
+                    {SERVICES
+                        .filter((s) => s.id !== 'affino')
+                        .map((service) => (
+                            <ServiceCard
+                                key={service.id}
+                                service={service}
+                                config={serviceConfigs[service.id]}
+                                onSave={handleSaveConnection}
+                            />
+                        ))
+                    }
                 </div>
+
+                {/* Sección dedicada a múltiples cuentas de Affino */}
+                <AffinoAccountsManager />
 
                 {/* Connection save feedback toast */}
                 {(testingService || testResult) && (

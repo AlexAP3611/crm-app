@@ -4,14 +4,12 @@ This document defines the official contract for the CRM CSV system. All exports 
 
 ## 1. File Structure
 - **Format**: CSV (UTF-8 with BOM for compatibility) or XLSX.
-- **Versioning**: The first column `csv_version` MUST be `v1`.
 
 ## 2. Header Contract
 
 ### Contact Row Structure
 | Header | Description | Required |
 | :--- | :--- | :--- |
-| `csv_version` | Must be `v1` | Yes |
 | `id` | Internal Contact ID (null for new) | No |
 | `empresa_id` | Internal Empresa ID | No |
 | `first_name` | Contact first name | No |

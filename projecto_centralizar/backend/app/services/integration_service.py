@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 async def execute_contact_tool(
     db: AsyncSession,
     request: ToolExecutionRequest,
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
+    account_id: Optional[int] = None,
 ) -> ToolExecutionResponse:
     """
     Central Hub for executing external contact tools (Affino, etc.)
@@ -131,8 +132,22 @@ async def execute_contact_tool(
         h_pfx = cfg.get("prefix") or "Bearer"
         if h_val:
             headers[h_name] = f"{h_pfx} {h_val}".strip()
-        if cfg.get("xUserId"):
-            headers["X-User-ID"] = str(cfg["xUserId"])
+
+        # X-User-ID is resolved exclusively from affino_accounts table
+        if account_id:
+            from app.models.affino_account import AffinoAccount
+            account = await db.get(AffinoAccount, account_id)
+            if not account:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cuenta Affino con id={account_id} no encontrada."
+                )
+            headers["X-User-ID"] = account.x_user_id
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="No hay cuenta Affino configurada. Añade una en APIs & Webhooks."
+            )
 
     # 6. Map Payload (Dispatch based on tool_key)
     if request.tool_key == ToolKey.AFFINO:

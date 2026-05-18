@@ -7,6 +7,7 @@ import { api, buildScope } from '../api/client'
 import RowMenu from '../components/RowMenu'
 import Checkbox from '../components/Checkbox'
 import { settingsService } from '../api/settingsService'
+import AffinoSendModal from '../components/AffinoSendModal'
 
 
 function ConfirmDeleteModal({ count, onConfirm, onCancel, loading }) {
@@ -179,6 +180,7 @@ export default function ContactsPage() {
     const [toolMessage, setToolMessage] = useState(null)
     const [processingTool, setProcessingTool] = useState(null)
     const [invalidEntities, setInvalidEntities] = useState([])
+    const [affinoModal, setAffinoModal] = useState(false)
 
 
 
@@ -442,12 +444,12 @@ export default function ContactsPage() {
                 {/* Fila 2: Integraciones (Affino, etc.) */}
                 <div className="flex flex-wrap items-center gap-3">
                     <button
-                        onClick={() => handleToolExecution('Affino')}
+                        onClick={() => setAffinoModal(true)}
                         disabled={!!processingTool}
                         className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95"
                     >
                         <span className="material-symbols-outlined text-lg">send</span>
-                        Enviar a Affino {processingTool === 'Affino' && '...'}
+                        Enviar a Affino
                         <span className="bg-transparent px-1.5 rounded-md ml-1">{actionCount}</span>
                     </button>
                 </div>
@@ -642,6 +644,26 @@ export default function ContactsPage() {
                 <ImportContactsModal
                     onClose={() => setShowImportModal(false)}
                     onImported={() => { refresh() }}
+                />
+            )}
+
+            {/* Affino Multi-Account Send Modal */}
+            {affinoModal && (
+                <AffinoSendModal
+                    scope={buildScope(selectedIds, filters)}
+                    actionCount={actionCount}
+                    onClose={() => setAffinoModal(false)}
+                    onSent={(runId) => {
+                        setAffinoModal(false)
+                        setToolMessage(`Envío a Affino iniciado con éxito. ID: ${runId?.slice(0, 8)}`)
+                        if (selectedIds.length > 0) setSelectedIds([])
+                        refresh()
+                    }}
+                    onError={(msg, entities) => {
+                        setAffinoModal(false)
+                        setToolError(msg)
+                        setInvalidEntities(entities || [])
+                    }}
                 />
             )}
 

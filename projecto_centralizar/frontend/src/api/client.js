@@ -418,6 +418,12 @@ export const api = {
     exportAffino: (data) =>
         request('/contacts/export/affino', { method: 'POST', body: JSON.stringify(data) }),
 
+    // ── Affino Accounts ──
+    listAffinoAccounts: () => request('/affino-accounts'),
+    createAffinoAccount: (data) => request('/affino-accounts', { method: 'POST', body: JSON.stringify(data) }),
+    updateAffinoAccount: (id, data) => request(`/affino-accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteAffinoAccount: (id) => request(`/affino-accounts/${id}`, { method: 'DELETE' }),
+
     // ── Access Requests ──
     requestAccess: (email, password) =>
         request('/request-access', { method: 'POST', body: JSON.stringify({ email, password }) }),
