@@ -6,8 +6,6 @@ from app.schemas.contact import ContactFilterFields
 
 class ToolKey(str, Enum):
     AFFINO = "Affino"
-    CLAY = "Clay"
-    APOLLO = "Apollo"
     ADSCORE = "Adscore"
     ENRICHMENT = "Enrichment"
     # Future tools can be added here

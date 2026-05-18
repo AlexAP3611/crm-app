@@ -28,7 +28,7 @@ async def execute_contact_tool(
     user_id: Optional[int] = None
 ) -> ToolExecutionResponse:
     """
-    Central Hub for executing external contact tools (Affino, Clay, etc.)
+    Central Hub for executing external contact tools (Affino, etc.)
     """
     start_time = time.time()
     

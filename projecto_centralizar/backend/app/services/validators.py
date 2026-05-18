@@ -52,25 +52,9 @@ class AffinoContactValidator(BaseToolValidator):
                 ))
         return invalid
 
-class ClayCompanyValidator(BaseToolValidator):
+class EnrichmentCompanyValidator(BaseToolValidator):
     """
-    Validation for Clay (Companies):
-    1. Must have web.
-    """
-    async def validate(self, companies: list[Empresa]) -> list[InvalidEntity]:
-        invalid = []
-        for emp in companies:
-            if not emp.web or not str(emp.web).strip():
-                invalid.append(InvalidEntity(
-                    id=emp.id,
-                    nombre=emp.nombre,
-                    reason="missing_web"
-                ))
-        return invalid
-
-class ApolloCompanyValidator(BaseToolValidator):
-    """
-    Validation for Apollo (Companies):
+    Validation for generic Enrichment (Companies):
     1. Must have web.
     """
     async def validate(self, companies: list[Empresa]) -> list[InvalidEntity]:
@@ -124,9 +108,8 @@ class AdscoreCompanyValidator(BaseToolValidator):
 # Registry of validators
 _VALIDATORS = {
     ToolKey.AFFINO: AffinoContactValidator(),
-    ToolKey.CLAY: ClayCompanyValidator(),
-    ToolKey.APOLLO: ApolloCompanyValidator(),
-    ToolKey.ADSCORE: AdscoreCompanyValidator()
+    ToolKey.ADSCORE: AdscoreCompanyValidator(),
+    ToolKey.ENRICHMENT: EnrichmentCompanyValidator(),
 }
 
 def get_validator(tool_key: ToolKey) -> Optional[BaseToolValidator]:
