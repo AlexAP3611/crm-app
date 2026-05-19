@@ -3,7 +3,7 @@ from typing import Optional
 from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 
-from app.schemas.tool import ToolExecutionRequest
+from app.schemas.tool import ToolExecutionRequest, ToolKey
 
 
 # ── CRUD Schemas ───────────────────────────────────────────────────────────────
@@ -32,4 +32,5 @@ class AffinoAccountResponse(BaseModel):
 # This keeps the generic schema clean while ensuring account_id reaches the service.
 
 class AffinoExportRequest(ToolExecutionRequest):
+    tool_key: ToolKey = ToolKey.AFFINO
     account_id: Optional[int] = None  # None → fallback to legacy settings xUserId
