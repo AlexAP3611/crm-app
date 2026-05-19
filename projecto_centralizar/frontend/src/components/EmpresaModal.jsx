@@ -52,7 +52,7 @@ function DynamicM2MEditor({ empresaId, type, items, availableOptions, onSuccess 
             </div>
             <div className="flex gap-2">
                 <div className="flex-1">
-                    <CustomSelect 
+                    <CustomSelect
                         options={unassignedOptions}
                         value={selectedToAssign}
                         onChange={(val) => setSelectedToAssign(val)}
@@ -125,6 +125,12 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
         setSaving(true)
         setFormError(null)
 
+        if (!form.nombre || !form.nombre.trim()) {
+            setFormError('El nombre de la empresa es obligatorio.')
+            setSaving(false)
+            return
+        }
+
         try {
             const payload = {
                 nombre: form.nombre,
@@ -182,6 +188,9 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                         <h2 className="font-headline text-2xl font-bold text-on-surface">
                             {mode === 'create' ? 'Registrar Nueva Empresa' : 'Editar Perfil de Empresa'}
                         </h2>
+                        <p className="text-xs text-stone-400 font-medium">
+                            Es obligatorio el Nombre de la Empresa.
+                        </p>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-highest transition-colors">
                         <span className="material-symbols-outlined text-on-surface">close</span>
@@ -234,10 +243,10 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">País</label>
                                 <div className="relative">
-                                    <select 
-                                        name="pais_id" 
-                                        value={form.pais_id || ''} 
-                                        onChange={handleChange} 
+                                    <select
+                                        name="pais_id"
+                                        value={form.pais_id || ''}
+                                        onChange={handleChange}
                                         className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none appearance-none"
                                     >
                                         <option value="">Seleccionar país...</option>
@@ -251,10 +260,10 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                             <div className="space-y-1.5">
                                 <label className={`text-[10px] font-bold uppercase tracking-wider ${!form.pais_id ? 'text-on-surface-variant/30' : 'text-on-surface-variant'}`}>Provincia</label>
                                 <div className="relative">
-                                    <select 
-                                        name="provincia_id" 
-                                        value={form.provincia_id || ''} 
-                                        onChange={handleChange} 
+                                    <select
+                                        name="provincia_id"
+                                        value={form.provincia_id || ''}
+                                        onChange={handleChange}
                                         disabled={!form.pais_id}
                                         className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none appearance-none disabled:opacity-30 disabled:cursor-not-allowed"
                                     >
@@ -269,6 +278,7 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                                 </div>
                             </div>
                         </div>
+                        <p className="text-[11px] text-on-surface-variant/70 italic">* El CIF y la Web, junto al nombre, se usan para identificar la empresa de forma única y evitar duplicados.</p>
                     </section>
 
                     <hr className="border-outline-variant/30" />
@@ -284,7 +294,7 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facebook URL Empresa</label>
                                 <input name="facebook" value={form.facebook || ''} onChange={handleChange} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="https://facebook.com/..." />
                             </div>
-                            
+
                             {form.competidores?.map((comp, idx) => (
                                 <React.Fragment key={comp.posicion}>
                                     <div className="md:col-span-2 mt-2">
@@ -295,28 +305,28 @@ export default function EmpresaModal({ mode, data, sectors, verticals, products,
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Web</label>
-                                        <input 
-                                            value={comp.web || ''} 
+                                        <input
+                                            value={comp.web || ''}
                                             onChange={(e) => {
                                                 const newComps = [...form.competidores];
                                                 newComps[idx] = { ...newComps[idx], web: e.target.value };
                                                 setForm(prev => ({ ...prev, competidores: newComps }));
-                                            }} 
-                                            className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" 
-                                            placeholder="https://..." 
+                                            }}
+                                            className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none"
+                                            placeholder="https://..."
                                         />
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Facebook</label>
-                                        <input 
-                                            value={comp.facebook || ''} 
+                                        <input
+                                            value={comp.facebook || ''}
                                             onChange={(e) => {
                                                 const newComps = [...form.competidores];
                                                 newComps[idx] = { ...newComps[idx], facebook: e.target.value };
                                                 setForm(prev => ({ ...prev, competidores: newComps }));
-                                            }} 
-                                            className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" 
-                                            placeholder="https://facebook.com/..." 
+                                            }}
+                                            className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none"
+                                            placeholder="https://facebook.com/..."
                                         />
                                     </div>
                                 </React.Fragment>

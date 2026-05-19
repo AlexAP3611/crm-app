@@ -277,6 +277,13 @@ export default function ContactsPage() {
                     <h2 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Contactos</h2>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => window.open('/docs/user-guide.pdf', '_blank')}
+                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                    >
+                        <span className="material-symbols-outlined text-lg">menu_book</span>
+                        Guía de usuario
+                    </button>
                     <button onClick={() => {
                         const link = document.createElement("a");
                         link.href = "/templates/contacts_import_template.xlsx";
@@ -290,15 +297,6 @@ export default function ContactsPage() {
                         <span className="material-symbols-outlined text-lg">download</span>
                         Plantilla
                     </button>
-                    <a
-                        href="/docs/user-guide.pdf"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
-                    >
-                        <span className="material-symbols-outlined text-lg">menu_book</span>
-                        Guía de usuario
-                    </a>
                     <CSVExport filters={filters} icon="ios_share" className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer" label="Exportar contactos" />
                     <button onClick={() => setShowImportModal(true)}
                         className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">

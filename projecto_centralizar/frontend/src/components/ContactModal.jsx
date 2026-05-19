@@ -59,7 +59,7 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
         setError(null)
         try {
             const payload = { ...form }
-            
+
             // Saneamiento controlado: solo para campos FK
             const FK_FIELDS = ["empresa_id", "cargo_id"]
             FK_FIELDS.forEach((field) => {
@@ -131,6 +131,9 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                         <h2 className="font-headline text-2xl font-bold text-on-surface">
                             {isEdit ? 'Editar Perfil de Contacto' : 'Registrar Nuevo Contacto'}
                         </h2>
+                        <p className="text-xs text-stone-400 font-medium">
+                            Es obligatorio al menos un campo de contacto: Email, LinkedIn o Teléfono.
+                        </p>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-highest transition-colors">
                         <span className="material-symbols-outlined text-on-surface">close</span>
@@ -149,8 +152,8 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Nombre *</label>
-                                <input required value={form.first_name || ''} onChange={(e) => set('first_name', e.target.value)} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="Nombre" />
+                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Nombre</label>
+                                <input value={form.first_name || ''} onChange={(e) => set('first_name', e.target.value)} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="Nombre" />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Apellido</label>
@@ -158,7 +161,7 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Cargo</label>
-                                <CustomSelect 
+                                <CustomSelect
                                     options={cargos}
                                     value={form.cargo_id}
                                     onChange={(val) => set('cargo_id', val)}
@@ -166,7 +169,7 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Teléfono</label>
+                                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Teléfono *</label>
                                 <input type="tel" value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} className="w-full bg-surface-container-low border-none text-sm px-4 py-3 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none" placeholder="+34 000 000 000" />
                             </div>
                         </div>
