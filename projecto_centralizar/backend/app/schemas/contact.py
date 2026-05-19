@@ -22,6 +22,7 @@ class ContactCreate(BaseModel):
     cargo_id: int | None = None
     notes: dict[str, Any] | None = None
     campaign_ids: list[int] = []
+    strict_mode: bool = False
     # Timestamps — declared so Pydantic coerces ISO strings to datetime
     created_at: datetime | None = None
     updated_at: datetime | None = None

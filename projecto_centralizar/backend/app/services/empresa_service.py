@@ -81,36 +81,53 @@ async def sync_competidores(session: AsyncSession, empresa_id: int, competidores
     Syncs competitors for a company.
     - None: Preserve existing (do nothing).
     - []: Clear all.
-    - List: Replace all with new data (filtering empty ones).
+    - List: Upsert by position. Non-destructive updates.
     """
     if competidores_data is None:
         return
 
-    # 1. Clear existing
-    await session.execute(delete(Competidor).where(Competidor.empresa_id == empresa_id))
-    
-    # 2. Insert new (limit to 3, filter empty)
-    to_insert = []
-    # Filter only those that have at least one field and respect positions 1, 2, 3
-    valid_comps = [c for c in competidores_data if (c.web or c.facebook) and 1 <= c.posicion <= 3]
-    # Sort and take top 3 just in case
-    valid_comps.sort(key=lambda x: x.posicion)
-    
+    # 1. Clear all if empty list
+    if not competidores_data:
+        await session.execute(delete(Competidor).where(Competidor.empresa_id == empresa_id))
+        return
+
+    # 2. Load existing competitors
+    result = await session.execute(
+        select(Competidor).where(Competidor.empresa_id == empresa_id)
+    )
+    existing_comps = result.scalars().all()
+    existing_by_pos = {c.posicion: c for c in existing_comps}
+
+    # 3. Process new data (limit to positions 1, 2, 3 and avoid duplicates)
     seen_positions = set()
-    for c_data in valid_comps:
-        if c_data.posicion not in seen_positions:
-            to_insert.append(Competidor(
-                empresa_id=empresa_id,
-                posicion=c_data.posicion,
-                web=c_data.web,
-                facebook=c_data.facebook
-            ))
-            seen_positions.add(c_data.posicion)
-            if len(to_insert) >= 3:
-                break
-                
-    if to_insert:
-        session.add_all(to_insert)
+    for c_data in competidores_data:
+        pos = c_data.posicion
+        if not (1 <= pos <= 3) or pos in seen_positions:
+            continue
+        seen_positions.add(pos)
+
+        # Normalize/clean inputs
+        web_val = normalize_web(c_data.web) if c_data.web else None
+        fb_val = c_data.facebook.strip() if (c_data.facebook and isinstance(c_data.facebook, str)) else c_data.facebook
+        if fb_val == "":
+            fb_val = None
+
+        if pos in existing_by_pos:
+            # UPDATE: Only overwrite if new value is not None
+            existing_comp = existing_by_pos[pos]
+            if web_val is not None:
+                existing_comp.web = web_val
+            if fb_val is not None:
+                existing_comp.facebook = fb_val
+        else:
+            # INSERT: Create new only if we have at least one field
+            if web_val is not None or fb_val is not None:
+                session.add(Competidor(
+                    empresa_id=empresa_id,
+                    posicion=pos,
+                    web=web_val,
+                    facebook=fb_val
+                ))
 
 async def upsert_empresa(session: AsyncSession, data: EmpresaCreate) -> tuple[Empresa, str]:
     """

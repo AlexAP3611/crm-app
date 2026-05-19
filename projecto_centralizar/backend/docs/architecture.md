@@ -77,7 +77,8 @@ projecto_centralizar/
 Pais ──< Provincia
            │
            └──< Empresa ──< Contact
-                  │              │
+                  │    │         │
+                  │    └──< Competidor (max 3)
                   │ M2M          ├── cargo_id ──> Cargo ──> CategoriaCargo
                   ├── Sector     │
                   ├── Vertical   └── M2M ──> Campaign
@@ -103,6 +104,7 @@ Pais ──< Provincia
 | `Log` | `logs` | — | Auditoría de acciones. Limpieza automática según `LOG_RETENTION_DAYS` (default: 90 días) |
 | `IntegrationLog` | `enrichment_logs` | `run_id` (UUID PK) | Trazabilidad de ejecuciones de enriquecimiento |
 | `Setting` | `settings` | `key` (PK string) | JSONB flexible. Almacena `crm_api_key` y `crm_api_key_user_id` |
+| `Competidor` | `competidores` | `(empresa_id, posicion)` unique | Hasta 3 por empresa. Campos: `web`, `facebook`. `posicion` ∈ {1, 2, 3}. CASCADE DELETE desde Empresa. |
 | `AffinoAccount` | `affino_accounts` | — | Cuentas para integración con Affino |
 
 ### Campos JSONB en Contact

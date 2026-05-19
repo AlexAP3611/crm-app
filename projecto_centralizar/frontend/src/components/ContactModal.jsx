@@ -103,10 +103,17 @@ export default function ContactModal({ contact, sectors, verticals, campaigns, p
                 payload.merge_lists = false
                 await api.updateContact(contact.id, payload)
             } else {
+                payload.strict_mode = true
                 await api.upsertContact(payload)
             }
             onSaved()
         } catch (e) {
+            if (e.data?.detail === "conflict" && e.data?.existing_contact) {
+                const { field, existing_contact } = e.data;
+                const fullName = existing_contact.nombre_completo || 'Desconocido';
+                setError(`El ${field} introducido ya está siendo usado por el contacto ${fullName}. Puedes buscarlo en la tabla de contactos.`);
+                return;
+            }
             setError(e.message)
         } finally {
             setSaving(false)

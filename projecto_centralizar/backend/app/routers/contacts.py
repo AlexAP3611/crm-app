@@ -25,6 +25,8 @@ from app.services.contact_service import _apply_contact_filters
 from app.auth import get_current_user
 from app.services.validators import ToolValidationErrorException
 from fastapi import Response
+from fastapi.responses import JSONResponse
+from app.core.resolve import normalize_email, normalize_linkedin, normalize_phone
 
 router = APIRouter(
     prefix="/api/contacts", 
@@ -42,6 +44,71 @@ async def upsert_contact(
     if not data.email and not data.linkedin:
         raise HTTPException(status_code=400, detail="No se puede crear o actualizar un contacto sin correo o linkedin")
         
+    if data.strict_mode:
+        if data.email:
+            norm_email = normalize_email(data.email)
+            if norm_email:
+                existing = (await db.execute(select(Contact).where(
+                    func.lower(Contact.email) == norm_email
+                ))).scalar_one_or_none()
+                if existing:
+                    nombre_completo = f"{existing.first_name or ''} {existing.last_name or ''}".strip()
+                    return JSONResponse(status_code=409, content={
+                        "detail": "conflict",
+                        "field": "email",
+                        "value": data.email,
+                        "existing_contact": {
+                            "id": existing.id,
+                            "nombre": existing.first_name,
+                            "apellidos": existing.last_name,
+                            "nombre_completo": nombre_completo,
+                            "email": existing.email
+                        }
+                    })
+        
+        if data.linkedin:
+            norm_linkedin = normalize_linkedin(data.linkedin)
+            if norm_linkedin:
+                existing = (await db.execute(select(Contact).where(
+                    Contact.linkedin_normalized == norm_linkedin
+                ))).scalar_one_or_none()
+                if existing:
+                    nombre_completo = f"{existing.first_name or ''} {existing.last_name or ''}".strip()
+                    return JSONResponse(status_code=409, content={
+                        "detail": "conflict",
+                        "field": "LinkedIn",
+                        "value": data.linkedin,
+                        "existing_contact": {
+                            "id": existing.id,
+                            "nombre": existing.first_name,
+                            "apellidos": existing.last_name,
+                            "nombre_completo": nombre_completo,
+                            "email": existing.email
+                        }
+                    })
+
+        if data.phone:
+            norm_phone = normalize_phone(data.phone)
+            if norm_phone:
+                existing_list = (await db.execute(select(Contact).where(
+                    Contact.phone == norm_phone
+                ))).scalars().all()
+                if len(existing_list) > 0:
+                    existing = existing_list[0]
+                    nombre_completo = f"{existing.first_name or ''} {existing.last_name or ''}".strip()
+                    return JSONResponse(status_code=409, content={
+                        "detail": "conflict",
+                        "field": "teléfono",
+                        "value": data.phone,
+                        "existing_contact": {
+                            "id": existing.id,
+                            "nombre": existing.first_name,
+                            "apellidos": existing.last_name,
+                            "nombre_completo": nombre_completo,
+                            "email": existing.email
+                        }
+                    })
+
     contact, _ = await contact_service.upsert_contact(db, data)
     return contact
 

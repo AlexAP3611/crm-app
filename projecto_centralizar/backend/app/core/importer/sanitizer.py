@@ -16,7 +16,7 @@ class StatelessSanitizer:
         if v is None: return None
         if isinstance(v, str):
             v = v.strip()
-            if v == "" or v.lower() in ["nan", "null", "none"]: return None
+            if v == "" or v.lower() in ["nan", "null", "none", "n/a", "na", "-", "n.a."]: return None
         # Handle actual float NaN if it leaks from openpyxl
         if isinstance(v, float) and v != v: return None
         return v

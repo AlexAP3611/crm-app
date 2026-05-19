@@ -39,6 +39,7 @@ async def _load_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
             selectinload(Empresa.products_rel),
             selectinload(Empresa.pais_rel),
             selectinload(Empresa.provincia_rel),
+            selectinload(Empresa.competidores),
         )
         .where(Empresa.id == empresa_id)
     )
@@ -121,12 +122,16 @@ async def update_empresa(id: int, empresa_in: EmpresaCreate, db: AsyncSession = 
     if empresa_in.nombre:
         empresa_in.nombre = normalize_company_name(empresa_in.nombre)
 
-    update_data = empresa_in.model_dump(exclude={"sector_ids", "vertical_ids", "product_ids"}, exclude_unset=True)
+    update_data = empresa_in.model_dump(exclude={"sector_ids", "vertical_ids", "product_ids", "competidores"}, exclude_unset=True)
     for field, value in update_data.items():
         setattr(empresa, field, value)
 
     # Sync M2M
     await empresa_mapper._sync_empresa_m2m(db, empresa.id, empresa_in.sector_ids, empresa_in.vertical_ids, empresa_in.product_ids)
+
+    # Sync competitors
+    if empresa_in.competidores is not None:
+        await empresa_service.sync_competidores(db, empresa.id, empresa_in.competidores)
 
     # Flush to persist M2M changes before building snapshots
     await db.flush()

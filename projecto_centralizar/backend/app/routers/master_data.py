@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.auth import require_admin
+from app.auth import get_current_user
 from app.models.sector import Sector
 from app.models.vertical import Vertical
 from app.models.product import Product
@@ -31,7 +31,7 @@ from app.services import pais_service, provincia_service, categoria_cargo_servic
 router = APIRouter(
     prefix="/api/master-data",
     tags=["Master Data"],
-    dependencies=[Depends(require_admin)]
+    dependencies=[Depends(get_current_user)]
 )
 
 # Helper functions to avoid code duplication across the 4 entities

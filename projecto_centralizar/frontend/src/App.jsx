@@ -34,7 +34,7 @@ function Sidebar({ page, setPage, userRole, onLogout, isCollapsed }) {
     const allItems = [
         { id: 'contacts', label: 'Contactos', icon: 'group' },
         { id: 'empresas', label: 'Empresas', icon: 'business' },
-        { id: 'master-data', label: 'Segmentación', icon: 'dataset', adminOnly: true },
+        { id: 'master-data', label: 'Segmentación', icon: 'dataset' },
         { id: 'requests', label: 'Solicitudes', icon: 'fact_check', adminOnly: true },
         { id: 'users', label: 'Usuarios', icon: 'manage_accounts', adminOnly: true },
         { id: 'activity', label: 'Actividad', icon: 'history', adminOnly: true },
@@ -181,11 +181,7 @@ function AuthenticatedApp({ onLogout, userRole, userEmail }) {
 
                 {page === 'contacts' && <ContactsPage />}
                 {page === 'empresas' && <EmpresasPage />}
-                {page === 'master-data' && (
-                    <ProtectedRoute requiredRole="admin" userRole={userRole}>
-                        <MasterDataPage />
-                    </ProtectedRoute>
-                )}
+                {page === 'master-data' && <MasterDataPage />}
                 {page === 'requests' && (
                     <ProtectedRoute requiredRole="admin" userRole={userRole}>
                         <RequestsPage />

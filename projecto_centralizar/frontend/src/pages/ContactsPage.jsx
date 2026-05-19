@@ -290,6 +290,15 @@ export default function ContactsPage() {
                         <span className="material-symbols-outlined text-lg">download</span>
                         Plantilla
                     </button>
+                    <a
+                        href="/docs/user-guide.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                    >
+                        <span className="material-symbols-outlined text-lg">menu_book</span>
+                        Guía de usuario
+                    </a>
                     <CSVExport filters={filters} icon="ios_share" className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer" label="Exportar contactos" />
                     <button onClick={() => setShowImportModal(true)}
                         className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
@@ -431,8 +440,8 @@ export default function ContactsPage() {
                         <span className="bg-transparent px-1">{actionCount}</span>
                     </button>
                     <div className="flex-1"></div>
-                    <button 
-                        onClick={handleDeleteBulk} 
+                    <button
+                        onClick={handleDeleteBulk}
                         className="btn-danger-gradient text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-all border-0 outline-none focus:outline-none focus:ring-2 focus:ring-error/50 hover:brightness-110"
                     >
                         <span className="material-symbols-outlined text-lg">delete</span>

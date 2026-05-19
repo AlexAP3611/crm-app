@@ -123,7 +123,12 @@ const EMPTY_FORM = {
     nombre: '', cif: '', email: '', phone: '', web: '',
     sector_ids: [], vertical_ids: [], product_ids: [],
     numero_empleados: '', facturacion: '', cnae: '',
-    facebook: '', web_competidor_1: '', web_competidor_2: '', web_competidor_3: '',
+    facebook: '',
+    competidores: [
+        { posicion: 1, web: '', facebook: '' },
+        { posicion: 2, web: '', facebook: '' },
+        { posicion: 3, web: '', facebook: '' }
+    ],
     pais_id: '', provincia_id: ''
 }
 const BLANK_FILTERS = { q: '', sector_id: '', vertical_id: '', product_id: '', numero_empleados_min: '', numero_empleados_max: '', facturacion_min: '', facturacion_max: '', cnae: '', provincia_id: '', pais_id: '', page: 1, page_size: 50 }
@@ -411,9 +416,7 @@ export default function EmpresasPage() {
                 vertical_ids: empresa.verticals?.map(v => v.id) || [],
                 product_ids: empresa.products_rel?.map(p => p.id) || [],
                 facebook: empresa.facebook || '',
-                web_competidor_1: empresa.web_competidor_1 || '',
-                web_competidor_2: empresa.web_competidor_2 || '',
-                web_competidor_3: empresa.web_competidor_3 || '',
+                competidores: empresa.competidores || [],
                 provincia_id: empresa.provincia_id ?? '',
                 pais_id: empresa.pais_id ?? '',
             }
@@ -528,6 +531,15 @@ export default function EmpresasPage() {
                         <span className="material-symbols-outlined text-lg">download</span>
                         Plantilla
                     </button>
+                    <a
+                        href="/docs/user-guide.pdf"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                    >
+                        <span className="material-symbols-outlined text-lg">menu_book</span>
+                        Guía de usuario
+                    </a>
                     <EmpresaCSVExport filters={filters} icon="ios_share" className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer" label="Exportar empresas" />
                     <button onClick={() => setShowImportModal(true)} className="bg-transparent border border-primary px-4 py-2 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-all flex items-center gap-2 active:scale-95 cursor-pointer">
                         <span className="material-symbols-outlined text-lg">input</span>
