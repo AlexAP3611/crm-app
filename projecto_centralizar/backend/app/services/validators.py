@@ -73,7 +73,7 @@ class AdscoreCompanyValidator(BaseToolValidator):
     Strict validation for Adscore:
     1. Must have web.
     2. Must have facebook.
-    3. Must have at least one competitor.
+    3. Must have at least one competitor with web and facebook.
     """
     async def validate(self, companies: list[Empresa]) -> list[InvalidEntity]:
         invalid = []
@@ -89,12 +89,12 @@ class AdscoreCompanyValidator(BaseToolValidator):
                 reasons.append("missing_facebook")
             
             # 3. Competitors
-            has_competitor = any([
-                emp.web_competidor_1 and str(emp.web_competidor_1).strip(),
-                emp.web_competidor_2 and str(emp.web_competidor_2).strip(),
-                emp.web_competidor_3 and str(emp.web_competidor_3).strip()
-            ])
-            if not has_competitor:
+            competidores_list = emp.competidores or []
+            has_valid_competitor = any(
+                comp.web and str(comp.web).strip() and comp.facebook and str(comp.facebook).strip()
+                for comp in competidores_list
+            )
+            if not has_valid_competitor:
                 reasons.append("missing_competitors")
                 
             if reasons:

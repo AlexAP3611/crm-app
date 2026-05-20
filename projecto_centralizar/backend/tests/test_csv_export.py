@@ -52,9 +52,7 @@ def _make_mock_empresa() -> MagicMock:
     empresa.pais_id = None
     empresa.provincia_id = None
     empresa.facebook = None
-    empresa.web_competidor_1 = None
-    empresa.web_competidor_2 = None
-    empresa.web_competidor_3 = None
+    empresa.competidores = []
     # M2M: sectors, verticals, products
     empresa.sectors = []
     empresa.verticals = []
@@ -102,6 +100,63 @@ def test_empresa_csv_headers_have_no_version_csv():
     )
 
 
+
+def test_empresa_to_row_resolves_location_names():
+    """_empresa_to_row must resolve pais_rel.name and provincia_rel.name to 'pais' and 'provincia' fields."""
+    from app.services.csv_service import _empresa_to_row
+    empresa = _make_mock_empresa()
+    
+    mock_pais = MagicMock()
+    mock_pais.name = "España"
+    empresa.pais_rel = mock_pais
+    
+    mock_provincia = MagicMock()
+    mock_provincia.name = "Madrid"
+    empresa.provincia_rel = mock_provincia
+    
+    row = _empresa_to_row(empresa)
+    assert row.get("pais") == "España"
+    assert row.get("provincia") == "Madrid"
+    assert "pais_id" not in row
+    assert "provincia_id" not in row
+
+
+def test_empresa_csv_headers_contain_pais_and_provincia():
+    """The translated EMPRESA_CSV_FIELDS headers must include 'Pais' and 'Provincia' and NOT 'pais_id'/'provincia_id'."""
+    from app.services.csv_service import EMPRESA_CSV_FIELDS, HEADER_MAP
+    translated = [HEADER_MAP.get(f, f) for f in EMPRESA_CSV_FIELDS]
+    assert "Pais" in translated
+    assert "Provincia" in translated
+    assert "pais_id" not in translated
+    assert "provincia_id" not in translated
+
+
+def test_empresa_to_row_resolves_competidores():
+    """_empresa_to_row must resolve competitors from relationship."""
+    from app.services.csv_service import _empresa_to_row
+    empresa = _make_mock_empresa()
+    
+    comp1 = MagicMock()
+    comp1.posicion = 1
+    comp1.web = "competidor1.com"
+    comp1.facebook = "fb.com/comp1"
+    
+    comp3 = MagicMock()
+    comp3.posicion = 3
+    comp3.web = "competidor3.com"
+    comp3.facebook = ""
+    
+    empresa.competidores = [comp1, comp3]
+    
+    row = _empresa_to_row(empresa)
+    assert row.get("web_competidor_1") == "competidor1.com"
+    assert row.get("facebook_competidor_1") == "fb.com/comp1"
+    assert row.get("web_competidor_2") == ""
+    assert row.get("facebook_competidor_2") == ""
+    assert row.get("web_competidor_3") == "competidor3.com"
+    assert row.get("facebook_competidor_3") == ""
+
+
 def test_csv_version_constant_removed():
     """CSV_VERSION constant must no longer be exported from csv_service."""
     import app.services.csv_service as svc
@@ -118,6 +173,9 @@ if __name__ == "__main__":
         test_empresa_row_has_no_csv_version,
         test_contact_csv_headers_have_no_version_csv,
         test_empresa_csv_headers_have_no_version_csv,
+        test_empresa_to_row_resolves_location_names,
+        test_empresa_csv_headers_contain_pais_and_provincia,
+        test_empresa_to_row_resolves_competidores,
         test_csv_version_constant_removed,
     ]
     passed = 0

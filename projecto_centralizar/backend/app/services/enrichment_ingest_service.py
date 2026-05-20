@@ -6,9 +6,12 @@ from app.models.empresa import Empresa
 from app.models.sector import Sector
 from app.models.vertical import Vertical
 from app.models.product import Product
+from app.models.enrichment_log import IntegrationLog as EnrichmentLog
 from app.schemas.contact import ContactCreate
 from app.schemas.enrichment import IngestContactInput, IngestRequest, IngestResponse
 from app.services import cargo_service, contact_service, categoria_cargo_service
+from app.core.enrichment.rules import ENRICHMENT_PROTECTED_FIELDS
+
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +81,22 @@ async def validate_empresa(db: AsyncSession, empresa_id: int) -> Empresa | None:
     return await db.get(Empresa, empresa_id)
 
 async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
+    # 0. Check if the run has already expired (deliberate design decision to ignore late callbacks)
+    if body.enrichment_run_id:
+        log_entry = await db.get(EnrichmentLog, body.enrichment_run_id)
+        if log_entry and log_entry.status == "expired":
+            logger.warning(f"Callback received for EXPIRED run_id: {body.enrichment_run_id}. Ignoring payload.")
+            total_skipped = len(body.empresas)
+            total_contact_skipped = sum(len(e.contactos) for e in body.empresas)
+            return IngestResponse(
+                status="ignored",
+                empresa_processed=0,
+                empresa_skipped=total_skipped,
+                contact_created=0,
+                contact_updated=0,
+                contact_skipped=total_contact_skipped
+            )
+
     # 1. Pre-warm Cargo Cache (Optimization only)
     unique_titles = {c.job_title for emp in body.empresas for c in emp.contactos if c.job_title}
     cargo_cache = await cargo_service.prefill_cargo_cache(db, unique_titles)
@@ -104,13 +123,26 @@ async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
             # doesn't rollback all previously-processed empresas.
             async with db.begin_nested():
                 # Update fields selectively, only if not None and not empty string
-                if emp_in.web not in (None, ""): empresa.web = emp_in.web
-                if emp_in.email not in (None, ""): empresa.email = emp_in.email
-                if emp_in.phone not in (None, ""): empresa.phone = emp_in.phone
+                if emp_in.web not in (None, ""):
+                    if empresa.web and "web" in ENRICHMENT_PROTECTED_FIELDS:
+                        logger.info(f"Empresa {empresa.id}: Omitiendo actualización de campo protegido 'web' ({empresa.web} -> {emp_in.web})")
+                    else:
+                        empresa.web = emp_in.web
+                if emp_in.email not in (None, ""):
+                    if empresa.email and "email" in ENRICHMENT_PROTECTED_FIELDS:
+                        logger.info(f"Empresa {empresa.id}: Omitiendo actualización de campo protegido 'email' ({empresa.email} -> {emp_in.email})")
+                    else:
+                        empresa.email = emp_in.email
+                if emp_in.phone not in (None, ""):
+                    if empresa.phone and "phone" in ENRICHMENT_PROTECTED_FIELDS:
+                        logger.info(f"Empresa {empresa.id}: Omitiendo actualización de campo protegido 'phone' ({empresa.phone} -> {emp_in.phone})")
+                    else:
+                        empresa.phone = emp_in.phone
                 if emp_in.cif not in (None, ""): empresa.cif = emp_in.cif
                 if emp_in.cnae not in (None, ""): empresa.cnae = emp_in.cnae
                 if emp_in.numero_empleados not in (None, ""): empresa.numero_empleados = emp_in.numero_empleados
                 if emp_in.facturacion not in (None, ""): empresa.facturacion = emp_in.facturacion
+
                 
                 # M2M relationships — merge-append only, never replace existing
                 if emp_in.sector:
@@ -160,6 +192,21 @@ async def bulk_ingest(db: AsyncSession, body: IngestRequest) -> IngestResponse:
             )
             empresa_skipped += 1
             continue
+
+    # Close the enrichment lifecycle if run_id was provided
+    if body.enrichment_run_id:
+        log_entry = await db.get(EnrichmentLog, body.enrichment_run_id)
+        if log_entry and log_entry.status != "expired":
+            log_entry.status = "completed"
+            log_entry.metrics = {
+                **(log_entry.metrics or {}),
+                "empresa_processed": empresa_processed,
+                "empresa_skipped": empresa_skipped,
+                "contact_created": contact_created,
+                "contact_updated": contact_updated,
+                "contact_skipped": contact_skipped,
+            }
+            await db.commit()
 
     await db.commit()
 

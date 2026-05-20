@@ -61,6 +61,9 @@ HEADER_MAP = {
     "web_competidor_1": "Web_Competidor_1",
     "web_competidor_2": "Web_Competidor_2",
     "web_competidor_3": "Web_Competidor_3",
+    "facebook_competidor_1": "Facebook_Competidor_1",
+    "facebook_competidor_2": "Facebook_Competidor_2",
+    "facebook_competidor_3": "Facebook_Competidor_3",
     "provincia": "Provincia",
     "pais": "Pais",
 }
@@ -85,7 +88,15 @@ CSV_FIELDS = [
     *_m2m_export_columns(EMPRESA_M2M_FIELDS),
 ]
 
-EMPRESA_CSV_FIELDS = EMPRESA_VIEW_FIELDS + _m2m_export_columns(EMPRESA_M2M_FIELDS)
+EMPRESA_CSV_FIELDS = []
+for field in EMPRESA_VIEW_FIELDS:
+    if field == "pais_id":
+        EMPRESA_CSV_FIELDS.append("pais")
+    elif field == "provincia_id":
+        EMPRESA_CSV_FIELDS.append("provincia")
+    else:
+        EMPRESA_CSV_FIELDS.append(field)
+EMPRESA_CSV_FIELDS += _m2m_export_columns(EMPRESA_M2M_FIELDS)
 
 def _contact_to_row(contact: Contact) -> dict[str, Any]:
     row = {}
@@ -130,14 +141,21 @@ def _empresa_to_row(empresa: Empresa) -> dict[str, Any]:
     row = {}
 
     for field in EMPRESA_VIEW_FIELDS:
-        # Skip FK ID fields — we export human-readable names instead
-        if field in ("pais_id", "provincia_id"):
+        # Skip FK ID fields and competitor fields — we export them separately
+        if field in ("pais_id", "provincia_id") or "competidor" in field:
             continue
         row[field] = getattr(empresa, field, "") or ""
 
     # Export human-readable location names from relationships
     row["pais"] = empresa.pais_rel.name if empresa.pais_rel else ""
     row["provincia"] = empresa.provincia_rel.name if empresa.provincia_rel else ""
+
+    # Extract competitors data dynamically from `competidores` relationship
+    competidores_list = empresa.competidores or []
+    for i in range(1, 4):
+        comp = next((c for c in competidores_list if c.posicion == i), None)
+        row[f"web_competidor_{i}"] = comp.web if comp else ""
+        row[f"facebook_competidor_{i}"] = comp.facebook if comp else ""
 
     for key, config in EMPRESA_M2M_FIELDS.items():
         col_name, name_attr = M2M_EXPORT_META[key]

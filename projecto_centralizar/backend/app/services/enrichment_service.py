@@ -195,23 +195,15 @@ async def enrich_contact_smart(
 
 # --- Company Enrichment Pipeline (Refined) ---
 
-async def trigger_company_enrichment(
+async def prepare_company_enrichment(
     db: AsyncSession,
     request: CompanyEnrichRequest,
     user_id: Optional[int] = None
-) -> Any:
+) -> dict:
     """
-    STRICT VALIDATION PIPELINE for Company Enrichment.
-    
-    Execution Cycle:
-    1. Resolve & Validate (Strict web presence)
-    2. Abnormal Exit (Return structured MISSING_WEB error)
-    3. Idempotency Check (run_id)
-    4. Log Intent (status=pending)
-    5. Execute Webhook (with retries)
-    6. Finalize (Update success/failure states)
+    STRICT VALIDATION PIPELINE for Company Enrichment (Phase 1 síncrona).
+    Valida, registra la intención, actualiza el estado a "sent" de forma síncrona y prepara el payload.
     """
-    
     # 1. Resolve & Validate
     # ---------------------
     query = select(Empresa).options(
@@ -238,8 +230,6 @@ async def trigger_company_enrichment(
     if validator:
         invalid_entities = await validator.validate(empresas)
         if invalid_entities:
-            # Note: We keep ADSCORE_VALIDATION_FAILED code for backward compatibility with FE if needed, 
-            # but using ToolValidationError allows for generic handling.
             is_adscore = request.tool_key == ToolKey.ADSCORE
             error_code = "ADSCORE_VALIDATION_FAILED" if is_adscore else "MISSING_WEB"
             raise ToolValidationErrorException(ToolValidationError(
@@ -255,12 +245,15 @@ async def trigger_company_enrichment(
     existing_log = await db.get(EnrichmentLog, run_id)
     if existing_log:
         logger.info(f"Idempotency hit for run_id {run_id}. Status: {existing_log.status}")
-        return CompanyEnrichSuccessResponse(
-            enrichment_run_id=run_id,
-            total=existing_log.metrics.get("total", 0),
-            sent=existing_log.metrics.get("sent", 0),
-            invalid=0
-        )
+        return {
+            "status": "idempotency",
+            "response": CompanyEnrichSuccessResponse(
+                enrichment_run_id=run_id,
+                total=existing_log.metrics.get("total", 0),
+                sent=existing_log.metrics.get("sent", 0),
+                invalid=0
+            )
+        }
 
     # 4. Log Intent (PENDING)
     # -----------------------
@@ -272,11 +265,21 @@ async def trigger_company_enrichment(
         metrics={"total": len(empresas), "sent": 0, "invalid": 0}
     )
     db.add(log_entry)
+    
+    # Update all companies in this run to "sent" synchronously (safe frontend transition)
+    emp_ids = [e.id for e in empresas]
+    await db.execute(
+        update(Empresa)
+        .where(Empresa.id.in_(emp_ids))
+        .values(
+            last_enriched_at=datetime.now(timezone.utc),
+            last_enrichment_tool=request.tool_key,
+            enrichment_status="sent"
+        )
+    )
     await db.commit() # Intent persisted before side-effect
 
-    # 5. Execute Webhook
-    # ------------------
-    # Resolve config
+    # 5. Resolve config
     setting_key = f"ext_config_{request.tool_key.value.lower()}"
     res = await db.execute(select(Setting).where(Setting.key == setting_key))
     setting = res.scalar_one_or_none()
@@ -325,74 +328,98 @@ async def trigger_company_enrichment(
 
     payload = map_to_export_payload(empresas, run_id, request.tool_key)
 
+    return {
+        "status": "queued",
+        "run_id": str(run_id),
+        "empresa_ids": emp_ids,
+        "webhook_url": webhook_url,
+        "payload": payload,
+        "headers": headers,
+        "tool_key": request.tool_key.value,
+        "total": len(empresas),
+    }
+
+
+async def execute_webhook_background(context: dict) -> None:
+    """
+    Phase 1 (background): Realiza la llamada HTTP al webhook y maneja el estado.
+    Utiliza una sesión de base de datos aislada y parámetros serializados primitivos
+    para evitar DetachedInstanceError.
+    """
+    from app.database import AsyncSessionLocal
+    from app.models.enrichment_log import IntegrationLog as EnrichmentLog
+    from app.models.empresa import Empresa
+    from sqlalchemy import update
+    import time
+
     start_time = time.time()
-    try:
-        response = await webhook_client.send_payload(webhook_url, payload, request.tool_key.value, headers=headers)
-        duration = int((time.time() - start_time) * 1000)
-        
-        if response.is_success:
-            # 6. Finalize (SUCCESS)
-            # --------------------
-            log_entry.status = "success"
-            log_entry.metrics = {
-                "total": len(empresas), 
-                "sent": len(empresas), 
-                "invalid": 0, 
-                "duration_ms": duration
-            }
+    async with AsyncSessionLocal() as db:
+        try:
+            response = await webhook_client.send_payload(
+                context["webhook_url"],
+                context["payload"],
+                context["tool_key"],
+                headers=context["headers"]
+            )
+            duration = int((time.time() - start_time) * 1000)
             
-            # Update all companies in this run
-            emp_ids = [e.id for e in empresas]
-            await db.execute(
-                update(Empresa)
-                .where(Empresa.id.in_(emp_ids))
-                .values(
-                    last_enriched_at=log_entry.created_at,
-                    last_enrichment_tool=request.tool_key,
-                    enrichment_status="sent"
+            # Load log entry from clean session
+            log_entry = await db.get(EnrichmentLog, UUID(context["run_id"]))
+            if log_entry:
+                if response.is_success:
+                    log_entry.status = "sent"
+                    log_entry.metrics = {
+                        "total": context["total"],
+                        "sent": context["total"],
+                        "invalid": 0,
+                        "duration_ms": duration
+                    }
+                else:
+                    log_entry.status = "failed"
+                    log_entry.error_log = f"Webhook status {response.status_code}: {response.text[:500]}"
+                    log_entry.metrics = {
+                        "total": context["total"],
+                        "sent": 0,
+                        "invalid": 0,
+                        "duration_ms": duration
+                    }
+                    # Reset company status so they are not visually stuck
+                    await db.execute(
+                        update(Empresa)
+                        .where(Empresa.id.in_(context["empresa_ids"]))
+                        .values(enrichment_status=None)
+                    )
+                await db.commit()
+        except Exception as e:
+            logger.error(f"Error in execute_webhook_background for run {context.get('run_id')}: {e}", exc_info=True)
+            duration = int((time.time() - start_time) * 1000)
+            try:
+                log_entry = await db.get(EnrichmentLog, UUID(context["run_id"]))
+                if log_entry:
+                    log_entry.status = "failed"
+                    log_entry.error_log = f"Internal background exception: {str(e)}"
+                    if log_entry.metrics:
+                        log_entry.metrics["duration_ms"] = duration
+                await db.execute(
+                    update(Empresa)
+                    .where(Empresa.id.in_(context["empresa_ids"]))
+                    .values(enrichment_status=None)
                 )
-            )
-            await db.commit()
-            
-            return CompanyEnrichSuccessResponse(
-                enrichment_run_id=run_id,
-                total=len(empresas),
-                sent=len(empresas),
-                invalid=0
-            )
-        else:
-            # 6. Finalize (FAILED)
-            # --------------------
-            log_entry.status = "failed"
-            log_entry.error_log = f"Webhook status {response.status_code}: {response.text[:500]}"
-            log_entry.metrics["duration_ms"] = duration
-            
-            await db.execute(
-                update(Empresa)
-                .where(Empresa.id.in_([e.id for e in empresas]))
-                .values(enrichment_status="failed")
-            )
-            await db.commit()
-            raise HTTPException(status_code=424, detail=f"El webhook de {request.tool_key} falló (Status {response.status_code}).")
-
-    except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        duration = int((time.time() - start_time) * 1000)
-        log_entry.status = "failed"
-        log_entry.error_log = f"Execution error: {str(e)}"
-        log_entry.metrics["duration_ms"] = duration
-        await db.commit()
-        raise HTTPException(status_code=500, detail=f"Error al ejecutar enriquecimiento: {str(e)}")
+                await db.commit()
+            except Exception as db_err:
+                logger.error(f"Could not write failure state to DB in execute_webhook_background: {db_err}", exc_info=True)
+        finally:
+            await db.close()
 
 
-async def trigger_contact_enrichment(
+async def prepare_contact_enrichment(
     db: AsyncSession,
     request: ContactEnrichRequest,
     user_id: Optional[int] = None
-) -> Any:
+) -> dict:
     """
     Export contacts to an external tool (Affino).
-    Optimized with joinedload to fetch company data in one go.
+    Phase 1 síncrona: resuelve, valida e inicia la transacción del log.
     """
     # 1. Resolve Contacts
     query = select(Contact).options(
@@ -420,11 +447,14 @@ async def trigger_contact_enrichment(
     run_id = request.enrichment_run_id
     existing_log = await db.get(EnrichmentLog, run_id)
     if existing_log:
-        return ContactEnrichSuccessResponse(
-            enrichment_run_id=run_id,
-            total=existing_log.metrics.get("total", 0),
-            sent=existing_log.metrics.get("sent", 0)
-        )
+        return {
+            "status": "idempotency",
+            "response": ContactEnrichSuccessResponse(
+                enrichment_run_id=run_id,
+                total=existing_log.metrics.get("total", 0),
+                sent=existing_log.metrics.get("sent", 0)
+            )
+        }
 
     # 3. Log Intent
     log_entry = EnrichmentLog(
@@ -459,37 +489,65 @@ async def trigger_contact_enrichment(
 
     payload = map_contacts_to_affino_payload(contacts, run_id, request.tool_key)
     
-    start_time = time.time()
-    try:
-        response = await webhook_client.send_payload(webhook_url, payload, request.tool_key)
-        duration = int((time.time() - start_time) * 1000)
-        
-        if response.is_success:
-            log_entry.status = "success"
-            log_entry.metrics = {
-                "total": len(contacts), 
-                "sent": len(contacts), 
-                "duration_ms": duration
-            }
-            await db.commit()
-            
-            return ContactEnrichSuccessResponse(
-                enrichment_run_id=run_id,
-                total=len(contacts),
-                sent=len(contacts)
-            )
-        else:
-            log_entry.status = "failed"
-            log_entry.error_log = f"Webhook status {response.status_code}: {response.text[:500]}"
-            log_entry.metrics["duration_ms"] = duration
-            await db.commit()
-            raise HTTPException(status_code=424, detail=f"El webhook de {request.tool_key} falló (Status {response.status_code}).")
+    return {
+        "status": "queued",
+        "run_id": str(run_id),
+        "webhook_url": webhook_url,
+        "payload": payload,
+        "tool_key": request.tool_key.value,
+        "total": len(contacts),
+    }
 
-    except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        duration = int((time.time() - start_time) * 1000)
-        log_entry.status = "failed"
-        log_entry.error_log = f"Execution error: {str(e)}"
-        log_entry.metrics["duration_ms"] = duration
-        await db.commit()
-        raise HTTPException(status_code=500, detail=f"Error al ejecutar enriquecimiento: {str(e)}")
+
+async def execute_contact_webhook_background(context: dict) -> None:
+    """
+    Phase 1 (background): Dispara la exportación de contactos.
+    """
+    from app.database import AsyncSessionLocal
+    from app.models.enrichment_log import IntegrationLog as EnrichmentLog
+    import time
+
+    start_time = time.time()
+    async with AsyncSessionLocal() as db:
+        try:
+            response = await webhook_client.send_payload(
+                context["webhook_url"],
+                context["payload"],
+                context["tool_key"]
+            )
+            duration = int((time.time() - start_time) * 1000)
+            
+            log_entry = await db.get(EnrichmentLog, UUID(context["run_id"]))
+            if log_entry:
+                if response.is_success:
+                    log_entry.status = "sent"
+                    log_entry.metrics = {
+                        "total": context["total"],
+                        "sent": context["total"],
+                        "duration_ms": duration
+                    }
+                else:
+                    log_entry.status = "failed"
+                    log_entry.error_log = f"Webhook status {response.status_code}: {response.text[:500]}"
+                    log_entry.metrics = {
+                        "total": context["total"],
+                        "sent": 0,
+                        "duration_ms": duration
+                    }
+                await db.commit()
+        except Exception as e:
+            logger.error(f"Error in execute_contact_webhook_background for run {context.get('run_id')}: {e}", exc_info=True)
+            duration = int((time.time() - start_time) * 1000)
+            try:
+                log_entry = await db.get(EnrichmentLog, UUID(context["run_id"]))
+                if log_entry:
+                    log_entry.status = "failed"
+                    log_entry.error_log = f"Internal background exception: {str(e)}"
+                    if log_entry.metrics:
+                        log_entry.metrics["duration_ms"] = duration
+                await db.commit()
+            except Exception as db_err:
+                logger.error(f"Could not write failure state to DB in execute_contact_webhook_background: {db_err}", exc_info=True)
+        finally:
+            await db.close()
+

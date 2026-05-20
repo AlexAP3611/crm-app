@@ -18,4 +18,7 @@ EMPRESA_VIEW_FIELDS = [
     "web_competidor_1",
     "web_competidor_2",
     "web_competidor_3",
+    "facebook_competidor_1",
+    "facebook_competidor_2",
+    "facebook_competidor_3",
 ]

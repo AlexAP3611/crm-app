@@ -62,6 +62,7 @@ class IngestEmpresaInput(BaseModel):
 
 class IngestRequest(BaseModel):
     source: str = "enrichment_ingest"
+    enrichment_run_id: Optional[UUID] = None
     empresas: list[IngestEmpresaInput]
 
 class IngestResponse(BaseModel):

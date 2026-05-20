@@ -27,6 +27,9 @@ def map_to_export_payload(empresas: list[Empresa], run_id: UUID, tool: str) -> d
                 "web_competidor_1": next((c.web for c in (emp.competidores or []) if c.posicion == 1), None),
                 "web_competidor_2": next((c.web for c in (emp.competidores or []) if c.posicion == 2), None),
                 "web_competidor_3": next((c.web for c in (emp.competidores or []) if c.posicion == 3), None),
+                "facebook_competidor_1": next((c.facebook for c in (emp.competidores or []) if c.posicion == 1), None),
+                "facebook_competidor_2": next((c.facebook for c in (emp.competidores or []) if c.posicion == 2), None),
+                "facebook_competidor_3": next((c.facebook for c in (emp.competidores or []) if c.posicion == 3), None),
                 "sector": [s.name or s.nombre for s in emp.sectors],
                 "vertical": [v.name or v.nombre for v in emp.verticals],
                 "producto": [p.name or p.nombre for p in emp.products_rel]

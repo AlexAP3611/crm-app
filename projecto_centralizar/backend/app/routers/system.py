@@ -67,3 +67,10 @@ async def update_setting(key: str, data: SettingUpdate, db: AsyncSession = Depen
     await db.commit()
     
     return {"key": setting.key, "value": setting.value}
+
+from app.services.expire_stale_enrichments import expire_stale_runs
+
+@router.post("/expire-enrichments")
+async def expire_stale_enrichments(db: AsyncSession = Depends(get_db)):
+    """Admin: manually expire stale enrichment runs."""
+    return await expire_stale_runs(db)

@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.provincia import Provincia
 from app.core.exceptions import DuplicateEntityError
+from app.core.mappings.provincia_aliases import normalize_provincia_name
 
 
 def normalize_name(name: str) -> str | None:
@@ -34,9 +35,10 @@ async def get_by_name_and_pais(
     norm = normalize_name(name)
     if not norm:
         return None
+    canon_name = normalize_provincia_name(norm)
     result = await session.execute(
         select(Provincia).where(
-            func.lower(Provincia.name) == norm.lower(),
+            func.lower(Provincia.name) == canon_name.lower(),
             Provincia.pais_id == pais_id
         )
     )
@@ -85,11 +87,32 @@ async def prefill_cache(
     """Batch-fetch existing provinces by name for a given pais_id. Returns {lower_name: Provincia}."""
     if not names or not pais_id:
         return {}
-    lower_names = [n.lower() for n in names if n]
+    
+    alias_map = {}  # original_lower -> canon_lower
+    canonical_names = set()
+    for n in names:
+        if not n:
+            continue
+        cleaned = n.strip()
+        if not cleaned:
+            continue
+        canon = normalize_provincia_name(cleaned)
+        canonical_names.add(canon)
+        alias_map[cleaned.lower()] = canon.lower()
+
+    lower_names = [n.lower() for n in canonical_names if n]
     result = await session.execute(
         select(Provincia).where(
             func.lower(Provincia.name).in_(lower_names),
             Provincia.pais_id == pais_id
         )
     )
-    return {p.name.lower(): p for p in result.scalars().all()}
+    
+    cache = {p.name.lower(): p for p in result.scalars().all()}
+    
+    # Also populate cache with original lowercase names for direct lookup in coordinator
+    for orig_lower, canon_lower in alias_map.items():
+        if canon_lower in cache and orig_lower not in cache:
+            cache[orig_lower] = cache[canon_lower]
+            
+    return cache

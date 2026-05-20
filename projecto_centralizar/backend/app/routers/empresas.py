@@ -1,5 +1,4 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException, Body
+from fastapi import APIRouter, Depends, Query, HTTPException, Body, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -387,9 +386,10 @@ async def unassign_product(id: int, product_id: int, db: AsyncSession = Depends(
 from app.services.validators import ToolValidationErrorException
 from fastapi import Response
 
-@router.post("/enrich", responses={200: {"model": CompanyEnrichSuccessResponse}})
+@router.post("/enrich", responses={202: {"model": CompanyEnrichSuccessResponse}, 200: {"model": CompanyEnrichSuccessResponse}})
 async def enrich_empresas(
     request: CompanyEnrichRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -398,7 +398,18 @@ async def enrich_empresas(
     Supports specific IDs or dynamic filters with STRICT validation.
     """
     try:
-        return await enrichment_service.trigger_company_enrichment(db, request, user_id=current_user.id)
+        result = await enrichment_service.prepare_company_enrichment(db, request, user_id=current_user.id)
+        if result.get("status") == "idempotency":
+            return result["response"]
+        
+        background_tasks.add_task(enrichment_service.execute_webhook_background, result)
+        
+        return CompanyEnrichSuccessResponse(
+            enrichment_run_id=result["run_id"],
+            total=result["total"],
+            sent=result["total"],  # Retrocompatibilidad con frontend React: asume que todo se envía
+            invalid=0,
+        )
     except ToolValidationErrorException as e:
         return Response(
             content=e.error.model_dump_json(),

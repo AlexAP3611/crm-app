@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy import select, func, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -255,6 +255,7 @@ async def delete_contact(contact_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/enrich", response_model=ContactEnrichSuccessResponse)
 async def enrich_contacts(
     request: ContactEnrichRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -271,11 +272,21 @@ async def enrich_contacts(
         all=getattr(request, 'all', False)
     )
     try:
-        res = await integration_service.execute_contact_tool(db, tool_req, user_id=current_user.id)
+        result = await integration_service.prepare_contact_tool(db, tool_req, user_id=current_user.id)
+        if result.get("status") == "idempotency":
+            res = result["response"]
+            return ContactEnrichSuccessResponse(
+                enrichment_run_id=res.run_id,
+                total=0,
+                sent=0
+            )
+        
+        background_tasks.add_task(integration_service.execute_contact_tool_background, result)
+        
         return ContactEnrichSuccessResponse(
-            enrichment_run_id=res.run_id,
-            total=0, # Legacy response doesn't match perfectly but it's deprecated
-            sent=0
+            enrichment_run_id=result["run_id"],
+            total=result["total"],
+            sent=result["total"]
         )
     except ToolValidationErrorException as e:
         return Response(
@@ -287,6 +298,7 @@ async def enrich_contacts(
 @router.post("/tools/execute", response_model=ToolExecutionResponse)
 async def execute_tool(
     request: ToolExecutionRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -295,7 +307,17 @@ async def execute_tool(
     Direction-agnostic (Inbound/Outbound).
     """
     try:
-        return await integration_service.execute_contact_tool(db, request, user_id=current_user.id)
+        result = await integration_service.prepare_contact_tool(db, request, user_id=current_user.id)
+        if result.get("status") == "idempotency":
+            return result["response"]
+        
+        background_tasks.add_task(integration_service.execute_contact_tool_background, result)
+        
+        return ToolExecutionResponse(
+            run_id=result["run_id"],
+            status="sent",
+            message="Ejecución de herramienta iniciada en segundo plano."
+        )
     except ToolValidationErrorException as e:
         return Response(
             content=e.error.model_dump_json(),
@@ -306,6 +328,7 @@ async def execute_tool(
 @router.post("/export/affino", response_model=ToolExecutionResponse)
 async def export_affino(
     request: AffinoExportRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -315,10 +338,20 @@ async def export_affino(
     """
     request.tool_key = ToolKey.AFFINO
     try:
-        return await integration_service.execute_contact_tool(
+        result = await integration_service.prepare_contact_tool(
             db, request,
             user_id=current_user.id,
             account_id=request.account_id,
+        )
+        if result.get("status") == "idempotency":
+            return result["response"]
+        
+        background_tasks.add_task(integration_service.execute_contact_tool_background, result)
+        
+        return ToolExecutionResponse(
+            run_id=result["run_id"],
+            status="sent",
+            message="Exportación a Affino iniciada en segundo plano."
         )
     except ToolValidationErrorException as e:
         return Response(

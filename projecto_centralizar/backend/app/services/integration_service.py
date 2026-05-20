@@ -22,17 +22,17 @@ from app.schemas.tool import ToolExecutionRequest, ToolExecutionResponse, ToolKe
 
 logger = logging.getLogger(__name__)
 
-async def execute_contact_tool(
+
+async def prepare_contact_tool(
     db: AsyncSession,
     request: ToolExecutionRequest,
     user_id: Optional[int] = None,
     account_id: Optional[int] = None,
-) -> ToolExecutionResponse:
+) -> dict:
     """
-    Central Hub for executing external contact tools (Affino, etc.)
+    Phase 1 (synchronous): Validate request, log intent, and prepare payload & headers.
+    Returns context dict with ONLY serializable primitives for the background webhook task.
     """
-    start_time = time.time()
-    
     # 1. Resolve Contacts
     query = select(Contact).options(
         joinedload(Contact.empresa_rel).selectinload(Empresa.sectors),
@@ -70,11 +70,14 @@ async def execute_contact_tool(
     run_id = request.enrichment_run_id
     existing_log = await db.get(IntegrationLog, run_id)
     if existing_log:
-        return ToolExecutionResponse(
-            run_id=run_id,
-            status=existing_log.status,
-            message="Esta ejecución ya fue procesada anteriormente."
-        )
+        return {
+            "status": "idempotency",
+            "response": ToolExecutionResponse(
+                run_id=run_id,
+                status=existing_log.status,
+                message="Esta ejecución ya fue procesada anteriormente."
+            )
+        }
 
     # 3. Log Intent
     log_entry = IntegrationLog(
@@ -159,37 +162,89 @@ async def execute_contact_tool(
         await db.commit()
         raise HTTPException(status_code=501, detail=f"Mapeador no implementado para '{request.tool_key.value}'.")
 
-    # 7. Dispatch
-    try:
-        response = await webhook_client.send_payload(webhook_url, payload, request.tool_key.value, headers=headers)
-        duration = int((time.time() - start_time) * 1000)
-        
-        if response.is_success:
-            log_entry.status = "success"
-            log_entry.metrics = {
-                "total": len(contacts), 
-                "sent": len(contacts), 
-                "duration_ms": duration
-            }
-            await db.commit()
-            
-            return ToolExecutionResponse(
-                run_id=run_id,
-                status="success",
-                message=f"Ejecución de {request.tool_key.value} completada con éxito."
-            )
-        else:
-            log_entry.status = "failed"
-            log_entry.error_log = f"Webhook status {response.status_code}: {response.text[:500]}"
-            log_entry.metrics["duration_ms"] = duration
-            await db.commit()
-            raise HTTPException(status_code=424, detail=f"La herramienta {request.tool_key.value} falló (Status {response.status_code}).")
+    return {
+        "status": "queued",
+        "run_id": str(run_id),
+        "webhook_url": webhook_url,
+        "payload": payload,
+        "headers": headers,
+        "tool_key": request.tool_key.value,
+        "total": len(contacts),
+    }
 
-    except Exception as e:
-        if isinstance(e, HTTPException): raise e
-        duration = int((time.time() - start_time) * 1000)
-        log_entry.status = "failed"
-        log_entry.error_log = f"Execution error: {str(e)}"
-        log_entry.metrics["duration_ms"] = duration
-        await db.commit()
-        raise HTTPException(status_code=500, detail=f"Error al ejecutar la herramienta: {str(e)}")
+
+async def execute_contact_tool_background(context: dict) -> None:
+    """
+    Phase 1 (background): Execute webhook and update DB states in background.
+    Uses a clean AsyncSessionLocal to load and update logs, preventing DetachedInstanceError.
+    """
+    from app.database import AsyncSessionLocal
+    from app.models.enrichment_log import IntegrationLog
+    import time
+
+    start_time = time.time()
+    async with AsyncSessionLocal() as db:
+        try:
+            response = await webhook_client.send_payload(
+                context["webhook_url"],
+                context["payload"],
+                context["tool_key"],
+                headers=context["headers"]
+            )
+            duration = int((time.time() - start_time) * 1000)
+            
+            log_entry = await db.get(IntegrationLog, UUID(context["run_id"]))
+            if log_entry:
+                if response.is_success:
+                    log_entry.status = "sent"
+                    log_entry.metrics = {
+                        "total": context["total"],
+                        "sent": context["total"],
+                        "duration_ms": duration
+                    }
+                else:
+                    log_entry.status = "failed"
+                    log_entry.error_log = f"Webhook status {response.status_code}: {response.text[:500]}"
+                    log_entry.metrics = {
+                        "total": context["total"],
+                        "sent": 0,
+                        "duration_ms": duration
+                    }
+                await db.commit()
+        except Exception as e:
+            logger.error(f"Error in execute_contact_tool_background for run {context.get('run_id')}: {e}", exc_info=True)
+            duration = int((time.time() - start_time) * 1000)
+            try:
+                log_entry = await db.get(IntegrationLog, UUID(context["run_id"]))
+                if log_entry:
+                    log_entry.status = "failed"
+                    log_entry.error_log = f"Internal background exception: {str(e)}"
+                    if log_entry.metrics:
+                        log_entry.metrics["duration_ms"] = duration
+                await db.commit()
+            except Exception as db_err:
+                logger.error(f"Could not write failure state to DB in execute_contact_tool_background: {db_err}", exc_info=True)
+        finally:
+            await db.close()
+
+
+async def execute_contact_tool(
+    db: AsyncSession,
+    request: ToolExecutionRequest,
+    user_id: Optional[int] = None,
+    account_id: Optional[int] = None,
+) -> ToolExecutionResponse:
+    """
+    Synchronous fallback wrapper for executing external contact tools.
+    """
+    res = await prepare_contact_tool(db, request, user_id=user_id, account_id=account_id)
+    if res.get("status") == "idempotency":
+        return res["response"]
+    
+    # We call background logic directly in sync context
+    await execute_contact_tool_background(res)
+    return ToolExecutionResponse(
+        run_id=request.enrichment_run_id,
+        status="sent",
+        message="Ejecución iniciada con éxito (síncrona)."
+    )

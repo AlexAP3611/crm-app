@@ -36,3 +36,22 @@ Este documento registra las decisiones técnicas clave tomadas durante el desarr
 **Contexto:** Diferentes actores consumen la API: usuarios humanos (vía React SPA), integraciones legacy, y automatizaciones backend-to-backend (n8n).
 **Decisión:** Soportar JWT (para SPA), Session Cookies (fallback/legacy) y API Keys (para system accounts).
 **Motivación:** Mantiene la seguridad estricta para usuarios humanos (JWT expira rápido) mientras simplifica la vida a las automatizaciones (API Key de larga duración) sin necesidad de tener middlewares separados o puertos diferentes.
+
+## 8. Resolución de la Deuda Técnica: Flujo de Enriquecimiento (Trigger-Callback)
+**Contexto:** Los tres problemas de diseño identificados originalmente en el pipeline de enriquecimiento han sido resueltos de forma definitiva con una arquitectura asíncrona robusta y desacoplada:
+
+1. **Desbloqueo de Conexiones (Background Tasks):** El endpoint `/api/empresas/enrich` y los endpoints de herramientas de contactos en `/api/contacts` han sido desacoplados del webhook HTTP externo. Ahora, validan la solicitud, registran la intención en `enrichment_logs` de forma persistente, actualizan el estado visual síncronamente (para retrocompatibilidad total del frontend) y responden `202 Accepted` de inmediato. La llamada real al webhook se delega a `FastAPI BackgroundTasks` utilizando un contexto serializable de tipos primitivos (evitando `DetachedInstanceError`) y abriendo su propia sesión limpia de BD (`AsyncSessionLocal()`).
+2. **Sincronización del Estado con `enrichment_run_id`:** Se modificó el esquema `IngestRequest` del callback `/api/enrichment/ingest` para incluir un campo opcional `enrichment_run_id`. Si se proporciona, el servicio `bulk_ingest` localiza el registro de auditoría en la tabla `enrichment_logs` y actualiza su estado a `"completed"` junto con las métricas detalladas de procesamiento de empresas y contactos.
+3. **Expiración de Ejecuciones Atascadas ("Stuck in sent"):**
+   - **Timeout de Configuración:** Se introdujo la variable `ENRICHMENT_TIMEOUT_MINUTES` en `Settings` (por defecto `180` minutos / 3 horas).
+   - **Lógica de Expiración:** El servicio `expire_stale_runs` busca ejecuciones en estado `"pending"` o `"sent"` que hayan superado el timeout, marca el log como `"expired"` y libera a las empresas bloqueadas reseteando su `enrichment_status` a `None`.
+   - **Ejecución Standalone & Endpoints:** Se implementó un endpoint de administración `POST /api/system/expire-enrichments` para activarla de forma manual, y un script standalone ejecutable por cron en `scripts/expire_enrichments.py`.
+   - **Política de Descarte de Callbacks Tardíos:** Si un callback llega después de que una ejecución haya sido marcada como `"expired"`, el servicio `bulk_ingest` descarta deliberadamente el procesamiento de los datos recibidos de manera segura para prevenir inconsistencias de estado, registrando una advertencia detallada en los logs del servidor.
+
+
+## 9. Normalización de Competidores (Tabla Relacionada)
+**Contexto:** Originalmente, las empresas tenían tres campos planos para competidores: `web_competidor_1`, `web_competidor_2`, y `web_competidor_3` en la propia tabla `empresas`. Esto limitaba la estructura, dificultaba validar o enriquecer datos de competidores adicionales de forma homogénea (por ejemplo, URLs de redes sociales asociadas a cada competidor), y contaminaba la tabla principal de empresas con columnas específicas y rígidas.
+**Decisión:** Eliminar las columnas planas de competidores de la tabla `empresas` y crear una tabla normalizada `competidores` con una relación uno-a-muchos (máximo 3 competidores por empresa, identificados de forma única por la clave compuesta `(empresa_id, posicion)`). Cada competidor registra campos individuales (`web` y `facebook`).
+**Motivación:** 
+- **Flexibilidad y Normalización:** Separa la entidad competidor en su propia estructura de base de datos, permitiendo almacenar múltiples canales de información por competidor (por ejemplo, `facebook` y `web` simultáneamente) sin añadir decenas de columnas dispersas en la tabla `empresas`.
+- **Compatibilidad e Integridad:** Los pipelines de importación y exportación CSV/Excel se adaptaron para aplanar/mapear dinámicamente esta relación uno-a-muchos, garantizando la compatibilidad round-trip sin alterar el flujo de trabajo del usuario. Las validaciones de negocio (como las reglas de Adscore) y exportaciones/importaciones ahora operan sobre esta relación limpia.

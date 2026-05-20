@@ -33,5 +33,10 @@ class Settings(BaseSettings):
     # TODO: ajustar según necesidades del negocio
     LOG_RETENTION_DAYS: int = 90
 
+    # ── Enriquecimiento — Timeout de ejecuciones ──
+    # Minutos máximos que una ejecución de enriquecimiento puede estar en estado
+    # "pending" o "sent" antes de ser expirada automáticamente.
+    ENRICHMENT_TIMEOUT_MINUTES: int = 180
+
 
 settings = Settings()
